@@ -5,10 +5,27 @@ import {
   CheckCircle2, ChevronDown, X
 } from 'lucide-react';
 import { clsx } from 'clsx';
-import { useTheme, THEME_COLORS } from '../context/ThemeContext';
+import { useTheme, THEME_COLORS, THEME_FONTS, THEME_SIZES } from '../context/ThemeContext';
 
 const SettingsPage: React.FC = () => {
-  const { theme, setTheme, primaryColor, setPrimaryColor } = useTheme();
+  const { theme, setTheme, primaryColor, setPrimaryColor, font, setFont, fontSize, setFontSize } = useTheme();
+  const [isFontDropdownOpen, setIsFontDropdownOpen] = React.useState(false);
+  const [isSizeDropdownOpen, setIsSizeDropdownOpen] = React.useState(false);
+  const fontDropdownRef = React.useRef<HTMLDivElement>(null);
+  const sizeDropdownRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (fontDropdownRef.current && !fontDropdownRef.current.contains(event.target as Node)) {
+        setIsFontDropdownOpen(false);
+      }
+      if (sizeDropdownRef.current && !sizeDropdownRef.current.contains(event.target as Node)) {
+        setIsSizeDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full pb-10">
@@ -32,6 +49,8 @@ const SettingsPage: React.FC = () => {
             onClick={() => {
               setTheme('system');
               setPrimaryColor('Xanh dương');
+              setFont('Inter');
+              setFontSize('medium');
             }}
             className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border bg-card text-[13px] font-bold text-foreground hover:bg-muted transition-all shadow-sm"
           >
@@ -43,8 +62,8 @@ const SettingsPage: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Main Appearance Section */}
-        <div className="lg:col-span-2 bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
-          <div className="px-6 py-4 border-b border-border bg-muted/30 flex items-center gap-2">
+        <div className="lg:col-span-2 bg-card rounded-2xl border border-border shadow-sm">
+          <div className="px-6 py-4 border-b border-border bg-muted/30 flex items-center gap-2 rounded-t-2xl">
             <Palette size={18} className="text-primary" />
             <h2 className="text-[14px] font-bold text-foreground">Giao diện & Hiển thị</h2>
           </div>
@@ -112,15 +131,57 @@ const SettingsPage: React.FC = () => {
                   <Type size={14} className="text-muted-foreground" />
                   Kiểu chữ
                 </h3>
-                <div className="relative group">
-                  <button className="w-full flex items-center justify-between px-4 py-2.5 bg-muted/20 border border-border rounded-xl text-[14px] text-foreground font-medium hover:border-primary/30 transition-all">
-                    <span>Inter</span>
+                <div className="relative" ref={fontDropdownRef}>
+                  <button 
+                    onClick={() => {
+                      setIsFontDropdownOpen(!isFontDropdownOpen);
+                      setIsSizeDropdownOpen(false);
+                    }}
+                    className={clsx(
+                      "w-full flex items-center justify-between px-4 py-2.5 bg-muted/20 border rounded-xl text-[14px] text-foreground font-medium transition-all",
+                      isFontDropdownOpen ? "border-primary ring-2 ring-primary/10 shadow-sm" : "border-border hover:border-primary/30"
+                    )}
+                  >
+                    <span style={{ fontFamily: font }}>{font}</span>
                     <div className="flex items-center gap-2 text-muted-foreground">
-                      <X size={14} className="hover:text-foreground" />
+                      <X 
+                        size={14} 
+                        className="hover:text-foreground cursor-pointer" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFont('Inter');
+                        }}
+                      />
                       <div className="w-[1px] h-4 bg-border" />
-                      <ChevronDown size={14} />
+                      <ChevronDown size={14} className={clsx("transition-transform", isFontDropdownOpen && "rotate-180")} />
                     </div>
                   </button>
+
+                  {isFontDropdownOpen && (
+                    <div className="absolute top-full mt-2 left-0 right-0 bg-card border border-border shadow-xl rounded-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-200">
+                      <div className="max-h-[280px] overflow-y-auto px-1 custom-scrollbar">
+                        {THEME_FONTS.map((f) => (
+                          <button
+                            key={f.id}
+                            onClick={() => {
+                              setFont(f.id);
+                              setIsFontDropdownOpen(false);
+                            }}
+                            className={clsx(
+                              "w-full text-left px-4 py-3 rounded-lg transition-colors group",
+                              font === f.id ? "bg-primary/5 text-primary" : "hover:bg-muted"
+                            )}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span style={{ fontFamily: f.id }} className="text-[15px] font-semibold">{f.name}</span>
+                              {font === f.id && <CheckCircle2 size={16} className="text-primary" />}
+                            </div>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 group-hover:text-muted-foreground/80">{f.description}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="space-y-4">
@@ -129,27 +190,71 @@ const SettingsPage: React.FC = () => {
                   Kích thước văn bản
                 </h3>
                 <div className="space-y-3">
-                  <button className="w-full flex items-center justify-between px-4 py-2.5 bg-muted/20 border border-border rounded-xl text-[14px] text-foreground font-medium">
-                    <span>Trung bình</span>
+                <div className="relative" ref={sizeDropdownRef}>
+                  <button 
+                    onClick={() => {
+                      setIsSizeDropdownOpen(!isSizeDropdownOpen);
+                      setIsFontDropdownOpen(false);
+                    }}
+                    className={clsx(
+                      "w-full flex items-center justify-between px-4 py-2.5 bg-muted/20 border rounded-xl text-[14px] text-foreground font-medium transition-all",
+                      isSizeDropdownOpen ? "border-primary ring-2 ring-primary/10 shadow-sm" : "border-border hover:border-primary/30"
+                    )}
+                  >
+                    <span>{THEME_SIZES.find(s => s.id === fontSize)?.name}</span>
                     <div className="flex items-center gap-2 text-muted-foreground">
-                      <X size={14} />
+                      <X 
+                        size={14} 
+                        className="hover:text-foreground cursor-pointer" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFontSize('medium');
+                        }}
+                      />
                       <div className="w-[1px] h-4 bg-border" />
-                      <ChevronDown size={14} />
+                      <ChevronDown size={14} className={clsx("transition-transform", isSizeDropdownOpen && "rotate-180")} />
                     </div>
                   </button>
-                  <div className="p-4 bg-muted/30 rounded-xl border border-dashed border-border">
-                    <p className="text-[14px] text-muted-foreground text-center">Đây là kích thước chữ mẫu.</p>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground/60 italic px-1">Ảnh hưởng đến cỡ chữ hiển thị trên toàn hệ thống.</p>
+
+                  {isSizeDropdownOpen && (
+                    <div className="absolute top-full mt-2 left-0 right-0 bg-card border border-border shadow-xl rounded-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-200">
+                      <div className="px-1">
+                        {THEME_SIZES.map((s) => (
+                          <button
+                            key={s.id}
+                            onClick={() => {
+                              setFontSize(s.id);
+                              setIsSizeDropdownOpen(false);
+                            }}
+                            className={clsx(
+                              "w-full text-left px-4 py-3 rounded-lg transition-colors group",
+                              fontSize === s.id ? "bg-primary/5 text-primary" : "hover:bg-muted"
+                            )}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-[14px] font-semibold">{s.name}</span>
+                              {fontSize === s.id && <CheckCircle2 size={16} className="text-primary" />}
+                            </div>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 group-hover:text-muted-foreground/80">{s.description}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
+                <div className="p-4 bg-muted/30 rounded-xl border border-dashed border-border transition-all">
+                  <p className="text-muted-foreground text-center" style={{ fontFamily: font }}>Đây là kiểu chữ mẫu được áp dụng.</p>
+                </div>
+                <p className="text-[11px] text-muted-foreground/60 italic px-1">Ảnh hưởng đến kích thước hiển thị trên toàn hệ thống.</p>
+              </div>
               </div>
             </div>
           </div>
         </div>
 
         {/* Regional Settings */}
-        <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
-          <div className="px-6 py-4 border-b border-border bg-muted/30 flex items-center gap-2">
+        <div className="bg-card rounded-2xl border border-border shadow-sm">
+          <div className="px-6 py-4 border-b border-border bg-muted/30 flex items-center gap-2 rounded-t-2xl">
             <Globe size={18} className="text-primary" />
             <h2 className="text-[14px] font-bold text-foreground">Cấu hình vùng</h2>
           </div>
@@ -186,8 +291,8 @@ const SettingsPage: React.FC = () => {
         </div>
 
         {/* Notification Settings */}
-        <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm relative">
-          <div className="px-6 py-4 border-b border-border bg-muted/30 flex items-center justify-between">
+        <div className="bg-card rounded-2xl border border-border shadow-sm relative">
+          <div className="px-6 py-4 border-b border-border bg-muted/30 flex items-center justify-between rounded-t-2xl">
             <div className="flex items-center gap-2">
               <Bell size={18} className="text-primary" />
               <h2 className="text-[14px] font-bold text-foreground">Thông báo</h2>
