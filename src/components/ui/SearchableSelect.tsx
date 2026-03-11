@@ -1,7 +1,7 @@
 import * as React from "react"
 import { Check, ChevronDown, Search, X } from "lucide-react"
 
-import { cn } from "d:/congluong-full/congluong/f-solution-app/src/lib/utils"
+import { cn } from "../../lib/utils"
 import {
   Command,
   CommandEmpty,
@@ -9,12 +9,12 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "d:/congluong-full/congluong/f-solution-app/src/components/ui/command"
+} from "./command"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "d:/congluong-full/congluong/f-solution-app/src/components/ui/popover"
+} from "./popover"
 
 interface Option {
   value: string
