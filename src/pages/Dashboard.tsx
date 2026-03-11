@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { ActionCard } from '../components/ui/ActionCard';
 import type { ActionCardProps } from '../components/ui/ActionCard';
-import { FileText, Users, Megaphone, Wallet, ShoppingCart, Box, Layers, Bot, Copyright } from 'lucide-react';
+import { FileText, Users, Megaphone, Wallet, ShoppingCart, Box, Layers, Bot, Copyright, Search } from 'lucide-react';
 import { clsx } from 'clsx';
+import { moduleData } from '../data/moduleData';
+import { ModuleCard } from '../components/ui/ModuleCard';
 
 const dashboardModules: ActionCardProps[] = [
   {
@@ -72,6 +74,9 @@ const dashboardModules: ActionCardProps[] = [
 
 const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'chuc-nang' | 'danh-dau' | 'tat-ca'>('chuc-nang');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const allSections = Object.values(moduleData).flat();
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -81,40 +86,60 @@ const Dashboard: React.FC = () => {
         </h1>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-border p-1.5 flex flex-wrap gap-1 mb-6 lg:mb-8 max-w-fit">
-        <button
-          onClick={() => setActiveTab('chuc-nang')}
-          className={clsx(
-            "px-4 py-1.5 rounded-lg text-[13px] font-medium transition-all duration-200",
-            activeTab === 'chuc-nang'
-              ? "bg-primary/10 text-primary shadow-sm"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
-        >
-          Chức năng
-        </button>
-        <button
-          onClick={() => setActiveTab('danh-dau')}
-          className={clsx(
-            "px-4 py-1.5 rounded-lg text-[13px] font-medium transition-all duration-200",
-            activeTab === 'danh-dau'
-              ? "bg-primary/10 text-primary shadow-sm"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
-        >
-          Đánh dấu
-        </button>
-        <button
-          onClick={() => setActiveTab('tat-ca')}
-          className={clsx(
-            "px-4 py-1.5 rounded-lg text-[13px] font-medium transition-all duration-200",
-            activeTab === 'tat-ca'
-              ? "bg-primary/10 text-primary shadow-sm"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
-        >
-          Tất cả
-        </button>
+      <div className={clsx(
+        "bg-white rounded-xl shadow-sm border border-border p-1.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6 lg:mb-8 transition-all duration-300",
+        activeTab === 'tat-ca' ? "w-full" : "max-w-fit"
+      )}>
+        <div className="flex bg-muted/20 rounded-lg p-0.5 shrink-0">
+          <button
+            onClick={() => setActiveTab('chuc-nang')}
+            className={clsx(
+              "px-4 py-1.5 rounded-md text-[13px] font-medium transition-all duration-200",
+              activeTab === 'chuc-nang'
+                ? "bg-white text-primary shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Chức năng
+          </button>
+          <button
+            onClick={() => setActiveTab('danh-dau')}
+            className={clsx(
+              "px-4 py-1.5 rounded-md text-[13px] font-medium transition-all duration-200",
+              activeTab === 'danh-dau'
+                ? "bg-white text-primary shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Đánh dấu
+          </button>
+          <button
+            onClick={() => setActiveTab('tat-ca')}
+            className={clsx(
+              "px-4 py-1.5 rounded-md text-[13px] font-medium transition-all duration-200",
+              activeTab === 'tat-ca'
+                ? "bg-white text-primary shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Tất cả
+          </button>
+        </div>
+
+        {activeTab === 'tat-ca' && (
+          <div className="relative flex-1 animate-in fade-in slide-in-from-left-2 duration-300">
+            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-muted-foreground">
+              <Search size={16} />
+            </div>
+            <input
+              type="text"
+              className="w-full text-[13px] bg-transparent border border-border rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-muted-foreground/60"
+              placeholder="Tìm module theo tên hoặc mô tả..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        )}
       </div>
 
       {activeTab === 'chuc-nang' && (
@@ -135,13 +160,35 @@ const Dashboard: React.FC = () => {
       )}
 
       {activeTab === 'tat-ca' && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-5 opacity-70">
-          {dashboardModules.map((module, idx) => (
-            <ActionCard
-              key={idx}
-              {...module}
-            />
-          ))}
+        <div className="space-y-8 animate-in fade-in duration-500">
+          <div className="space-y-8">
+            {allSections.map((section, idx) => {
+              const filteredItems = section.items.filter(item => 
+                item.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                item.description.toLowerCase().includes(searchQuery.toLowerCase())
+              );
+
+              if (filteredItems.length === 0) return null;
+
+              return (
+                <div key={idx} className="animate-in fade-in slide-in-from-bottom-2 duration-500" style={{ animationDelay: `${idx * 50}ms` }}>
+                  <h2 className="text-[14px] font-bold text-primary mb-3 flex items-center gap-3">
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="w-1 h-4 bg-primary rounded-full"></span>
+                      <span>{section.section}</span>
+                    </div>
+                    <div className="h-px flex-1 bg-border/60"></div>
+                  </h2>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    {filteredItems.map((item, itemIdx) => (
+                      <ModuleCard key={itemIdx} {...item} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
