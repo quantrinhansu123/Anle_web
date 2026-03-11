@@ -1,8 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Clock, Calendar, CheckCheck, Trash2, ChevronRight, Info, AlertTriangle, CheckCircle2, Home, PanelLeft, PanelLeftClose } from 'lucide-react';
-import { useLocation, Link } from 'react-router-dom';
+import { 
+  Bell, Clock, Calendar, CheckCheck, Trash2, ChevronRight, 
+  Info, AlertTriangle, CheckCircle2, Home, PanelLeft, 
+  PanelLeftClose, User, Settings, LogOut, ChevronDown 
+} from 'lucide-react';
+import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { sidebarMenu, extraMenuItems } from '../../data/sidebarMenu';
 import { clsx } from 'clsx';
+import { useTheme } from '../../context/ThemeContext';
 
 interface Notification {
   id: string;
@@ -89,16 +94,24 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
   const [time, setTime] = useState(new Date());
   const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const notificationDropdownRef = useRef<HTMLDivElement>(null);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { avatar } = useTheme();
+
+  const defaultAvatar = "https://ui-avatars.com/api/?name=Le+Minh+Cong&background=random&color=random";
+  const userAvatar = avatar || defaultAvatar;
+
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
   const displayNotifications = isExpanded ? notifications : notifications.slice(0, 5);
   const hasMore = notifications.length > 5;
 
   // Find current page title
-  const allMenuItems = [...sidebarMenu, ...extraMenuItems];
+  const allMenuItems = [...sidebarMenu, ...extraMenuItems, { path: '/ho-so', label: 'Hồ sơ cá nhân' }];
   const currentItem = allMenuItems.find(item => item.path === location.pathname);
   const pageTitle = currentItem?.label || 'Trang chủ';
 
@@ -110,9 +123,12 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (notificationDropdownRef.current && !notificationDropdownRef.current.contains(event.target as Node)) {
         setShowNotifications(false);
         setIsExpanded(false);
+      }
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
+        setShowUserDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -218,9 +234,12 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
         </div>
 
         {/* Notifications */}
-        <div className="relative" ref={dropdownRef}>
+        <div className="relative" ref={notificationDropdownRef}>
           <button
-            onClick={() => setShowNotifications(!showNotifications)}
+            onClick={() => {
+              setShowNotifications(!showNotifications);
+              setShowUserDropdown(false);
+            }}
             className={clsx(
               "relative p-2 text-muted-foreground hover:bg-accent rounded-full transition-colors",
               showNotifications && "bg-accent text-primary"
@@ -228,7 +247,7 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
           >
             <Bell size={20} />
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-4 h-4 bg-primary text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white">
+              <span className="absolute top-1 right-1 w-4 h-4 bg-primary text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-card">
                 {unreadCount}
               </span>
             )}
@@ -335,17 +354,80 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
         </div>
 
         {/* User Profile */}
-        <div className="flex items-center gap-3 pl-2 sm:pl-4 sm:border-l border-border cursor-pointer">
-          <div className="relative">
-            <div className="w-8 h-8 rounded-full bg-amber-400 font-bold text-amber-900 flex items-center justify-center text-sm">
-              LC
+        <div className="relative" ref={userDropdownRef}>
+          <div 
+            onClick={() => {
+              setShowUserDropdown(!showUserDropdown);
+              setShowNotifications(false);
+            }}
+            className={clsx(
+              "flex items-center gap-3 pl-2 sm:pl-4 sm:border-l border-border cursor-pointer group transition-all duration-200",
+              showUserDropdown && "opacity-80"
+            )}
+          >
+            <div className="relative">
+              <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center overflow-hidden shadow-sm shadow-primary/5">
+                <img 
+                  src={userAvatar} 
+                  alt="Avatar"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-card shadow-sm shadow-emerald-500/50"></div>
             </div>
-            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white"></div>
+            <div className="hidden sm:flex flex-col">
+              <div className="flex items-center gap-1">
+                <span className="text-[13px] font-bold leading-tight text-foreground group-hover:text-primary transition-colors">Lê Minh Công</span>
+                <ChevronDown size={12} className={clsx("text-muted-foreground transition-transform duration-200", showUserDropdown && "rotate-180")} />
+              </div>
+              <span className="text-[10px] text-muted-foreground leading-tight font-medium">Quản trị viên (Admin)</span>
+            </div>
           </div>
-          <div className="hidden sm:flex flex-col">
-            <span className="text-sm font-semibold leading-tight text-foreground">Lê Minh Công</span>
-            <span className="text-xs text-muted-foreground leading-tight">Admin</span>
-          </div>
+
+          {/* User Dropdown Menu */}
+          {showUserDropdown && (
+            <div className="absolute right-0 mt-3 w-56 bg-card rounded-xl shadow-2xl border border-border overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+              <div className="p-1.5 space-y-0.5">
+                <button 
+                  onClick={() => {
+                    navigate('/ho-so');
+                    setShowUserDropdown(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-all duration-200"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-primary/5 flex items-center justify-center text-primary/70">
+                    <User size={18} />
+                  </div>
+                  <span className="text-[13px] font-semibold">Hồ sơ cá nhân</span>
+                </button>
+                
+                <button 
+                  onClick={() => {
+                    navigate('/cai-dat');
+                    setShowUserDropdown(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-all duration-200"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-primary/5 flex items-center justify-center text-primary/70">
+                    <Settings size={18} />
+                  </div>
+                  <span className="text-[13px] font-semibold">Cài đặt hệ thống</span>
+                </button>
+
+                <div className="my-1 border-t border-border/50" />
+
+                <button 
+                  onClick={() => setShowUserDropdown(false)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-all duration-200"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-red-500/5 flex items-center justify-center">
+                    <LogOut size={18} />
+                  </div>
+                  <span className="text-[13px] font-bold">Đăng xuất</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </header>

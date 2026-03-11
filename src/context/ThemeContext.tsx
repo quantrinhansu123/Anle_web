@@ -37,6 +37,8 @@ interface ThemeContextType {
   setFont: (font: string) => void;
   fontSize: string;
   setFontSize: (size: string) => void;
+  avatar: string;
+  setAvatar: (avatar: string) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -56,6 +58,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [fontSize, setFontSize] = useState<string>(() => {
     return localStorage.getItem('fontSize') || 'medium';
+  });
+
+  const [avatar, setAvatar] = useState<string>(() => {
+    return localStorage.getItem('userAvatar') || '';
   });
 
   useEffect(() => {
@@ -96,6 +102,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem('fontSize', fontSize);
   }, [fontSize]);
 
+  // Handle avatar change
+  useEffect(() => {
+    if (avatar) {
+      localStorage.setItem('userAvatar', avatar);
+    }
+  }, [avatar]);
+
   // Listen for system changes
   useEffect(() => {
     if (theme !== 'system') return;
@@ -116,7 +129,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       theme, setTheme, 
       primaryColor, setPrimaryColor, 
       font, setFont,
-      fontSize, setFontSize
+      fontSize, setFontSize,
+      avatar, setAvatar
     }}>
       {children}
     </ThemeContext.Provider>

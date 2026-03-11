@@ -5,6 +5,7 @@ import ModulePage from './pages/ModulePage';
 import AIPage from './pages/AIPage';
 import CopyrightPage from './pages/CopyrightPage';
 import SettingsPage from './pages/SettingsPage';
+import ProfilePage from './pages/ProfilePage';
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
       <Routes>
         <Route element={<MainLayout />}>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/ho-so" element={<ProfilePage />} />
           <Route path="/hanh-chinh" element={<ModulePage />} />
           <Route path="/nhan-su" element={<ModulePage />} />
           <Route path="/kinh-doanh" element={<ModulePage />} />
