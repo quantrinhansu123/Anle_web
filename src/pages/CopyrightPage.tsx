@@ -19,8 +19,8 @@ const CopyrightPage: React.FC = () => {
         {/* Left Column */}
         <div className="lg:col-span-2 space-y-6">
           {/* Section 1: Developer Info */}
-          <div className="bg-white rounded-2xl border border-border overflow-hidden shadow-sm">
-            <div className="px-6 py-4 border-b border-border bg-slate-50/50 flex items-center gap-2">
+          <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
+            <div className="px-6 py-4 border-b border-border bg-muted/30 flex items-center gap-2">
               <Building2 size={18} className="text-primary" />
               <h2 className="text-[13px] font-bold text-primary uppercase tracking-wider">Đơn vị xây dựng & phát triển</h2>
             </div>
@@ -53,8 +53,8 @@ const CopyrightPage: React.FC = () => {
           </div>
 
           {/* Section 2: Permissions & Security */}
-          <div className="bg-white rounded-2xl border border-border overflow-hidden shadow-sm">
-            <div className="px-6 py-4 border-b border-border bg-slate-50/50 flex items-center gap-2">
+          <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
+            <div className="px-6 py-4 border-b border-border bg-muted/30 flex items-center gap-2">
               <ShieldCheck size={18} className="text-primary" />
               <h2 className="text-[13px] font-bold text-primary uppercase tracking-wider">Quyền hạn & bảo mật</h2>
             </div>
@@ -78,7 +78,7 @@ const CopyrightPage: React.FC = () => {
                 <li className="flex items-center gap-2 text-[14px]">
                   <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                   <span className="text-muted-foreground">Trạng thái:</span>
-                  <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded text-[12px]">Đã đăng ký bản quyền tại Cục Sở hữu trí tuệ</span>
+                  <span className="font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded text-[12px]">Đã đăng ký bản quyền tại Cục Sở hữu trí tuệ</span>
                 </li>
               </ul>
 
@@ -92,7 +92,7 @@ const CopyrightPage: React.FC = () => {
         {/* Right Column */}
         <div className="space-y-6">
           {/* Social Links */}
-          <div className="bg-white rounded-2xl border border-border p-5 shadow-sm">
+          <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
             <h2 className="text-[13px] font-bold text-foreground uppercase tracking-wider mb-4">Liên kết cộng đồng</h2>
             <div className="space-y-2">
               {[
@@ -102,7 +102,7 @@ const CopyrightPage: React.FC = () => {
                 { icon: MessageCircle, label: 'Cộng đồng Zalo' },
                 { icon: Video, label: 'Kênh TikTok' },
               ].map((item, idx) => (
-                <button key={idx} className="w-full flex items-center justify-between p-3 rounded-xl border border-border bg-slate-50/30 hover:bg-slate-50 hover:border-primary/30 transition-all group">
+                <button key={idx} className="w-full flex items-center justify-between p-3 rounded-xl border border-border bg-muted/30 hover:bg-muted hover:border-primary/30 transition-all group">
                   <div className="flex items-center gap-3">
                     <item.icon size={18} className="text-muted-foreground group-hover:text-primary transition-colors" />
                     <span className="text-[13px] font-medium text-foreground">{item.label}</span>
@@ -148,7 +148,7 @@ const ContactCard = ({ title, name, role, phone, email }: { title: string, name:
       <p>Email: {email}</p>
     </div>
     <div className="space-y-2">
-      <button className="w-full py-2 bg-white text-primary text-[13px] font-bold rounded-lg hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
+      <button className="w-full py-2 bg-white text-primary text-[13px] font-bold rounded-lg hover:bg-white/90 transition-colors flex items-center justify-center gap-2">
         <Mail size={16} />
         Email
       </button>

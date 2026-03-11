@@ -36,7 +36,7 @@ export const ActionCard: React.FC<ActionCardProps> = ({
   return (
     <Link
       to={href}
-      className="group relative block bg-white rounded-[24px] p-6 transition-all duration-300 hover:shadow-xl border border-border hover:border-primary/20 hover:-translate-y-1"
+      className="group relative block bg-card rounded-[24px] p-6 transition-all duration-300 hover:shadow-xl border border-border hover:border-primary/20 hover:-translate-y-1"
     >
       {/* Hover Arrow Icon */}
       <div className="absolute top-3 right-3 w-7 h-7 bg-primary/5 rounded-full flex items-center justify-center text-primary opacity-0 -translate-x-2 translate-y-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0 group-hover:translate-y-0">

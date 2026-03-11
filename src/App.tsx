@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import ModulePage from './pages/ModulePage';
 import AIPage from './pages/AIPage';
 import CopyrightPage from './pages/CopyrightPage';
+import SettingsPage from './pages/SettingsPage';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
           <Route path="/he-thong" element={<ModulePage />} />
           <Route path="/tro-ly-ai" element={<AIPage />} />
           <Route path="/ban-quyen" element={<CopyrightPage />} />
+          <Route path="/cai-dat" element={<SettingsPage />} />
           
           {/* Fallback route */}
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -8,7 +8,8 @@ import {
   Box,
   Layers,
   Bot,
-  Copyright
+  Copyright,
+  Settings
 } from 'lucide-react';
 import React from 'react';
 
@@ -32,5 +33,6 @@ export const sidebarMenu: SidebarItem[] = [
 // Additional items seen on the dashboard
 export const extraMenuItems: SidebarItem[] = [
   { icon: Bot, label: 'Trợ lý AI', path: '/tro-ly-ai' },
-  { icon: Copyright, label: 'Thông tin bản quyền', path: '/ban-quyen' }
+  { icon: Copyright, label: 'Thông tin bản quyền', path: '/ban-quyen' },
+  { icon: Settings, label: 'Cài đặt', path: '/cai-dat' }
 ];

@@ -152,21 +152,21 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
   const getTypeStyles = (type: Notification['type'], isRead: boolean) => {
     if (isRead) return '';
     switch (type) {
-      case 'info': return 'border-l-4 border-l-blue-500 bg-blue-50/50';
-      case 'warning': return 'border-l-4 border-l-amber-500 bg-amber-50/50';
-      case 'success': return 'border-l-4 border-l-emerald-500 bg-emerald-50/50';
+      case 'info': return 'border-l-4 border-l-blue-500 bg-blue-500/10';
+      case 'warning': return 'border-l-4 border-l-amber-500 bg-amber-500/10';
+      case 'success': return 'border-l-4 border-l-emerald-500 bg-emerald-500/10';
     }
   };
 
   return (
-    <header className="h-[55px] bg-white border-b border-border flex items-center justify-between px-4 lg:px-6 z-30 sticky top-0">
+    <header className="h-[55px] bg-card border-b border-border flex items-center justify-between px-4 lg:px-6 z-30 sticky top-0">
       {/* Left side: Hamburger & Title */}
       <div className="flex items-center gap-2 lg:gap-2.5">
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-2 text-muted-foreground hover:bg-muted border border-border rounded-lg bg-white shadow-sm transition-colors shrink-0"
+          className="p-2 text-muted-foreground hover:bg-muted border border-border rounded-lg bg-card shadow-sm transition-colors shrink-0"
         >
-          {sidebarOpen ? <PanelLeftClose size={13} /> : <PanelLeft size={13} />}
+          {sidebarOpen ? <PanelLeftClose size={12} /> : <PanelLeft size={12} />}
         </button>
 
         <div className="hidden sm:flex items-center gap-2 lg:gap-2.5">
@@ -205,7 +205,7 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
       {/* Right side: Clock, Notifications, User */}
       <div className="flex items-center gap-3 sm:gap-4">
         {/* Clock & Date (Hidden on mobile) */}
-        <div className="hidden md:flex items-center bg-white border border-border shadow-sm px-4 py-1.5 rounded-full gap-3 text-[13px]">
+        <div className="hidden md:flex items-center bg-card border border-border shadow-sm px-4 py-1.5 rounded-full gap-3 text-[13px]">
           <div className="flex items-center gap-2">
             <Clock size={16} className="text-primary" />
             <span className="font-bold text-foreground tabular-nums">{formatTime(time)}</span>
@@ -236,9 +236,9 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
 
           {/* Dropdown */}
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-[350px] bg-white rounded-xl shadow-xl border border-border overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+            <div className="absolute right-0 mt-2 w-[350px] bg-card rounded-xl shadow-xl border border-border overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right">
               {/* Header */}
-              <div className="p-3 border-b border-border flex items-center justify-between bg-white sticky top-0 z-10">
+              <div className="p-3 border-b border-border flex items-center justify-between bg-card sticky top-0 z-10">
                 <div className="flex items-center gap-2">
                   <Bell size={16} className="text-primary" />
                   <h3 className="font-bold text-foreground text-[13px]">Thông báo</h3>

@@ -10,17 +10,17 @@ export interface ModuleCardProps {
 }
 
 const colorMap = {
-  red: 'bg-red-50 text-red-500',
-  green: 'bg-emerald-50 text-emerald-500',
-  pink: 'bg-pink-50 text-pink-500',
-  blue: 'bg-blue-50 text-blue-500',
-  orange: 'bg-orange-50 text-orange-500',
-  teal: 'bg-teal-50 text-teal-500',
-  purple: 'bg-purple-50 text-purple-500',
-  cyan: 'bg-cyan-50 text-cyan-500',
-  emerald: 'bg-emerald-50 text-emerald-500',
-  amber: 'bg-amber-50 text-amber-500',
-  slate: 'bg-slate-100 text-slate-500',
+  red: 'bg-red-500/10 text-red-500',
+  green: 'bg-emerald-500/10 text-emerald-500',
+  pink: 'bg-pink-500/10 text-pink-500',
+  blue: 'bg-blue-500/10 text-blue-500',
+  orange: 'bg-orange-500/10 text-orange-500',
+  teal: 'bg-teal-500/10 text-teal-500',
+  purple: 'bg-purple-500/10 text-purple-500',
+  cyan: 'bg-cyan-500/10 text-cyan-500',
+  emerald: 'bg-emerald-500/10 text-emerald-500',
+  amber: 'bg-amber-500/10 text-amber-500',
+  slate: 'bg-slate-500/10 text-slate-500',
 };
 
 export const ModuleCard: React.FC<ModuleCardProps> = ({
@@ -30,7 +30,7 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
   colorScheme
 }) => {
   return (
-    <div className="group flex items-center bg-white rounded-xl p-4 transition-all duration-300 border border-border hover:border-primary/30 hover:shadow-sm cursor-pointer hover:-translate-y-0.5">
+    <div className="group flex items-center bg-card rounded-xl p-4 transition-all duration-300 border border-border hover:border-primary/30 hover:shadow-sm cursor-pointer hover:-translate-y-0.5">
       <div 
         className={clsx(
           "w-11 h-11 rounded-xl flex items-center justify-center shrink-0 mr-3 transition-transform group-hover:scale-110",

@@ -87,16 +87,16 @@ const Dashboard: React.FC = () => {
       </div>
 
       <div className={clsx(
-        "bg-white rounded-xl shadow-sm border border-border p-1.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6 lg:mb-8 transition-all duration-300",
+        "bg-card rounded-xl shadow-sm border border-border p-1.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6 lg:mb-8 transition-all duration-300",
         activeTab === 'tat-ca' ? "w-full" : "max-w-fit"
       )}>
         <div className="flex bg-muted/20 rounded-lg p-0.5 shrink-0">
           <button
             onClick={() => setActiveTab('chuc-nang')}
             className={clsx(
-              "px-4 py-1.5 rounded-md text-[13px] font-medium transition-all duration-200",
-              activeTab === 'chuc-nang'
-                ? "bg-white text-primary shadow-sm"
+              "px-4 py-1.5 rounded-md text-[13px] font-bold transition-all duration-200",
+              activeTab === 'chuc-nang' 
+                ? "bg-card text-primary shadow-sm ring-1 ring-black/5" 
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -105,9 +105,9 @@ const Dashboard: React.FC = () => {
           <button
             onClick={() => setActiveTab('danh-dau')}
             className={clsx(
-              "px-4 py-1.5 rounded-md text-[13px] font-medium transition-all duration-200",
-              activeTab === 'danh-dau'
-                ? "bg-white text-primary shadow-sm"
+              "px-4 py-1.5 rounded-md text-[13px] font-bold transition-all duration-200",
+              activeTab === 'danh-dau' 
+                ? "bg-card text-primary shadow-sm ring-1 ring-black/5" 
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -116,9 +116,9 @@ const Dashboard: React.FC = () => {
           <button
             onClick={() => setActiveTab('tat-ca')}
             className={clsx(
-              "px-4 py-1.5 rounded-md text-[13px] font-medium transition-all duration-200",
-              activeTab === 'tat-ca'
-                ? "bg-white text-primary shadow-sm"
+              "px-4 py-1.5 rounded-md text-[13px] font-bold transition-all duration-200",
+              activeTab === 'tat-ca' 
+                ? "bg-card text-primary shadow-sm ring-1 ring-primary/10" 
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -126,15 +126,14 @@ const Dashboard: React.FC = () => {
           </button>
         </div>
 
+        {/* Search Bar (Only shown on "Tất cả" tab) */}
         {activeTab === 'tat-ca' && (
-          <div className="relative flex-1 animate-in fade-in slide-in-from-left-2 duration-300">
-            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-muted-foreground">
-              <Search size={16} />
-            </div>
+          <div className="flex-1 flex items-center bg-muted/20 rounded-lg px-3 py-1.5 animate-in slide-in-from-left-2 duration-300">
+            <Search size={16} className="text-muted-foreground shrink-0" />
             <input
               type="text"
-              className="w-full text-[13px] bg-transparent border border-border rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-muted-foreground/60"
-              placeholder="Tìm module theo tên hoặc mô tả..."
+              placeholder="Tìm kiếm module, chức năng..."
+              className="bg-transparent border-none outline-none text-[13px] text-foreground w-full ml-2 placeholder:text-muted-foreground/60"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -154,7 +153,7 @@ const Dashboard: React.FC = () => {
       )}
 
       {activeTab === 'danh-dau' && (
-        <div className="text-center py-12 text-muted-foreground bg-white rounded-2xl border border-border border-dashed">
+        <div className="text-center py-12 text-muted-foreground bg-card rounded-2xl border border-border border-dashed">
           Chưa có module nào được đánh dấu.
         </div>
       )}

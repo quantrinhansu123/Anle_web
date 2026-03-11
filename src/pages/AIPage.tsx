@@ -7,12 +7,12 @@ const AIPage: React.FC = () => {
   return (
     <div className="flex flex-col h-[calc(100vh-140px)] w-full max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 p-4">
       {/* Chat Container */}
-      <div className="bg-white rounded-2xl shadow-sm border border-border flex flex-col h-full overflow-hidden">
+      <div className="bg-card rounded-2xl shadow-sm border border-border flex flex-col h-full overflow-hidden">
         
         {/* Header */}
-        <div className="px-5 py-3 border-b border-border flex items-center justify-between bg-white sticky top-0 z-10">
+        <div className="px-5 py-3 border-b border-border flex items-center justify-between bg-card sticky top-0 z-10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#1a73e8] flex items-center justify-center text-white shadow-inner">
+            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white shadow-inner">
               <Bot size={24} />
             </div>
             <div>
@@ -31,13 +31,13 @@ const AIPage: React.FC = () => {
         </div>
 
         {/* Message List */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#f8f9fa]">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-muted/20">
           <div className="flex gap-4">
-            <div className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-[#1a73e8] bg-white shrink-0 shadow-sm mt-1">
+            <div className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-primary bg-card shrink-0 shadow-sm mt-1">
               <Bot size={18} />
             </div>
             <div className="space-y-1 max-w-[85%]">
-              <div className="bg-white border border-border px-4 py-3 rounded-2xl rounded-tl-none shadow-sm">
+              <div className="bg-card border border-border px-4 py-3 rounded-2xl rounded-tl-none shadow-sm">
                 <p className="text-[14px] text-foreground leading-relaxed">
                   Xin chào! Tôi là Gemini. Tôi có thể giúp gì cho công việc của bạn hôm nay?
                 </p>
@@ -48,12 +48,12 @@ const AIPage: React.FC = () => {
         </div>
 
         {/* Input Area */}
-        <div className="px-6 py-4 border-t border-border bg-white">
+        <div className="px-6 py-4 border-t border-border bg-card">
           <div className="relative flex items-center gap-2">
             <input
               type="text"
               placeholder="Nhập tin nhắn..."
-              className="w-full bg-[#f1f3f4] border-none rounded-xl px-5 py-3 text-[14px] focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all pr-12"
+              className="w-full bg-muted border-none rounded-xl px-5 py-3 text-[14px] focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all pr-12"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
             />

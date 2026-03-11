@@ -19,7 +19,7 @@ const ModulePage: React.FC = () => {
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full">
       {/* Mobile Header (Only visible on small screens when inside a module) */}
       <div className="flex items-center gap-3 mb-4 sm:hidden">
-        <button onClick={() => navigate('/')} className="p-2 -ml-2 text-muted-foreground hover:bg-accent rounded-lg flex items-center justify-center bg-white border border-border shadow-sm">
+        <button onClick={() => navigate('/')} className="p-2 -ml-2 text-muted-foreground hover:bg-accent rounded-lg flex items-center justify-center bg-card border border-border shadow-sm">
           <ChevronLeft size={20} />
         </button>
         <h1 className="text-lg font-bold text-foreground">
@@ -28,22 +28,22 @@ const ModulePage: React.FC = () => {
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-white rounded-xl shadow-sm border border-border p-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 mb-6 relative z-10">
+      <div className="bg-card rounded-xl shadow-sm border border-border p-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 mb-6 relative z-10">
         <button 
           onClick={() => navigate('/')}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground text-[13px] font-medium transition-colors bg-white shadow-sm"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground text-[13px] font-medium transition-colors bg-card shadow-sm"
         >
           <ChevronLeft size={16} />
           Quay lại
         </button>
 
-        <div className="flex bg-muted/50 rounded-lg p-1 w-full sm:w-auto">
+        <div className="flex bg-muted rounded-lg p-1 w-full sm:w-auto">
           <button
             onClick={() => setActiveTab('tat-ca')}
             className={clsx(
-              "flex-1 sm:flex-none px-4 py-1.5 rounded-md text-[13px] font-medium transition-all duration-200",
+              "flex-1 sm:flex-none px-4 py-1.5 rounded-md text-[13px] font-bold transition-all duration-200",
               activeTab === 'tat-ca'
-                ? "bg-white text-primary shadow-sm"
+                ? "bg-card text-primary shadow-sm ring-1 ring-black/5"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -52,9 +52,9 @@ const ModulePage: React.FC = () => {
           <button
             onClick={() => setActiveTab('danh-dau')}
             className={clsx(
-              "flex-1 sm:flex-none px-4 py-1.5 rounded-md text-[13px] font-medium transition-all duration-200 whitespace-nowrap",
+              "flex-1 sm:flex-none px-4 py-1.5 rounded-md text-[13px] font-bold transition-all duration-200 whitespace-nowrap",
               activeTab === 'danh-dau'
-                ? "bg-white text-primary shadow-sm"
+                ? "bg-card text-primary shadow-sm ring-1 ring-black/5"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -78,7 +78,7 @@ const ModulePage: React.FC = () => {
 
       {/* Content Area */}
       {activeTab === 'danh-dau' ? (
-        <div className="text-center py-16 text-muted-foreground bg-white/50 rounded-2xl border border-border mt-4">
+        <div className="text-center py-16 text-muted-foreground bg-card/50 rounded-2xl border border-border mt-4">
           Chưa có module nào được đánh dấu.
         </div>
       ) : data.length > 0 ? (
@@ -112,13 +112,13 @@ const ModulePage: React.FC = () => {
           })}
           
           {searchQuery && !data.some(s => s.items.some(i => i.title.toLowerCase().includes(searchQuery.toLowerCase()) || i.description.toLowerCase().includes(searchQuery.toLowerCase()))) && (
-            <div className="text-center py-16 text-muted-foreground bg-white/50 rounded-2xl border border-border">
+            <div className="text-center py-16 text-muted-foreground bg-card/50 rounded-2xl border border-border">
               Không tìm thấy kết quả phù hợp cho "{searchQuery}"
             </div>
           )}
         </div>
       ) : (
-        <div className="text-center py-16 text-muted-foreground bg-white/50 rounded-2xl border border-border border-dashed mt-4">
+        <div className="text-center py-16 text-muted-foreground bg-card/50 rounded-2xl border border-border border-dashed mt-4">
           Module này đang được phát triển...
         </div>
       )}
