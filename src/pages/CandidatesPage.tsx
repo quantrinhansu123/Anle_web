@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
-  ChevronLeft, Search, Plus, Filter, LayoutGrid,
+  ChevronLeft, Search, Plus, Filter,
   Edit, Trash2, X, BarChart2, Users, TrendingUp,
   ChevronRight, List, Columns, GripVertical,
   RotateCcw, Tag as TagIcon, Briefcase,
@@ -107,6 +108,38 @@ const CandidatesPage: React.FC = () => {
   const [showColumnPicker, setShowColumnPicker] = useState(false);
   const dragColIdx = useRef<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+
+  // Mobile filter sheet state
+  const [showMobileFilter, setShowMobileFilter] = useState(false);
+  const [mobileFilterClosing, setMobileFilterClosing] = useState(false);
+  const [mobileFilterSearch, setMobileFilterSearch] = useState('');
+  const [mobileExpandedSection, setMobileExpandedSection] = useState<string | null>('status');
+  // Pending selections (applied only on "Áp dụng")
+  const [pendingStatuses, setPendingStatuses] = useState<string[]>([]);
+  const [pendingPositions, setPendingPositions] = useState<string[]>([]);
+  const [pendingSources, setPendingSources] = useState<string[]>([]);
+
+  const closeMobileFilter = () => {
+    setMobileFilterClosing(true);
+    setTimeout(() => {
+      setShowMobileFilter(false);
+      setMobileFilterClosing(false);
+    }, 280);
+  };
+  const openMobileFilter = () => {
+    setPendingStatuses(selectedStatuses);
+    setPendingPositions(selectedPositions);
+    setPendingSources(selectedSources);
+    setMobileFilterSearch('');
+    setMobileExpandedSection(null);
+    setShowMobileFilter(true);
+  };
+  const applyMobileFilter = () => {
+    setSelectedStatuses(pendingStatuses);
+    setSelectedPositions(pendingPositions);
+    setSelectedSources(pendingSources);
+    closeMobileFilter();
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -506,15 +539,276 @@ const CandidatesPage: React.FC = () => {
               : "text-muted-foreground hover:text-foreground"
           )}
         >
-          <LayoutGrid size={14} />
+          <BarChart2 size={14} />
           Thống kê
         </button>
       </div>
 
       {activeTab === 'list' ? (
       <div className="bg-white rounded-2xl border border-border shadow-sm flex flex-col flex-1 min-h-0">
-        {/* Main Toolbar */}
-        <div className="p-4 space-y-4">
+        {/* ── MOBILE TOOLBAR ── */}
+        <div className="md:hidden flex items-center gap-2 p-3 border-b border-border">
+          <button
+            onClick={() => navigate('/nhan-su')}
+            className="p-2 rounded-xl border border-border bg-white text-muted-foreground shrink-0"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={15} />
+            <input
+              type="text"
+              placeholder="Tìm kiếm . . ."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              className="w-full pl-9 pr-8 py-2 bg-muted/20 border border-border/80 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+            />
+            {searchText && (
+              <button onClick={() => setSearchText('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <button
+            onClick={openMobileFilter}
+            className={clsx(
+              'relative p-2 rounded-xl border shrink-0 transition-all',
+              hasActiveFilters ? 'border-primary bg-primary/5 text-primary' : 'border-border bg-white text-muted-foreground',
+            )}
+          >
+            <Filter size={18} />
+            {hasActiveFilters && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-white text-[9px] font-bold flex items-center justify-center">
+                {selectedStatuses.length + selectedPositions.length + selectedSources.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={handleOpenAddModal}
+            className="p-2 rounded-xl bg-primary text-white shrink-0 shadow-md shadow-primary/20"
+          >
+            <Plus size={18} />
+          </button>
+        </div>
+
+        {/* ── MOBILE CARD LIST ── */}
+        <div className="md:hidden flex-1 overflow-y-auto p-3 flex flex-col gap-3">
+          {filteredCandidates.length === 0 ? (
+            <div className="py-16 text-center text-[13px] text-muted-foreground italic">Không tìm thấy kết quả phù hợp</div>
+          ) : filteredCandidates.map((candidate) => (
+            <div
+              key={candidate.id}
+              onClick={() => setSelectedCandidateId(candidate.id)}
+              className="bg-white rounded-2xl border border-border shadow-sm p-4 cursor-pointer hover:shadow-md active:bg-muted/10 transition-all"
+            >
+              {/* Row 1: avatar + name + email + checkbox */}
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <Users size={18} className="text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[14px] font-bold text-foreground leading-tight">{candidate.name}</span>
+                    <span className={clsx('px-2 py-0.5 rounded-full text-[10px] font-bold border whitespace-nowrap', statusConfig[candidate.status].classes)}>
+                      {statusConfig[candidate.status].label}
+                    </span>
+                    {candidate.source && (
+                      <span className={clsx('px-2 py-0.5 rounded-full text-[10px] font-bold border whitespace-nowrap', sourceConfig[candidate.source]?.classes || 'bg-muted text-muted-foreground border-border')}>
+                        {candidate.source}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[12px] text-muted-foreground font-medium mt-0.5 truncate">{candidate.email}</p>
+                </div>
+                <input
+                  type="checkbox"
+                  className="rounded border-border text-primary focus:ring-primary/20 mt-1 shrink-0"
+                  checked={selectedCandidates.includes(candidate.id)}
+                  onChange={(e) => { e.stopPropagation(); toggleSelect(candidate.id); }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+              {/* Row 2: position */}
+              <div className="mt-3 pl-13">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Vị trí ứng tuyển</p>
+                <p className="text-[13px] font-bold text-foreground">{candidate.positionId} · {candidate.position}</p>
+              </div>
+              {/* Row 3: interview info + actions */}
+              <div className="mt-3 pl-13 flex items-center justify-between">
+                <p className="text-[11px] text-muted-foreground/80 font-medium tabular-nums">
+                  {candidate.latestInterview}
+                </p>
+                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => handleOpenEditModal(candidate.id)}
+                    className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 transition-colors"
+                  >
+                    <Edit size={14} />
+                  </button>
+                  <button className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition-colors">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Mobile pagination */}
+        <div className="md:hidden px-4 py-3 border-t border-border flex items-center justify-between bg-muted/5">
+          <span className="text-[12px] text-muted-foreground font-medium">
+            {filteredCandidates.length > 0 ? `1–${filteredCandidates.length}` : '0'}/Tổng {filteredCandidates.length}
+          </span>
+          <div className="flex items-center gap-1">
+            <select className="bg-white border border-border rounded-lg px-2 py-1 focus:outline-none text-[11px] font-bold shadow-sm">
+              <option>20 / trang</option>
+              <option>50 / trang</option>
+            </select>
+            <button className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-20" disabled><ChevronLeft size={15} /></button>
+            <div className="w-7 h-7 rounded-lg bg-primary text-white flex items-center justify-center text-[11px] font-bold">1</div>
+            <button className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-20" disabled><ChevronRight size={15} /></button>
+          </div>
+        </div>
+
+        {/* ── MOBILE FILTER BOTTOM SHEET (portal) ── */}
+        {showMobileFilter && createPortal(
+          <div className="md:hidden fixed inset-0 z-[9999] flex flex-col justify-end">
+            {/* Backdrop */}
+            <div
+              className={clsx('absolute inset-0 bg-black/40 transition-opacity duration-300', mobileFilterClosing ? 'opacity-0' : 'opacity-100')}
+              onClick={closeMobileFilter}
+            />
+            {/* Sheet */}
+            <div className={clsx('relative bg-white rounded-t-3xl flex flex-col max-h-[85vh] shadow-2xl', mobileFilterClosing ? 'animate-out slide-out-to-bottom duration-300' : 'animate-in slide-in-from-bottom duration-300')}>
+              {/* Handle */}
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-border" />
+              </div>
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <Filter size={16} className="text-primary" />
+                  <span className="text-[16px] font-bold text-foreground">Bộ lọc</span>
+                  {hasActiveFilters && (
+                    <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-bold">
+                      {selectedStatuses.length + selectedPositions.length + selectedSources.length}
+                    </span>
+                  )}
+                </div>
+                <button onClick={closeMobileFilter} className="p-1.5 rounded-xl hover:bg-muted text-muted-foreground">
+                  <X size={18} />
+                </button>
+              </div>
+              {/* Accordion sections */}
+              <div className="flex-1 overflow-y-auto">
+                {([
+                  { id: 'status',   label: 'Trạng thái',       icon: <TagIcon size={16} />,   options: statusOptions,   pending: pendingStatuses,   setPending: setPendingStatuses as React.Dispatch<React.SetStateAction<string[]>> },
+                  { id: 'position', label: 'Vị trí ứng tuyển', icon: <Briefcase size={16} />, options: positionOptions,  pending: pendingPositions,  setPending: setPendingPositions as React.Dispatch<React.SetStateAction<string[]>> },
+                  { id: 'source',   label: 'Nguồn',            icon: <Filter size={16} />,    options: sourceOptions,   pending: pendingSources,    setPending: setPendingSources as React.Dispatch<React.SetStateAction<string[]>> },
+                ]).map((section) => {
+                  const isOpen = mobileExpandedSection === section.id;
+                  const filtered = section.options.filter(o =>
+                    mobileFilterSearch === '' || section.id !== mobileExpandedSection || o.label.toLowerCase().includes(mobileFilterSearch.toLowerCase())
+                  );
+                  return (
+                    <div key={section.id} className="border-b border-border/60">
+                      <button
+                        onClick={() => setMobileExpandedSection(isOpen ? null : section.id)}
+                        className="w-full flex items-center justify-between px-5 py-4"
+                      >
+                        <div className="flex items-center gap-3 text-foreground">
+                          <span className="text-muted-foreground">{section.icon}</span>
+                          <span className="text-[15px] font-semibold">{section.label}</span>
+                          {section.pending.length > 0 && (
+                            <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">{section.pending.length}</span>
+                          )}
+                        </div>
+                        <ChevronRight size={16} className={clsx('text-muted-foreground/50 transition-transform', isOpen ? 'rotate-90' : '')} />
+                      </button>
+                      {isOpen && (
+                        <div className="px-5 pb-3 animate-in slide-in-from-top-2 fade-in duration-200">
+                          {/* Search within section */}
+                          <div className="relative mb-3">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50" size={13} />
+                            <input
+                              type="text"
+                              placeholder={`Tìm ${section.label.toLowerCase()}...`}
+                              value={mobileFilterSearch}
+                              onChange={(e) => setMobileFilterSearch(e.target.value)}
+                              className="w-full pl-8 pr-3 py-2 rounded-xl bg-muted/20 border border-border/60 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 font-medium"
+                            />
+                          </div>
+                          {/* Select all row */}
+                          <div className="flex items-center justify-between mb-2 px-1">
+                            <label className="flex items-center gap-3 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="rounded border-border text-primary focus:ring-primary/20 w-4 h-4"
+                                checked={section.pending.length === section.options.length && section.options.length > 0}
+                                onChange={() => section.setPending(
+                                  section.pending.length === section.options.length ? [] : section.options.map(o => o.id)
+                                )}
+                              />
+                              <span className="text-[13px] font-bold text-muted-foreground">Chọn tất cả</span>
+                            </label>
+                            {section.pending.length > 0 && (
+                              <button onClick={() => section.setPending([])} className="text-[12px] font-bold text-primary">Xóa chọn</button>
+                            )}
+                          </div>
+                          {/* Options */}
+                          <div className="space-y-0.5">
+                            {filtered.map(opt => (
+                              <label key={opt.id} className="flex items-center justify-between px-1 py-2.5 rounded-xl hover:bg-muted/20 cursor-pointer">
+                                <div className="flex items-center gap-3">
+                                  <input
+                                    type="checkbox"
+                                    className="rounded border-border text-primary focus:ring-primary/20 w-4 h-4"
+                                    checked={section.pending.includes(opt.id)}
+                                    onChange={() => {
+                                      section.setPending(prev => prev.includes(opt.id) ? prev.filter(id => id !== opt.id) : [...prev, opt.id]);
+                                    }}
+                                  />
+                                  <span className="text-[14px] font-medium text-foreground">{opt.label}</span>
+                                </div>
+                                <span className="text-[12px] font-bold text-muted-foreground tabular-nums">
+                                  {candidatesData.filter((c) =>
+                                    section.id === 'status' ? c.status === opt.id :
+                                    section.id === 'position' ? c.positionId === opt.id :
+                                    c.source === opt.id
+                                  ).length}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Apply button */}
+              <div className="p-4 border-t border-border bg-white">
+                {(pendingStatuses.length + pendingPositions.length + pendingSources.length) > 0 && (
+                  <button
+                    onClick={() => { setPendingStatuses([]); setPendingPositions([]); setPendingSources([]); }}
+                    className="w-full mb-2 py-2.5 rounded-2xl border border-dashed border-red-300 text-red-500 text-[14px] font-bold hover:bg-red-50 transition-all"
+                  >
+                    Xóa tất cả bộ lọc
+                  </button>
+                )}
+                <button
+                  onClick={applyMobileFilter}
+                  className="w-full py-3.5 rounded-2xl bg-primary text-white text-[15px] font-bold shadow-md shadow-primary/25 hover:bg-primary/90 transition-all"
+                >
+                  Áp dụng
+                </button>
+              </div>
+            </div>
+          </div>
+        , document.body)}
+
+        {/* ── DESKTOP TOOLBAR ── */}
+        <div className="hidden md:block p-4 space-y-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2 flex-1">
               <button
@@ -718,7 +1012,7 @@ const CandidatesPage: React.FC = () => {
         </div>
 
         {/* Table Content Area */}
-        <div className="flex-1 overflow-x-auto border-t border-border">
+        <div className="hidden md:block flex-1 overflow-x-auto border-t border-border">
           <table className="w-full text-left border-collapse table-fixed min-w-300">
             <thead>
               <tr className="bg-muted/30">
@@ -783,7 +1077,7 @@ const CandidatesPage: React.FC = () => {
         </div>
 
         {/* Footer / Pagination */}
-        <div className="px-4 py-4 border-t border-border flex items-center justify-between bg-muted/5">
+        <div className="hidden md:flex px-4 py-4 border-t border-border items-center justify-between bg-muted/5">
           <div className="flex items-center gap-3 text-[12px] text-muted-foreground font-medium">
             <span>{filteredCandidates.length > 0 ? `1-${filteredCandidates.length}` : '0'}/Tổng {filteredCandidates.length}</span>
             <div className="flex items-center gap-1 ml-2">
@@ -816,8 +1110,30 @@ const CandidatesPage: React.FC = () => {
       ) : (
       /* ── STATS TAB ── */
       <div className="bg-white rounded-2xl border border-border shadow-sm flex flex-col flex-1 min-h-0 animate-in fade-in duration-300">
-        {/* Toolbar */}
-        <div className="p-4 border-b border-border shrink-0">
+        {/* ── MOBILE STATS TOOLBAR ── */}
+        <div className="md:hidden flex items-center gap-2 p-3 border-b border-border shrink-0">
+          <button
+            onClick={() => navigate('/nhan-su')}
+            className="p-2 rounded-xl border border-border bg-white text-muted-foreground shrink-0"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <span className="flex-1 text-[14px] font-bold text-foreground">Thống kê</span>
+          <button
+            onClick={openMobileFilter}
+            className="relative p-2 rounded-xl border border-border bg-white text-muted-foreground"
+          >
+            <Filter size={16} />
+            {hasActiveFilters && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
+                {selectedStatuses.length + selectedPositions.length + selectedSources.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* ── DESKTOP TOOLBAR ── */}
+        <div className="hidden md:block p-4 border-b border-border shrink-0">
           <div className="flex items-center gap-2 flex-wrap" ref={dropdownRef}>
             <button
               onClick={() => navigate('/nhan-su')}
@@ -902,30 +1218,30 @@ const CandidatesPage: React.FC = () => {
         </div>
 
         {/* Scrollable stats body */}
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+        <div className="flex-1 overflow-y-auto p-3 md:p-4 flex flex-col gap-3 md:gap-4">
         {/* Summary KPI cards */}
-        <div className="grid grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[
             { label: 'Tổng ứng viên', value: filteredCandidates.length, icon: <Users size={18} />, color: 'text-primary', bg: 'bg-primary/10' },
             { label: 'Mời phỏng vấn', value: filteredCandidates.filter(c => c.status === 'interviewing').length, icon: <BarChart2 size={18} />, color: 'text-sky-600', bg: 'bg-sky-500/10' },
             { label: 'Nhận việc', value: filteredCandidates.filter(c => c.status === 'hired').length, icon: <TrendingUp size={18} />, color: 'text-indigo-600', bg: 'bg-indigo-500/10' },
             { label: 'Mới', value: filteredCandidates.filter(c => c.status === 'new').length, icon: <TagIcon size={18} />, color: 'text-blue-600', bg: 'bg-blue-500/10' },
             { label: 'Từ chối', value: filteredCandidates.filter(c => c.status === 'rejected').length, icon: <X size={18} />, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
-          ].map((item) => (
-            <div key={item.label} className="bg-white rounded-2xl border border-border shadow-sm p-5 flex items-center gap-4">
-              <div className={clsx('w-10 h-10 rounded-xl flex items-center justify-center shrink-0', item.bg, item.color)}>
+          ].map((item, idx) => (
+            <div key={item.label} className={clsx('bg-white rounded-2xl border border-border shadow-sm p-4 md:p-5 flex items-center gap-3 md:gap-4', idx === 0 && 'col-span-2 md:col-span-1')}>
+              <div className={clsx('w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center shrink-0', item.bg, item.color)}>
                 {item.icon}
               </div>
               <div>
                 <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">{item.label}</p>
-                <p className={clsx('text-2xl font-bold mt-0.5', item.color)}>{item.value}</p>
+                <p className={clsx('text-xl md:text-2xl font-bold mt-0.5', item.color)}>{item.value}</p>
               </div>
             </div>
           ))}
         </div>
 
         {/* Charts row */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
           {/* PieChart – Theo trạng thái */}
           <div className="bg-white rounded-2xl border border-border shadow-sm p-5">
             <div className="flex items-center gap-2 mb-4">
@@ -941,23 +1257,25 @@ const CandidatesPage: React.FC = () => {
                 { name: 'Từ chối',  value: filteredCandidates.filter(c => c.status === 'rejected').length },
               ];
               return (
-                <div className="flex items-center gap-2">
-                  <ResponsiveContainer width={160} height={160}>
-                    <PieChart>
-                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={46} outerRadius={72} dataKey="value" paddingAngle={3}>
-                        {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="none" />)}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,.08)' }}
-                        formatter={(v, n) => [v, n]}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="flex flex-col gap-2.5 flex-1">
+                <div className="flex flex-col md:flex-row items-center gap-3">
+                  <div className="w-full max-w-55 md:w-40 md:max-w-none shrink-0 mx-auto md:mx-0">
+                    <ResponsiveContainer width="100%" height={160}>
+                      <PieChart>
+                        <Pie data={pieData} cx="50%" cy="50%" innerRadius={46} outerRadius={72} dataKey="value" paddingAngle={3}>
+                          {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="none" />)}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,.08)' }}
+                          formatter={(v, n) => [v, n]}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="grid grid-cols-2 md:flex md:flex-col gap-2 md:gap-2.5 w-full md:flex-1">
                     {pieData.map((d, i) => (
                       <div key={d.name} className="flex items-center gap-2">
                         <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: COLORS[i] }} />
-                        <span className="text-[11px] text-muted-foreground font-medium flex-1">{d.name}</span>
+                        <span className="text-[11px] text-muted-foreground font-medium flex-1 truncate">{d.name}</span>
                         <span className="text-[11px] font-bold text-foreground">{d.value}</span>
                       </div>
                     ))}
@@ -1037,7 +1355,7 @@ const CandidatesPage: React.FC = () => {
         </div>
 
         {/* Detail tables row */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
           {/* Table – Theo trạng thái */}
           <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
             <div className="px-5 py-3 border-b border-border bg-muted/5 flex items-center gap-2">
