@@ -30,9 +30,16 @@ create table suppliers (
 -- 3. EMPLOYEES (PIC)
 -- ============================================================
 create table employees (
-  id        uuid primary key default gen_random_uuid(),
-  full_name text not null,
-  email     text unique
+  id          uuid primary key default gen_random_uuid(),
+  full_name   text not null,
+  department  text,
+  position    text,
+  email       text unique,
+  phone       text,
+  address     text,
+  password    text,
+  avatar_url  text,
+  created_at  timestamptz default now()
 );
 
 -- ============================================================
@@ -42,6 +49,7 @@ create table shipments (
   id             uuid primary key default gen_random_uuid(),
   customer_id    uuid references customers(id),
   supplier_id    char(3) references suppliers(id),
+  pic_id         uuid references employees(id), -- added
   commodity      text,
   hs_code        text,
   quantity       numeric(18,4),
@@ -208,6 +216,17 @@ left join purchasing_items pi on pi.shipment_id = s.id
 group by s.id, c.company_name, sup.company_name;
 
 -- ============================================================
+-- 11. SETTINGS / EXCHANGE RATES
+-- ============================================================
+create table exchange_rates (
+  id             uuid primary key default gen_random_uuid(),
+  currency_code  text unique not null,
+  rate           numeric(18,4) not null default 1,
+  created_at     timestamptz default now(),
+  updated_at     timestamptz default now()
+);
+
+-- ============================================================
 -- RLS (Row Level Security) - bật cho production
 -- ============================================================
 alter table customers           enable row level security;
@@ -221,3 +240,4 @@ alter table payment_request_invoices enable row level security;
 alter table debit_notes         enable row level security;
 alter table debit_note_invoice_items enable row level security;
 alter table debit_note_chi_ho_items  enable row level security;
+alter table exchange_rates           enable row level security;

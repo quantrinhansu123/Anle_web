@@ -12,7 +12,7 @@ import type { SalesFormState } from '../types';
 interface Props {
   isOpen: boolean;
   isClosing: boolean;
-  isEditMode: boolean;
+  mode: 'add' | 'edit' | 'detail';
   onClose: () => void;
   formState: SalesFormState;
   setFormField: <K extends keyof SalesFormState>(key: K, value: SalesFormState[K]) => void;
@@ -20,10 +20,10 @@ interface Props {
   onSave: () => void;
 }
 
-const AddEditSalesDialog: React.FC<Props> = ({
+const SalesDialog: React.FC<Props> = ({
   isOpen,
   isClosing,
-  isEditMode,
+  mode,
   onClose,
   formState,
   setFormField,
@@ -31,6 +31,8 @@ const AddEditSalesDialog: React.FC<Props> = ({
   onSave,
 }) => {
   if (!isOpen && !isClosing) return null;
+
+  const isReadOnly = mode === 'detail';
 
   const {
     shipment_id, description, rate, quantity,
@@ -67,7 +69,7 @@ const AddEditSalesDialog: React.FC<Props> = ({
               <DollarSign size={20} />
             </div>
             <h2 className="text-lg font-bold text-foreground">
-              {isEditMode ? 'Edit Sales Item' : 'Add New Sales Item'}
+              {mode === 'add' ? 'Add New Sales Item' : mode === 'edit' ? 'Edit Sales Item' : 'Sales Item Details'}
             </h2>
           </div>
           <button
@@ -98,6 +100,7 @@ const AddEditSalesDialog: React.FC<Props> = ({
                   value={shipment_id}
                   onValueChange={(v) => setFormField('shipment_id', v)}
                   placeholder="Search shipment ID..."
+                  disabled={isReadOnly}
                 />
               </div>
             </div>
@@ -119,7 +122,8 @@ const AddEditSalesDialog: React.FC<Props> = ({
                   placeholder="Enter item description"
                   value={description || ''}
                   onChange={e => setFormField('description', e.target.value)}
-                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium min-h-[80px]"
+                  disabled={isReadOnly}
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium min-h-[80px] disabled:opacity-70 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -135,7 +139,8 @@ const AddEditSalesDialog: React.FC<Props> = ({
                     placeholder="0.00"
                     value={rate || ''}
                     onChange={e => setFormField('rate', parseFloat(e.target.value) || 0)}
-                    className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                    disabled={isReadOnly}
+                    className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:opacity-70 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -149,7 +154,8 @@ const AddEditSalesDialog: React.FC<Props> = ({
                     placeholder="0.00"
                     value={quantity || ''}
                     onChange={e => setFormField('quantity', parseFloat(e.target.value) || 0)}
-                    className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                    disabled={isReadOnly}
+                    className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:opacity-70 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -165,7 +171,8 @@ const AddEditSalesDialog: React.FC<Props> = ({
                     placeholder="E.g. Container, Set, Kg"
                     value={unit || ''}
                     onChange={e => setFormField('unit', e.target.value)}
-                    className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                    disabled={isReadOnly}
+                    className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:opacity-70 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -176,7 +183,8 @@ const AddEditSalesDialog: React.FC<Props> = ({
                   <select
                     value={currency}
                     onChange={e => setFormField('currency', e.target.value as 'USD' | 'VND')}
-                    className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium appearance-none"
+                    disabled={isReadOnly}
+                    className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium appearance-none disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                     <option value="VND">VND</option>
                     <option value="USD">USD</option>
@@ -196,7 +204,8 @@ const AddEditSalesDialog: React.FC<Props> = ({
                     placeholder="1.00"
                     value={exchange_rate || ''}
                     onChange={e => setFormField('exchange_rate', parseFloat(e.target.value) || 0)}
-                    className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                    disabled={isReadOnly}
+                    className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:opacity-70 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -210,7 +219,8 @@ const AddEditSalesDialog: React.FC<Props> = ({
                     placeholder="0.0"
                     value={tax_percent || ''}
                     onChange={e => setFormField('tax_percent', parseFloat(e.target.value) || 0)}
-                    className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                    disabled={isReadOnly}
+                    className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:opacity-70 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -243,16 +253,18 @@ const AddEditSalesDialog: React.FC<Props> = ({
             onClick={onClose}
             className="px-6 py-2 rounded-xl border border-border hover:bg-muted text-foreground text-[13px] font-bold transition-all shadow-sm"
           >
-            Cancel
+            {isReadOnly ? 'Close' : 'Cancel'}
           </button>
-          <button 
-            onClick={onSave}
-            className="flex items-center gap-2 px-8 py-2 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all group active:scale-95"
-          >
-            <Plus size={18} />
-            {isEditMode ? 'Save Changes' : 'Create Sales Item'}
-            <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
-          </button>
+          {!isReadOnly && (
+            <button 
+              onClick={onSave}
+              className="flex items-center gap-2 px-8 py-2 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all group active:scale-95"
+            >
+              <Plus size={18} />
+              {mode === 'edit' ? 'Save Changes' : 'Create Sales Item'}
+              <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+            </button>
+          )}
         </div>
       </div>
     </div>,
@@ -260,4 +272,5 @@ const AddEditSalesDialog: React.FC<Props> = ({
   );
 };
 
-export default AddEditSalesDialog;
+export default SalesDialog;
+

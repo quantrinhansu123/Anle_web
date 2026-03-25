@@ -14,11 +14,12 @@ import { supplierService } from '../services/supplierService';
 import { employeeService } from '../services/employeeService';
 import { FilterDropdown } from '../components/ui/FilterDropdown';
 import { ColumnSettings } from '../components/ui/ColumnSettings';
-import AddEditPurchasingDialog from './purchasing/dialogs/AddEditPurchasingDialog';
+import PurchasingDialog from './purchasing/dialogs/PurchasingDialog';
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
+import { toast } from '../lib/toast';
 
 // --- CONFIGURATION ---
 type ColDef = { 
@@ -130,7 +131,7 @@ const PurchasingPage: React.FC = () => {
   // Dialog State
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
+  const [dialogMode, setDialogMode] = useState<'add' | 'edit' | 'detail'>('add');
   const [formState, setFormState] = useState<Partial<PurchasingItem>>(INITIAL_FORM_STATE);
   
   // Options
@@ -196,13 +197,19 @@ const PurchasingPage: React.FC = () => {
 
   const handleOpenAdd = () => {
     setFormState(INITIAL_FORM_STATE);
-    setIsEditMode(false);
+    setDialogMode('add');
     setIsDialogOpen(true);
   };
 
   const handleOpenEdit = (item: PurchasingItem) => {
     setFormState(item);
-    setIsEditMode(true);
+    setDialogMode('edit');
+    setIsDialogOpen(true);
+  };
+
+  const handleOpenDetail = (item: PurchasingItem) => {
+    setFormState(item);
+    setDialogMode('detail');
     setIsDialogOpen(true);
   };
 
@@ -216,16 +223,17 @@ const PurchasingPage: React.FC = () => {
 
   const handleSave = async () => {
     try {
-      if (isEditMode && formState.id) {
+      if (dialogMode === 'edit' && formState.id) {
         await purchasingService.updatePurchasingItem(formState.id, formState as any);
       } else {
         await purchasingService.createPurchasingItem(formState as any);
       }
       handleCloseDialog();
       fetchData();
+      toast.success(dialogMode === 'edit' ? 'Purchasing item updated successfully' : 'Purchasing item created successfully');
     } catch (err) {
       console.error('Failed to save:', err);
-      alert('Failed to save purchasing item');
+      toast.error('Failed to save purchasing item');
     }
   };
 
@@ -234,9 +242,10 @@ const PurchasingPage: React.FC = () => {
     try {
       await purchasingService.deletePurchasingItem(id);
       fetchData();
+      toast.success('Purchasing item deleted successfully');
     } catch (err) {
       console.error('Failed to delete:', err);
-      alert('Failed to delete item');
+      toast.error('Failed to delete item');
     }
   };
 
@@ -247,9 +256,10 @@ const PurchasingPage: React.FC = () => {
       await Promise.all(selectedItems.map(id => purchasingService.deletePurchasingItem(id)));
       setSelectedItems([]);
       fetchData();
+      toast.success('Selected items deleted successfully');
     } catch (err) {
       console.error('Failed to delete selected:', err);
-      alert('Failed to delete some items');
+      toast.error('Failed to delete some items');
       setLoading(false);
     }
   };
@@ -537,8 +547,8 @@ const PurchasingPage: React.FC = () => {
                   <tr><td colSpan={visibleColumns.length + 2} className="px-4 py-20 text-center italic text-muted-foreground opacity-60">No purchasing items found.</td></tr>
                 ) : (
                   filteredItems.map(item => (
-                    <tr key={item.id} className={clsx('hover:bg-slate-50/60 transition-colors group', selectedItems.includes(item.id) && 'bg-primary/[0.02]')}>
-                      <td className="px-4 py-4 text-center border-r border-border/40">
+                    <tr key={item.id} onClick={() => handleOpenDetail(item)} className={clsx('hover:bg-slate-50/60 transition-colors group cursor-pointer', selectedItems.includes(item.id) && 'bg-primary/[0.02]')}>
+                      <td className="px-4 py-4 text-center border-r border-border/40" onClick={e => e.stopPropagation()}>
                         <input 
                           type="checkbox" 
                           checked={selectedItems.includes(item.id)} 
@@ -549,7 +559,7 @@ const PurchasingPage: React.FC = () => {
                       {columnOrder.filter(id => visibleColumns.includes(id)).map(key => (
                         <td key={key} className={COLUMN_DEFS[key].tdClass}>{COLUMN_DEFS[key].renderContent(item)}</td>
                       ))}
-                      <td className="px-4 py-4">
+                      <td className="px-4 py-4" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
                           <button onClick={() => handleOpenEdit(item)} className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-all"><Edit size={14} /></button>
                           <button onClick={() => handleDelete(item.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-100 transition-all"><Trash2 size={14} /></button>
@@ -637,10 +647,10 @@ const PurchasingPage: React.FC = () => {
       )}
 
 
-      <AddEditPurchasingDialog
+      <PurchasingDialog
         isOpen={isDialogOpen}
         isClosing={isClosing}
-        isEditMode={isEditMode}
+        mode={dialogMode}
         onClose={handleCloseDialog}
         formState={formState}
         setFormField={setFormField}
@@ -648,6 +658,7 @@ const PurchasingPage: React.FC = () => {
         supplierOptions={supplierOptions}
         employeeOptions={employeeOptions}
         onSave={handleSave}
+        onEdit={() => setDialogMode('edit')}
       />
     </div>
   );

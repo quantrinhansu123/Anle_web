@@ -17,6 +17,7 @@ export const createShipmentSchema = z.object({
   pod: z.string().optional(),
   etd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('')),
   eta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('')),
+  pic_id: z.string().uuid().optional().nullable(),
 });
 
 export const updateShipmentSchema = createShipmentSchema.partial();

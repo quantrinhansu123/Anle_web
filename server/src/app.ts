@@ -14,6 +14,11 @@ import employeeRoutes from './modules/employees/employee.routes';
 import contractRoutes from './modules/contracts/contract.routes';
 import paymentRequestRoutes from './modules/payment-requests/payment-request.routes';
 import debitNoteRoutes from './modules/debit-notes/debit-note.routes';
+import exchangeRateRoutes from './modules/exchange-rates/exchange-rate.routes';
+import systemSettingsRoutes from './modules/system-settings/system-settings.routes';
+import uploadRoutes from './modules/upload/upload.routes';
+import authRoutes from './modules/auth/auth.routes';
+import { authMiddleware } from './middlewares/auth.middleware';
 
 const app = express();
 
@@ -23,12 +28,15 @@ app.use(express.json());
 
 const v1 = '/api/v1';
 
-// Health check
+// Public routes
 app.get(`${v1}/health`, (req, res) => {
   res.json(successResponse({ status: 'ok' }, 'Server is running'));
 });
+app.use(`${v1}/auth`, authRoutes); // Auth routes handles its own protection internally for /me
 
-// Register module routes
+// Protected routes
+app.use(authMiddleware);
+
 app.use(`${v1}/customers`, customerRoutes);
 app.use(`${v1}/suppliers`, supplierRoutes);
 app.use(`${v1}/shipments`, shipmentRoutes);
@@ -38,6 +46,9 @@ app.use(`${v1}/employees`, employeeRoutes);
 app.use(`${v1}/contracts`, contractRoutes);
 app.use(`${v1}/payment-requests`, paymentRequestRoutes);
 app.use(`${v1}/debit-notes`, debitNoteRoutes);
+app.use(`${v1}/exchange-rates`, exchangeRateRoutes);
+app.use(`${v1}/system-settings`, systemSettingsRoutes);
+app.use(`${v1}/upload`, uploadRoutes);
 
 app.use(errorMiddleware);
 

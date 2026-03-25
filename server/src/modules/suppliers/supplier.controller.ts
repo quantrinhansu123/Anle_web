@@ -52,4 +52,14 @@ export const SupplierController = {
       next(err);
     }
   },
+
+  async getDetails(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await service.getDetails(req.params.id);
+      if (!result) return res.status(404).json({ message: 'Supplier not found' });
+      res.json(successResponse(result));
+    } catch (err) {
+      next(err);
+    }
+  },
 };

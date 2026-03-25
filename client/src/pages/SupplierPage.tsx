@@ -14,6 +14,7 @@ import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
+import { toast } from '../lib/toast';
 
 const INITIAL_FORM_STATE: Partial<Supplier> = {
   id: '',
@@ -25,20 +26,12 @@ const INITIAL_FORM_STATE: Partial<Supplier> = {
 };
 
 type ColDef = { label: string; thClass: string; tdClass: string; renderContent: (s: Supplier) => React.ReactNode };
-const COLUMN_DEFS: Record<string, ColDef> = {
+const COLUMN_DEFS_BASE: Record<string, ColDef> = {
   id: {
     label: 'Code',
     thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-24 border-r border-b border-border/40 text-center',
     tdClass: 'px-4 py-4 border-r border-border/40 text-center',
     renderContent: (s) => <span className="text-[13px] font-mono font-black text-primary bg-primary/5 px-2 py-1 rounded border border-primary/10">{s.id}</span>
-  },
-  company_name: {
-    label: 'Company Name',
-    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-64 border-r border-b border-border/40',
-    tdClass: 'px-4 py-4 border-r border-border/40',
-    renderContent: (s) => (
-      <span className="text-[14px] font-bold text-foreground leading-tight">{s.company_name}</span>
-    )
   },
   tax_code: {
     label: 'Tax Code',
@@ -75,6 +68,19 @@ const COLUMN_DEFS: Record<string, ColDef> = {
     )
   }
 };
+
+const COLUMN_DEFS: Record<string, ColDef> = {
+  ...COLUMN_DEFS_BASE,
+  company_name: {
+    label: 'Company Name',
+    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-64 border-r border-b border-border/40',
+    tdClass: 'px-4 py-4 border-r border-border/40',
+    renderContent: (s) => (
+      <span className="text-[14px] font-bold text-foreground leading-tight">{s.company_name}</span>
+    )
+  }
+};
+
 const DEFAULT_COL_ORDER = ['id', 'company_name', 'tax_code', 'contact', 'address'];
 
 const SupplierPage: React.FC = () => {
@@ -133,11 +139,11 @@ const SupplierPage: React.FC = () => {
   const handleSave = async () => {
     try {
       if (!isEditMode && (!formState.id || formState.id.length !== 3)) {
-        alert('Supplier Code must be exactly 3 characters');
+        toast.error('Supplier Code must be exactly 3 characters');
         return;
       }
       if (!formState.company_name) {
-        alert('Company name is required');
+        toast.error('Company name is required');
         return;
       }
 
@@ -150,9 +156,10 @@ const SupplierPage: React.FC = () => {
 
       handleCloseDialog();
       fetchData();
+      toast.success(isEditMode ? 'Supplier updated successfully' : 'Supplier created successfully');
     } catch (err) {
       console.error('Failed to save supplier:', err);
-      alert('Failed to save supplier');
+      toast.error('Failed to save supplier');
     }
   };
 
@@ -161,9 +168,10 @@ const SupplierPage: React.FC = () => {
     try {
       await supplierService.deleteSupplier(id);
       fetchData();
+      toast.success('Supplier deleted successfully');
     } catch (err) {
       console.error('Failed to delete supplier:', err);
-      alert('Failed to delete supplier');
+      toast.error('Failed to delete supplier');
     }
   };
 
@@ -253,11 +261,15 @@ const SupplierPage: React.FC = () => {
                 )) : filteredSuppliers.length === 0 ? (
                   <tr><td colSpan={visibleColumns.length + 1} className="px-4 py-20 text-center italic text-muted-foreground opacity-60">No suppliers found.</td></tr>
                 ) : filteredSuppliers.map(s => (
-                  <tr key={s.id} className="hover:bg-slate-50/60 transition-colors group">
+                  <tr 
+                    key={s.id} 
+                    onClick={() => navigate(`/suppliers/directory/${s.id}`)}
+                    className="hover:bg-slate-50/60 transition-colors group cursor-pointer"
+                  >
                     {columnOrder.filter(id => visibleColumns.includes(id)).map(key => (
                       <td key={key} className={COLUMN_DEFS[key].tdClass}>{COLUMN_DEFS[key].renderContent(s)}</td>
                     ))}
-                    <td className="px-4 py-4">
+                    <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-1">
                         <button 
                           onClick={() => handleOpenEdit(s)}

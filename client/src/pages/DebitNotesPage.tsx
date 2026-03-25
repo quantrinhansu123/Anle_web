@@ -12,11 +12,13 @@ import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
+import { formatDate } from '../lib/utils';
 import { debitNoteService } from '../services/debitNoteService';
 import { shipmentService } from '../services/shipmentService';
 import { ColumnSettings } from '../components/ui/ColumnSettings';
-import AddEditDebitNoteDialog from './debit-notes/dialogs/AddEditDebitNoteDialog';
+import DebitNoteDialog from './debit-notes/dialogs/DebitNoteDialog';
 import type { DebitNote, DebitNoteFormState } from './debit-notes/types';
+import { toast } from '../lib/toast';
 
 // --- CONFIGURATION ---
 type ColDef = { label: string; thClass: string; tdClass: string; renderContent: (n: DebitNote) => React.ReactNode };
@@ -31,7 +33,7 @@ const COLUMN_DEFS: Record<string, ColDef> = {
     label: 'Date',
     thClass: 'px-6 py-3 border-r border-b border-border/40 text-left text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-32',
     tdClass: 'px-6 py-4 border-r border-border/40 text-[13px] font-medium text-slate-600',
-    renderContent: (n) => <span>{n.note_date}</span>
+    renderContent: (n) => <span>{formatDate(n.note_date)}</span>
   },
   no_doc: {
     label: 'No_Doc',
@@ -71,6 +73,7 @@ const DebitNotesPage: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isDetailMode, setIsDetailMode] = useState(false);
   const [formState, setFormState] = useState<DebitNoteFormState>(INITIAL_FORM_STATE);
   const [shipmentOptions, setShipmentOptions] = useState<{ value: string, label: string }[]>([]);
 
@@ -106,6 +109,7 @@ const DebitNotesPage: React.FC = () => {
   const handleOpenAdd = () => {
     setFormState(INITIAL_FORM_STATE);
     setIsEditMode(false);
+    setIsDetailMode(false);
     setIsDialogOpen(true);
   };
 
@@ -121,11 +125,33 @@ const DebitNotesPage: React.FC = () => {
           chi_ho_items: data.chi_ho_items || []
         });
         setIsEditMode(true);
+        setIsDetailMode(false);
         setIsDialogOpen(true);
       }
     } catch (err) {
       console.error(err);
-      alert('Failed to fetch details');
+      toast.error('Failed to fetch details');
+    }
+  };
+
+  const handleOpenDetail = async (note: DebitNote) => {
+    try {
+      const data = await debitNoteService.getDebitNoteById(note.id);
+      if (data) {
+        setFormState({
+          id: data.id,
+          shipment_id: data.shipment_id,
+          note_date: data.note_date,
+          invoice_items: data.invoice_items || [],
+          chi_ho_items: data.chi_ho_items || []
+        });
+        setIsEditMode(false);
+        setIsDetailMode(true);
+        setIsDialogOpen(true);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to fetch details');
     }
   };
 
@@ -146,9 +172,10 @@ const DebitNotesPage: React.FC = () => {
       }
       handleCloseDialog();
       fetchData();
+      toast.success(isEditMode ? 'Debit note updated successfully' : 'Debit note created successfully');
     } catch (err) {
       console.error(err);
-      alert('Failed to save');
+      toast.error('Failed to save');
     }
   };
 
@@ -157,6 +184,7 @@ const DebitNotesPage: React.FC = () => {
     try {
       await debitNoteService.deleteDebitNote(id);
       fetchData();
+      toast.success('Debit note deleted successfully');
     } catch (err) {
       console.error(err);
     }
@@ -332,14 +360,21 @@ const DebitNotesPage: React.FC = () => {
                   )) : filteredNotes.length === 0 ? (
                     <tr><td colSpan={visibleColumns.length + 2} className="px-6 py-20 text-center italic text-muted-foreground opacity-60">No debit notes found.</td></tr>
                   ) : filteredNotes.map(n => (
-                    <tr key={n.id} className={clsx('hover:bg-slate-50/60 transition-colors group', selectedDebitNotes.includes(n.id) && 'bg-primary/[0.02]')}>
-                      <td className="px-4 py-4 text-center border-r border-border/40">
+                    <tr 
+                      key={n.id} 
+                      onClick={() => handleOpenDetail(n)}
+                      className={clsx(
+                        'hover:bg-slate-50/60 transition-colors group cursor-pointer', 
+                        selectedDebitNotes.includes(n.id) && 'bg-primary/[0.02]'
+                      )}
+                    >
+                      <td className="px-4 py-4 text-center border-r border-border/40" onClick={(e) => e.stopPropagation()}>
                         <input type="checkbox" checked={selectedDebitNotes.includes(n.id)} onChange={() => toggleSelect(n.id)} className="rounded border-border" />
                       </td>
                       {columnOrder.filter(id => visibleColumns.includes(id)).map(key => (
                         <td key={key} className={COLUMN_DEFS[key].tdClass}>{COLUMN_DEFS[key].renderContent(n)}</td>
                       ))}
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
                           <button onClick={() => handleOpenEdit(n)} className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-all"><Edit size={14} /></button>
                           <button onClick={() => handleDelete(n.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-100 transition-all"><Trash2 size={14} /></button>
@@ -365,18 +400,22 @@ const DebitNotesPage: React.FC = () => {
           {/* MOBILE LIST */}
           <div className="md:hidden flex-1 overflow-y-auto p-3 flex flex-col gap-3 border-t border-border">
             {filteredNotes.map(n => (
-              <div key={n.id} className="bg-white rounded-2xl border border-border p-4 shadow-sm">
+              <div 
+                key={n.id} 
+                onClick={() => handleOpenDetail(n)}
+                className="bg-white rounded-2xl border border-border p-4 shadow-sm cursor-pointer hover:border-primary/40 transition-all active:scale-[0.98]"
+              >
                 <div className="flex items-start justify-between">
                   <div className="flex flex-col gap-1">
                      <span className="text-[11px] font-mono font-bold text-primary">#{n.shipment_id.slice(0, 8)}</span>
                      <span className="text-[14px] font-bold text-slate-900 leading-tight">{n.no_doc}</span>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                     <button onClick={() => handleOpenEdit(n)} className="p-2 text-muted-foreground hover:text-blue-600 bg-slate-50 rounded-lg"><Edit size={16} /></button>
                   </div>
                 </div>
                 <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground font-medium">
-                  <div className="flex items-center gap-2"><Calendar size={12} /><span>{n.note_date}</span></div>
+                  <div className="flex items-center gap-2"><Calendar size={12} /><span>{formatDate(n.note_date)}</span></div>
                   <span className="font-bold text-slate-600">{n.shipments?.customers?.company_name || 'No Customer'}</span>
                 </div>
               </div>
@@ -495,10 +534,11 @@ const DebitNotesPage: React.FC = () => {
       )}
 
       {/* DIALOG */}
-      <AddEditDebitNoteDialog 
+      <DebitNoteDialog 
         isOpen={isDialogOpen}
         isClosing={isClosing}
         isEditMode={isEditMode}
+        isDetailMode={isDetailMode}
         onClose={handleCloseDialog}
         formState={formState}
         setFormField={setFormField}

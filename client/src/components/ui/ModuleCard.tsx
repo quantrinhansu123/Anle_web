@@ -2,6 +2,7 @@ import React from 'react';
 import { clsx } from 'clsx';
 import { HelpCircle, Star } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useBookmarks } from '../../hooks/useBookmarks';
 
 export interface ModuleCardProps {
   icon: React.ElementType;
@@ -33,6 +34,7 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
   path
 }) => {
   const navigate = useNavigate();
+  const { isBookmarked, toggleBookmark } = useBookmarks();
 
   const handleClick = () => {
     if (path) {
@@ -40,15 +42,17 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
     }
   };
 
+  const isFav = path ? isBookmarked(path) : false;
+
   return (
-    <div 
+    <div
       onClick={handleClick}
       className={clsx(
         "group flex items-center bg-card rounded-xl p-4 transition-all duration-300 border border-border hover:border-primary/30 hover:shadow-sm cursor-pointer hover:-translate-y-0.5",
         !path && "opacity-60 grayscale-[0.5] cursor-not-allowed hover:translate-y-0 hover:border-border"
       )}
     >
-      <div 
+      <div
         className={clsx(
           "w-11 h-11 rounded-xl flex items-center justify-center shrink-0 mr-3 transition-transform group-hover:scale-110",
           colorMap[colorScheme]
@@ -56,7 +60,7 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
       >
         <Icon size={22} />
       </div>
-      
+
       <div className="flex-1 min-w-0 pr-2">
         <h3 className="font-bold text-[14px] text-foreground mb-0.5 truncate transition-colors">
           {title}
@@ -66,11 +70,18 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
         </p>
       </div>
 
-      <div className="flex flex-col gap-3 shrink-0 text-muted-foreground/30" onClick={(e) => e.stopPropagation()}>
-        <button className="hover:text-amber-500 transition-colors" title="Đánh dấu">
-          <Star size={15} />
+      <div className="flex flex-col gap-3 shrink-0" onClick={(e) => e.stopPropagation()}>
+        <button
+          onClick={() => path && toggleBookmark(path)}
+          className={clsx(
+            "transition-colors",
+            isFav ? "text-amber-500" : "text-muted-foreground/30 hover:text-amber-500"
+          )}
+          title="Bookmark"
+        >
+          <Star size={15} fill={isFav ? "currentColor" : "none"} />
         </button>
-        <button className="hover:text-primary transition-colors" title="Hướng dẫn sử dụng">
+        <button className="text-muted-foreground/30 hover:text-primary transition-colors" title="Hướng dẫn sử dụng">
           <HelpCircle size={15} />
         </button>
       </div>

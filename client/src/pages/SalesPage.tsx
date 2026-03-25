@@ -4,7 +4,7 @@ import {
   ChevronLeft, Search, Plus, List,
   Edit, Trash2, RefreshCcw,
   BadgeDollarSign, TrendingUp,
-  BarChart2, Calculator, DollarSign, ChevronRight, X, Building2
+  BarChart2, Calculator, DollarSign, ChevronRight, X, Building2, Printer
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
@@ -15,11 +15,12 @@ import type { Supplier } from '../services/supplierService';
 import { FilterDropdown } from '../components/ui/FilterDropdown';
 import { ColumnSettings } from '../components/ui/ColumnSettings';
 import type { SalesItem, SalesFormState } from './sales/types';
-import AddEditSalesDialog from './sales/dialogs/AddEditSalesDialog';
+import SalesDialog from './sales/dialogs/SalesDialog';
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
+import { toast } from '../lib/toast';
 
 // --- CONFIGURATION ---
 const INITIAL_FORM_STATE: SalesFormState = {
@@ -98,7 +99,7 @@ const SalesPage: React.FC = () => {
   // Dialog State
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
+  const [mode, setMode] = useState<'add' | 'edit' | 'detail'>('add');
   const [formState, setFormState] = useState<SalesFormState>(INITIAL_FORM_STATE);
 
   useEffect(() => {
@@ -159,11 +160,11 @@ const SalesPage: React.FC = () => {
 
   const handleOpenAdd = () => {
     setFormState(INITIAL_FORM_STATE);
-    setIsEditMode(false);
+    setMode('add');
     setIsDialogOpen(true);
   };
 
-  const handleOpenEdit = (item: SalesItem) => {
+  const setFormStateFromItem = (item: SalesItem) => {
     setFormState({
       id: item.id,
       shipment_id: item.shipment_id,
@@ -175,7 +176,17 @@ const SalesPage: React.FC = () => {
       exchange_rate: item.exchange_rate,
       tax_percent: item.tax_percent,
     });
-    setIsEditMode(true);
+  };
+
+  const handleOpenEdit = (item: SalesItem) => {
+    setFormStateFromItem(item);
+    setMode('edit');
+    setIsDialogOpen(true);
+  };
+
+  const handleOpenDetail = (item: SalesItem) => {
+    setFormStateFromItem(item);
+    setMode('detail');
     setIsDialogOpen(true);
   };
 
@@ -190,19 +201,20 @@ const SalesPage: React.FC = () => {
   const handleSave = async () => {
     try {
       if (!formState.shipment_id) {
-        alert('Please select a shipment');
+        toast.error('Please select a shipment');
         return;
       }
-      if (isEditMode && formState.id) {
+      if (mode === 'edit' && formState.id) {
         await salesService.updateSalesItem(formState.id, formState);
-      } else {
+      } else if (mode === 'add') {
         await salesService.createSalesItem(formState);
       }
       handleCloseDialog();
       fetchData();
+      toast.success(mode === 'edit' ? 'Sales item updated successfully' : 'Sales item created successfully');
     } catch (err) {
       console.error('Failed to save sales item:', err);
-      alert('Failed to save sales item. Please check your data.');
+      toast.error('Failed to save sales item. Please check your data.');
     }
   };
 
@@ -211,6 +223,7 @@ const SalesPage: React.FC = () => {
     try {
       await salesService.deleteSalesItem(id);
       fetchData();
+      toast.success('Sales item deleted successfully');
     } catch (err) {
       console.error('Failed to delete sales item:', err);
     }
@@ -406,7 +419,11 @@ const SalesPage: React.FC = () => {
               </div>
             ) : (
               filteredItems.map(item => (
-                <div key={item.id} className="bg-white rounded-2xl border border-border p-4 shadow-sm active:border-primary/40 transition-all group relative overflow-hidden">
+                <div 
+                  key={item.id} 
+                  onClick={() => handleOpenDetail(item)}
+                  className="bg-white rounded-2xl border border-border p-4 shadow-sm active:border-primary/40 transition-all group relative overflow-hidden cursor-pointer"
+                >
                   <div className="flex items-start justify-between relative z-10">
                     <div className="flex flex-col gap-1 pr-12 min-w-0">
                       <span className="text-[10px] font-mono font-black text-primary uppercase tracking-tighter opacity-70">#{item.shipment_id?.slice(0, 8)}</span>
@@ -419,8 +436,18 @@ const SalesPage: React.FC = () => {
                     </div>
                   </div>
                   <div className="mt-4 flex items-center justify-end gap-2 pt-3 border-t border-slate-50">
-                    <button onClick={() => handleOpenEdit(item)} className="p-2 rounded-xl bg-slate-50 text-slate-600 active:bg-primary/10 active:text-primary transition-all"><Edit size={14} /></button>
-                    <button onClick={() => handleDelete(item.id)} className="p-2 rounded-xl bg-red-50 text-red-400 active:bg-red-500 active:text-white transition-all"><Trash2 size={14} /></button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleOpenEdit(item); }} 
+                      className="p-2 rounded-xl bg-slate-50 text-slate-600 active:bg-primary/10 active:text-primary transition-all"
+                    >
+                      <Edit size={14} />
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} 
+                      className="p-2 rounded-xl bg-red-50 text-red-400 active:bg-red-500 active:text-white transition-all"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 </div>
               ))
@@ -569,12 +596,13 @@ const SalesPage: React.FC = () => {
                   ) : filteredItems.map(item => (
                     <tr
                       key={item.id}
+                      onClick={() => handleOpenDetail(item)}
                       className={clsx(
-                        'hover:bg-slate-50/60 transition-colors group',
+                        'hover:bg-slate-50/60 transition-colors group cursor-pointer',
                         selectedSalesItems.includes(item.id) && 'bg-primary/[0.02]'
                       )}
                     >
-                      <td className="px-4 py-4 text-center border-r border-border/40">
+                      <td className="px-4 py-4 text-center border-r border-border/40" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={selectedSalesItems.includes(item.id)}
@@ -585,8 +613,15 @@ const SalesPage: React.FC = () => {
                       {columnOrder.filter(id => visibleColumns.includes(id)).map(key => (
                         <td key={key} className={COLUMN_DEFS[key].tdClass}>{COLUMN_DEFS[key].renderContent(item)}</td>
                       ))}
-                      <td className="px-4 py-4">
+                      <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => navigate(`/financials/sales/quotation/${item.id}`)}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-orange-600 hover:bg-orange-50 transition-all font-bold"
+                            title="Print Quotation"
+                          >
+                            <Printer size={14} />
+                          </button>
                           <button
                             onClick={() => handleOpenEdit(item)}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-all"
@@ -776,10 +811,10 @@ const SalesPage: React.FC = () => {
         , document.body)}
 
       {/* ADD/EDIT DIALOG */}
-      <AddEditSalesDialog
+      <SalesDialog
         isOpen={isDialogOpen}
         isClosing={isClosing}
-        isEditMode={isEditMode}
+        mode={mode}
         onClose={handleCloseDialog}
         formState={formState}
         setFormField={setFormField}

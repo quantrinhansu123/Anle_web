@@ -12,14 +12,16 @@ import { paymentRequestService } from '../services/paymentRequestService';
 import { shipmentService } from '../services/shipmentService';
 import { supplierService } from '../services/supplierService';
 import { ColumnSettings } from '../components/ui/ColumnSettings';
+import { formatDate } from '../lib/utils';
 import { FilterDropdown } from '../components/ui/FilterDropdown';
 import type { PaymentRequest, PaymentRequestFormState } from './payment-requests/types';
-import AddEditPaymentRequestDialog from './payment-requests/dialogs/AddEditPaymentRequestDialog';
+import PaymentRequestDialog from './payment-requests/dialogs/PaymentRequestDialog';
 import { DateTime } from 'luxon';
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
+import { toast } from '../lib/toast';
 
 // --- CONFIGURATION ---
 type ColDef = { label: string; thClass: string; tdClass: string; renderContent: (r: PaymentRequest) => React.ReactNode };
@@ -54,7 +56,7 @@ const COLUMN_DEFS: Record<string, ColDef> = {
       <div className="flex items-center gap-2">
         <Calendar size={14} className="text-muted-foreground/40" />
         <span className="text-[13px] text-slate-600 font-medium">
-          {DateTime.fromISO(r.request_date).toFormat('dd LLL yyyy')}
+          {formatDate(r.request_date)}
         </span>
       </div>
     )
@@ -106,6 +108,7 @@ const PaymentRequestsPage: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isDetailMode, setIsDetailMode] = useState(false);
   const [formState, setFormState] = useState<PaymentRequestFormState>(INITIAL_FORM_STATE);
   const [shipmentOptions, setShipmentOptions] = useState<{ value: string, label: string }[]>([]);
 
@@ -162,12 +165,12 @@ const PaymentRequestsPage: React.FC = () => {
   const handleOpenAdd = () => {
     setFormState(INITIAL_FORM_STATE);
     setIsEditMode(false);
+    setIsDetailMode(false);
     setIsDialogOpen(true);
   };
 
   const handleOpenEdit = async (request: PaymentRequest) => {
     try {
-      // Fetch full details with invoices
       const fullRequest = await paymentRequestService.getPaymentRequestById(request.id);
       setFormState({
         id: fullRequest.id,
@@ -186,6 +189,34 @@ const PaymentRequestsPage: React.FC = () => {
           : [{ no_invoice: '', description: '', date_issue: '', payable_amount: 0 }]
       });
       setIsEditMode(true);
+      setIsDetailMode(false);
+      setIsDialogOpen(true);
+    } catch (err) {
+      console.error('Failed to fetch request details:', err);
+    }
+  };
+
+  const handleOpenDetail = async (request: PaymentRequest) => {
+    try {
+      const fullRequest = await paymentRequestService.getPaymentRequestById(request.id);
+      setFormState({
+        id: fullRequest.id,
+        shipment_id: fullRequest.shipment_id,
+        request_date: fullRequest.request_date,
+        account_name: fullRequest.account_name || '',
+        account_number: fullRequest.account_number || '',
+        bank_name: fullRequest.bank_name || '',
+        invoices: fullRequest.invoices?.length
+          ? fullRequest.invoices.map(inv => ({
+            no_invoice: inv.no_invoice,
+            description: inv.description,
+            date_issue: inv.date_issue,
+            payable_amount: inv.payable_amount || 0
+          }))
+          : [{ no_invoice: '', description: '', date_issue: '', payable_amount: 0 }]
+      });
+      setIsEditMode(false);
+      setIsDetailMode(true);
       setIsDialogOpen(true);
     } catch (err) {
       console.error('Failed to fetch request details:', err);
@@ -203,7 +234,7 @@ const PaymentRequestsPage: React.FC = () => {
   const handleSave = async () => {
     try {
       if (!formState.shipment_id) {
-        alert('Please select a shipment');
+        toast.error('Please select a shipment');
         return;
       }
 
@@ -215,9 +246,10 @@ const PaymentRequestsPage: React.FC = () => {
 
       handleCloseDialog();
       fetchData();
+      toast.success(isEditMode ? 'Payment request updated successfully' : 'Payment request created successfully');
     } catch (err) {
       console.error('Failed to save payment request:', err);
-      alert('Failed to save payment request');
+      toast.error('Failed to save payment request');
     }
   };
 
@@ -226,6 +258,7 @@ const PaymentRequestsPage: React.FC = () => {
     try {
       await paymentRequestService.deletePaymentRequest(id);
       fetchData();
+      toast.success('Payment request deleted successfully');
     } catch (err) {
       console.error('Failed to delete:', err);
     }
@@ -415,8 +448,15 @@ const PaymentRequestsPage: React.FC = () => {
                   </tr>
                 ) : (
                   filteredRequests.map(r => (
-                    <tr key={r.id} className={clsx('hover:bg-slate-50/60 transition-colors group', selectedRequests.includes(r.id) && 'bg-primary/[0.02]')}>
-                      <td className="px-4 py-4 text-center border-r border-border/40">
+                    <tr 
+                      key={r.id} 
+                      onClick={() => handleOpenDetail(r)}
+                      className={clsx(
+                        'hover:bg-slate-50/60 transition-colors group cursor-pointer', 
+                        selectedRequests.includes(r.id) && 'bg-primary/[0.02]'
+                      )}
+                    >
+                      <td className="px-4 py-4 text-center border-r border-border/40" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={selectedRequests.includes(r.id)}
@@ -427,7 +467,7 @@ const PaymentRequestsPage: React.FC = () => {
                       {columnOrder.filter(id => visibleColumns.includes(id)).map(key => (
                         <td key={key} className={COLUMN_DEFS[key].tdClass}>{COLUMN_DEFS[key].renderContent(r)}</td>
                       ))}
-                      <td className="px-4 py-4">
+                      <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={() => handleOpenEdit(r)}
@@ -553,10 +593,11 @@ const PaymentRequestsPage: React.FC = () => {
         </div>
       )}
 
-      <AddEditPaymentRequestDialog
+      <PaymentRequestDialog
         isOpen={isDialogOpen}
         isClosing={isClosing}
         isEditMode={isEditMode}
+        isDetailMode={isDetailMode}
         onClose={handleCloseDialog}
         formState={formState}
         setFormField={(key, val) => setFormState(prev => ({ ...prev, [key]: val }))}

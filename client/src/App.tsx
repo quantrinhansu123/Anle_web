@@ -15,33 +15,52 @@ import PurchasingPage from './pages/PurchasingPage';
 import ContractsPage from './pages/ContractsPage';
 import PaymentRequestsPage from './pages/PaymentRequestsPage';
 import DebitNotesPage from './pages/DebitNotesPage';
-
+import ExchangeRatesPage from './pages/ExchangeRatesPage';
+import EmployeesPage from './pages/EmployeesPage';
+import EmployeeDetailsPage from './pages/employees/EmployeeDetailsPage';
+import SupplierDetailsPage from './pages/suppliers/SupplierDetailsPage';
+import CompanyInfoPage from './pages/system/CompanyInfoPage';
+import HoadonAnle from './pages/sales/HoadonAnle';
+import LoginPage from './pages/auth/LoginPage';
+import { AuthProvider } from './contexts/AuthContext';
+import { BreadcrumbProvider } from './contexts/BreadcrumbContext';
+import ProtectedRoute from './components/auth/ProtectedRoute';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<MainLayout />}>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/profile" element={<ProfilePage />} />
+    <AuthProvider>
+      <BreadcrumbProvider>
+        <BrowserRouter>
+          <Routes>
+          <Route path="/login" element={<LoginPage />} />
           
-          {/* Logistics Modules */}
-          <Route path="/shipments" element={<ModulePage />} />
+          <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            
+            {/* Logistics Modules */}
+            <Route path="/order" element={<ModulePage />} />
+            <Route path="/internal" element={<ModulePage />} />
+            <Route path="/accountant" element={<ModulePage />} />
+          
           <Route path="/shipments/information" element={<ShipmentsPage />} />
-          <Route path="/customers" element={<ModulePage />} />
           <Route path="/customers/directory" element={<CustomerPage />} />
-          <Route path="/suppliers" element={<ModulePage />} />
           <Route path="/suppliers/directory" element={<SupplierPage />} />
-          <Route path="/employees" element={<ModulePage />} />
+          <Route path="/suppliers/directory/:id" element={<SupplierDetailsPage />} />
           <Route path="/employees/candidates" element={<CandidatesPage />} />
-           <Route path="/contracts" element={<ModulePage />} />
-           <Route path="/contracts/directory" element={<ContractsPage />} />
-          <Route path="/financials" element={<ModulePage />} />
+          <Route path="/employees/directory" element={<EmployeesPage />} />
+          <Route path="/employees/directory/:id" element={<EmployeeDetailsPage />} />
+          <Route path="/contracts/directory" element={<ContractsPage />} />
           <Route path="/financials/sales" element={<SalesPage />} />
+          <Route path="/financials/sales/quotation/:id" element={<HoadonAnle />} />
           <Route path="/financials/purchasing" element={<PurchasingPage />} />
           <Route path="/financials/payment-requests" element={<PaymentRequestsPage />} />
           <Route path="/financials/debit-notes" element={<DebitNotesPage />} />
           <Route path="/system" element={<ModulePage />} />
+          <Route path="/system/exchange-rates" element={<ExchangeRatesPage />} />
+          <Route path="/system/company-info" element={<CompanyInfoPage />} />
           
           <Route path="/ai-assistant" element={<AIPage />} />
           <Route path="/copyright" element={<CopyrightPage />} />
@@ -51,7 +70,21 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
-    </BrowserRouter>
+        </BrowserRouter>
+      </BreadcrumbProvider>
+      <ToastContainer 
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+      />
+    </AuthProvider>
   );
 }
 

@@ -6,7 +6,7 @@ export class ShipmentService {
     const from = (page - 1) * limit;
     const { data, error, count } = await supabase
       .from('shipments')
-      .select('*, customers(company_name), suppliers(company_name)', { count: 'exact' })
+      .select('*, customers(company_name), suppliers(company_name), pic:employees(full_name)', { count: 'exact' })
       .range(from, from + limit - 1)
       .order('created_at', { ascending: false });
 
@@ -17,7 +17,7 @@ export class ShipmentService {
   async findById(id: string): Promise<Shipment | null> {
     const { data, error } = await supabase
       .from('shipments')
-      .select('*, customers(*), suppliers(*)')
+      .select('*, customers(*), suppliers(*), pic:employees(*)')
       .eq('id', id)
       .single();
 

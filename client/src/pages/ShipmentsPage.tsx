@@ -5,17 +5,21 @@ import {
   Edit, Trash2, X, BarChart2, List,
   ChevronRight, Ship, Plane, Truck,
   MapPin, RefreshCcw,
-  TrendingUp, Users, CheckCircle2, Clock
+  TrendingUp, Users, CheckCircle2, Clock,
+  User as UserIcon, Eye
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
 import { shipmentService } from '../services/shipmentService';
-import { customerService } from '../services/customerService';
-import { supplierService } from '../services/supplierService';
+import { customerService, type Customer } from '../services/customerService';
+import { formatDate } from '../lib/utils';
+import { supplierService, type Supplier } from '../services/supplierService';
 import { FilterDropdown } from '../components/ui/FilterDropdown';
 import { ColumnSettings } from '../components/ui/ColumnSettings';
+import { useAuth } from '../contexts/AuthContext';
 import type { Shipment, ShipmentFormState } from './shipments/types';
-import AddEditShipmentDialog from './shipments/dialogs/AddEditShipmentDialog';
+import ShipmentDialog from './shipments/dialogs/ShipmentDialog';
+import { toast } from '../lib/toast';
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -42,7 +46,8 @@ const INITIAL_FORM_STATE: ShipmentFormState = {
   isNewCustomer: false,
   newCustomer: { company_name: '' },
   isNewSupplier: false,
-  newSupplier: { id: '', company_name: '' }
+  newSupplier: { id: '', company_name: '' },
+  pic_id: ''
 };
 const statusConfig: Record<string, { label: string; classes: string }> = {
   'pre_booking': { label: 'Pre-booking', classes: 'bg-slate-100 text-slate-600 border-slate-200' },
@@ -100,8 +105,8 @@ const COLUMN_DEFS: Record<string, ColDef> = {
     tdClass: 'px-4 py-4 border-r border-border/40',
     renderContent: (s) => (
       <div className="flex items-center gap-3">
-        <div className="flex flex-col"><span className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-1">ETD</span><span className="text-[12px] text-slate-600 font-medium tabular-nums">{s.etd || '—'}</span></div>
-        <div className="flex flex-col border-l border-border pl-3"><span className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-1">ETA</span><span className="text-[12px] text-slate-600 font-medium tabular-nums">{s.eta || '—'}</span></div>
+        <div className="flex flex-col"><span className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-1">ETD</span><span className="text-[12px] text-slate-600 font-medium tabular-nums">{formatDate(s.etd)}</span></div>
+        <div className="flex flex-col border-l border-border pl-3"><span className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-1">ETA</span><span className="text-[12px] text-slate-600 font-medium tabular-nums">{formatDate(s.eta)}</span></div>
       </div>
     )
   },
@@ -110,7 +115,8 @@ const COLUMN_DEFS: Record<string, ColDef> = {
     thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-32',
     tdClass: 'px-4 py-4',
     renderContent: (s) => {
-      const statusKey = s.eta && new Date(s.eta) < new Date() ? 'delivered' : 'in_transit';
+      const isDelivered = s.eta && new Date(s.eta).getTime() < new Date().getTime();
+      const statusKey = isDelivered ? 'delivered' : 'in_transit';
       return <span className={clsx('px-2.5 py-1 rounded-full text-[10px] font-bold border whitespace-nowrap block text-center', statusConfig[statusKey].classes)}>{statusConfig[statusKey].label}</span>;
     }
   }
@@ -119,6 +125,7 @@ const DEFAULT_COL_ORDER = Object.keys(COLUMN_DEFS);
 
 const ShipmentsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'list' | 'stats'>('list');
   const [selectedShipments, setSelectedShipments] = useState<string[]>([]);
 
@@ -145,9 +152,11 @@ const ShipmentsPage: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isDetailMode, setIsDetailMode] = useState(false);
   const [formState, setFormState] = useState<ShipmentFormState>(INITIAL_FORM_STATE);
-  const [customerOptions, setCustomerOptions] = useState<{ value: string, label: string }[]>([]);
-  const [supplierOptions, setSupplierOptions] = useState<{ value: string, label: string }[]>([]);
+  // Options for Selects
+  const [customerOptions, setCustomerOptions] = useState<(Customer & { value: string, label: string })[]>([]);
+  const [supplierOptions, setSupplierOptions] = useState<(Supplier & { value: string, label: string })[]>([]);
 
   // Column Settings State
   const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_COL_ORDER);
@@ -191,8 +200,8 @@ const ShipmentsPage: React.FC = () => {
         customerService.getCustomers(),
         supplierService.getSuppliers()
       ]);
-      setCustomerOptions(customers.map(c => ({ value: c.id, label: c.company_name })));
-      setSupplierOptions(suppliers.map(s => ({ value: s.id, label: s.company_name })));
+      setCustomerOptions(customers.map(c => ({ ...c, value: c.id, label: c.company_name })));
+      setSupplierOptions(suppliers.map(s => ({ ...s, value: s.id, label: s.company_name })));
     } catch (err) {
       console.error('Failed to fetch options:', err);
     }
@@ -200,8 +209,12 @@ const ShipmentsPage: React.FC = () => {
 
   // --- ACTIONS ---
   const handleOpenAdd = () => {
-    setFormState(INITIAL_FORM_STATE);
+    setFormState({
+      ...INITIAL_FORM_STATE,
+      pic: user ? { full_name: user.full_name } : undefined
+    });
     setIsEditMode(false);
+    setIsDetailMode(false);
     setIsDialogOpen(true);
   };
 
@@ -214,6 +227,19 @@ const ShipmentsPage: React.FC = () => {
       newSupplier: { id: '', company_name: '' }
     });
     setIsEditMode(true);
+    setIsDetailMode(false);
+    setIsDialogOpen(true);
+  };
+  const handleOpenDetail = (shipment: Shipment) => {
+    setFormState({
+      ...shipment,
+      isNewCustomer: false,
+      isNewSupplier: false,
+      newCustomer: { company_name: '' },
+      newSupplier: { id: '', company_name: '' }
+    });
+    setIsEditMode(false);
+    setIsDetailMode(true);
     setIsDialogOpen(true);
   };
 
@@ -245,7 +271,7 @@ const ShipmentsPage: React.FC = () => {
       // Handle New Supplier
       if (formState.isNewSupplier && formState.newSupplier?.company_name) {
         if (!formState.newSupplier.id || formState.newSupplier.id.length !== 3) {
-          alert('Supplier Code must be exactly 3 characters');
+          toast.error('Supplier Code must be exactly 3 characters');
           return;
         }
         const newSupp = await supplierService.createSupplier({
@@ -260,7 +286,7 @@ const ShipmentsPage: React.FC = () => {
       }
 
       if (!finalCustomerId || !finalSupplierId) {
-        alert('Please select or create a customer and supplier.');
+        toast.error('Please select or create a customer and supplier.');
         return;
       }
 
@@ -268,6 +294,7 @@ const ShipmentsPage: React.FC = () => {
         ...formState,
         customer_id: finalCustomerId,
         supplier_id: finalSupplierId,
+        pic_id: isEditMode ? formState.pic_id : user?.id,
       };
 
       if (isEditMode && formState.id) {
@@ -279,9 +306,10 @@ const ShipmentsPage: React.FC = () => {
       handleCloseDialog();
       fetchData();
       fetchOptions(); // Refresh lists in case new ones were added
+      toast.success(isEditMode ? 'Shipment updated successfully' : 'Shipment created successfully');
     } catch (err) {
       console.error('Failed to save shipment:', err);
-      alert('Failed to save shipment. Please try again.');
+      toast.error('Failed to save shipment. Please try again.');
     }
   };
 
@@ -369,7 +397,11 @@ const ShipmentsPage: React.FC = () => {
             {loading ? <div className="py-16 text-center animate-pulse text-muted-foreground italic">Loading Shipments...</div> :
               filteredShipments.length === 0 ? <div className="py-16 text-center text-[13px] text-muted-foreground italic">No matching shipments</div> :
                 filteredShipments.map(s => (
-                  <div key={s.id} className="bg-white rounded-2xl border border-border p-4 shadow-sm hover:border-primary/40 transition-all">
+                  <div
+                    key={s.id}
+                    onClick={() => handleOpenDetail(s)}
+                    className="bg-white rounded-2xl border border-border p-4 shadow-sm hover:border-primary/40 transition-all cursor-pointer"
+                  >
                     <div className="flex items-start justify-between">
                       <div className="flex flex-col gap-1">
                         <span className="text-[11px] font-mono font-bold text-primary">#{s.id.slice(0, 8)}</span>
@@ -384,7 +416,7 @@ const ShipmentsPage: React.FC = () => {
                     </div>
                     <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground font-medium">
                       <div className="flex items-center gap-2"><MapPin size={10} /><span>{s.pol} → {s.pod}</span></div>
-                      <span>{s.etd}</span>
+                      <span>{formatDate(s.etd)}</span>
                     </div>
                   </div>
                 ))}
@@ -476,7 +508,7 @@ const ShipmentsPage: React.FC = () => {
                       : "bg-white border-border hover:bg-muted text-muted-foreground"
                   )}
                 >
-                  <Users size={14} className={clsx(activeDropdown === 'customer' || selectedCustomers.length > 0 ? "text-primary" : "text-muted-foreground/50")} />
+                  <UserIcon size={14} className={clsx(activeDropdown === 'customer' || selectedCustomers.length > 0 ? "text-primary" : "text-muted-foreground/50")} />
                   Customer
                   {selectedCustomers.length > 0 && (
                     <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
@@ -556,20 +588,34 @@ const ShipmentsPage: React.FC = () => {
                   )) : filteredShipments.length === 0 ? (
                     <tr><td colSpan={visibleColumns.length + 2} className="px-4 py-20 text-center italic text-muted-foreground opacity-60">No shipments found.</td></tr>
                   ) : filteredShipments.map(s => (
-                    <tr key={s.id} className={clsx('hover:bg-slate-50/60 transition-colors group', selectedShipments.includes(s.id) && 'bg-primary/[0.02]')}>
-                      <td className="px-4 py-4 text-center border-r border-border/40"><input type="checkbox" checked={selectedShipments.includes(s.id)} onChange={() => toggleSelect(s.id)} className="rounded border-border" /></td>
+                    <tr
+                      key={s.id}
+                      onClick={() => handleOpenDetail(s)}
+                      className={clsx('hover:bg-slate-50/60 transition-colors group cursor-pointer', selectedShipments.includes(s.id) && 'bg-primary/[0.02]')}
+                    >
+                      <td className="px-4 py-4 text-center border-r border-border/40" onClick={(e) => e.stopPropagation()}>
+                        <input type="checkbox" checked={selectedShipments.includes(s.id)} onChange={() => toggleSelect(s.id)} className="rounded border-border" />
+                      </td>
                       {columnOrder.filter(id => visibleColumns.includes(id)).map(key => (
                         <td key={key} className={COLUMN_DEFS[key].tdClass}>{COLUMN_DEFS[key].renderContent(s)}</td>
                       ))}
                       <td className="px-4 py-4">
-                        <div className="flex items-center justify-center gap-1">
+                        <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => handleOpenDetail(s)}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all"
+                            title="View Details"
+                          >
+                            <Eye size={14} />
+                          </button>
                           <button
                             onClick={() => handleOpenEdit(s)}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-all"
+                            title="Edit"
                           >
                             <Edit size={14} />
                           </button>
-                          <button className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-100 transition-all"><Trash2 size={14} /></button>
+                          <button className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-100 transition-all" title="Delete"><Trash2 size={14} /></button>
                         </div>
                       </td>
                     </tr>
@@ -595,8 +641,8 @@ const ShipmentsPage: React.FC = () => {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
             {[
               { label: 'Total Shipments', val: shipments.length, icon: Ship, color: 'text-blue-600', bg: 'bg-blue-100/50' },
-              { label: 'Active Transit', val: shipments.filter(s => !s.eta || new Date(s.eta) >= new Date()).length, icon: TrendingUp, color: 'text-indigo-600', bg: 'bg-indigo-100/50' },
-              { label: 'Delivered', val: shipments.filter(s => s.eta && new Date(s.eta) < new Date()).length, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-100/50' },
+              { label: 'Active Transit', val: shipments.filter(s => !s.eta || new Date(s.eta).getTime() >= new Date().getTime()).length, icon: TrendingUp, color: 'text-indigo-600', bg: 'bg-indigo-100/50' },
+              { label: 'Delivered', val: shipments.filter(s => s.eta && new Date(s.eta).getTime() < new Date().getTime()).length, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-100/50' },
               { label: 'Delayed / Warning', val: 0, icon: Clock, color: 'text-orange-600', bg: 'bg-orange-100/50' },
             ].map(card => (
               <div key={card.label} className="bg-white p-4 rounded-2xl border border-border shadow-sm flex items-center gap-3">
@@ -731,11 +777,12 @@ const ShipmentsPage: React.FC = () => {
           </div>
         </div>
         , document.body)}
-      {/* ADD/EDIT DIALOG */}
-      <AddEditShipmentDialog
+      {/* SHIPMENT DIALOG */}
+      <ShipmentDialog
         isOpen={isDialogOpen}
         isClosing={isClosing}
         isEditMode={isEditMode}
+        isDetailMode={isDetailMode}
         onClose={handleCloseDialog}
         formState={formState}
         setFormField={setFormField}

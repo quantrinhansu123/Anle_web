@@ -9,11 +9,12 @@ import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
 import { customerService, type Customer } from '../services/customerService';
 import { ColumnSettings } from '../components/ui/ColumnSettings';
-import AddEditCustomerDialog from './customers/dialogs/AddEditCustomerDialog';
+import CustomerDialog from './customers/dialogs/CustomerDialog';
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
+import { toast } from '../lib/toast';
 
 const INITIAL_FORM_STATE: Partial<Customer> = {
   company_name: '',
@@ -84,7 +85,7 @@ const CustomerPage: React.FC = () => {
   // Dialog State
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
+  const [dialogMode, setDialogMode] = useState<'add' | 'edit' | 'detail'>('add');
   const [formState, setFormState] = useState<Partial<Customer>>(INITIAL_FORM_STATE);
 
   useEffect(() => {
@@ -105,13 +106,19 @@ const CustomerPage: React.FC = () => {
 
   const handleOpenAdd = () => {
     setFormState(INITIAL_FORM_STATE);
-    setIsEditMode(false);
+    setDialogMode('add');
     setIsDialogOpen(true);
   };
 
   const handleOpenEdit = (customer: Customer) => {
     setFormState(customer);
-    setIsEditMode(true);
+    setDialogMode('edit');
+    setIsDialogOpen(true);
+  };
+
+  const handleOpenDetail = (customer: Customer) => {
+    setFormState(customer);
+    setDialogMode('detail');
     setIsDialogOpen(true);
   };
 
@@ -126,11 +133,11 @@ const CustomerPage: React.FC = () => {
   const handleSave = async () => {
     try {
       if (!formState.company_name) {
-        alert('Company name is required');
+        toast.error('Company name is required');
         return;
       }
 
-      if (isEditMode && formState.id) {
+      if (dialogMode === 'edit' && formState.id) {
         await customerService.updateCustomer(formState.id, formState);
       } else {
         await customerService.createCustomer(formState as any);
@@ -138,9 +145,10 @@ const CustomerPage: React.FC = () => {
 
       handleCloseDialog();
       fetchData();
+      toast.success(dialogMode === 'edit' ? 'Customer updated successfully' : 'Customer created successfully');
     } catch (err) {
       console.error('Failed to save customer:', err);
-      alert('Failed to save customer');
+      toast.error('Failed to save customer');
     }
   };
 
@@ -149,9 +157,10 @@ const CustomerPage: React.FC = () => {
     try {
       await customerService.deleteCustomer(id);
       fetchData();
+      toast.success('Customer deleted successfully');
     } catch (err) {
       console.error('Failed to delete customer:', err);
-      alert('Failed to delete customer');
+      toast.error('Failed to delete customer');
     }
   };
 
@@ -239,11 +248,11 @@ const CustomerPage: React.FC = () => {
                 )) : filteredCustomers.length === 0 ? (
                   <tr><td colSpan={visibleColumns.length + 1} className="px-4 py-20 text-center italic text-muted-foreground opacity-60">No customers found.</td></tr>
                 ) : filteredCustomers.map(c => (
-                  <tr key={c.id} className="hover:bg-slate-50/60 transition-colors group">
+                  <tr key={c.id} onClick={() => handleOpenDetail(c)} className="hover:bg-slate-50/60 transition-colors group cursor-pointer">
                     {columnOrder.filter(id => visibleColumns.includes(id)).map(key => (
                       <td key={key} className={COLUMN_DEFS[key].tdClass}>{COLUMN_DEFS[key].renderContent(c)}</td>
                     ))}
-                    <td className="px-4 py-4">
+                    <td className="px-4 py-4" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-1">
                         <button 
                           onClick={() => handleOpenEdit(c)}
@@ -327,17 +336,19 @@ const CustomerPage: React.FC = () => {
         </div>
       )}
 
-      <AddEditCustomerDialog
+      <CustomerDialog
         isOpen={isDialogOpen}
         isClosing={isClosing}
-        isEditMode={isEditMode}
+        mode={dialogMode}
         onClose={handleCloseDialog}
         formState={formState}
         setFormField={(key, val) => setFormState(prev => ({ ...prev, [key]: val }))}
         onSave={handleSave}
+        onEdit={() => setDialogMode('edit')}
       />
     </div>
   );
 };
 
 export default CustomerPage;
+

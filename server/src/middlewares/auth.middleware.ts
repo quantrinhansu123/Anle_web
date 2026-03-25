@@ -1,14 +1,22 @@
-import type { Request, Response, NextFunction } from 'express';
-import { supabase } from '../config/supabase';
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+import { env } from '../config/env';
+import { AppError } from './error.middleware';
 
-export async function authMiddleware(req: Request, res: Response, next: NextFunction) {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) return res.status(401).json({ success: false, message: 'Unauthorized' });
+export const authMiddleware = (req: Request, res: Response, _next: NextFunction) => {
+  const authHeader = req.headers.authorization;
 
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data.user) return res.status(401).json({ success: false, message: 'Invalid token' });
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw new AppError('No token provided', 401);
+  }
 
-  // Extend Request type to include user if needed
-  (req as any).user = data.user;
-  next();
-}
+  const token = authHeader.split(' ')[1];
+
+  try {
+    const decoded = jwt.verify(token, env.JWT_SECRET);
+    (req as any).user = decoded;
+    _next();
+  } catch (err) {
+    throw new AppError('Invalid or expired token', 401);
+  }
+};

@@ -16,10 +16,12 @@ export interface Shipment {
   pod?: string;
   etd?: string;
   eta?: string;
+  pic_id?: string;
   created_at: string;
   // Joined fields
   customers?: { company_name: string };
   suppliers?: { company_name: string };
+  pic?: { full_name: string };
 }
 
 export interface CreateShipmentDto {
@@ -39,6 +41,7 @@ export interface CreateShipmentDto {
   pod?: string;
   etd?: string;
   eta?: string;
+  pic_id?: string;
 }
 
 export interface UpdateShipmentDto extends Partial<CreateShipmentDto> {}
@@ -62,6 +65,7 @@ export interface ShipmentFormState extends CreateShipmentDto {
     address?: string;
     tax_code?: string;
   };
+  pic?: { full_name: string };
 }
 
 export interface FilterOption {

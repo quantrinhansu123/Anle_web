@@ -3,7 +3,7 @@ import {
   ChevronLeft, Search, Plus,
   Edit, Trash2, List, 
   ChevronRight, RefreshCcw,
-  BarChart2, FileText, UserCheck, Truck, ShoppingCart, ExternalLink
+  BarChart2, FileText, User as UserIcon, Truck, ShoppingCart, ExternalLink
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
@@ -13,8 +13,10 @@ import { supplierService } from '../services/supplierService';
 import { employeeService } from '../services/employeeService';
 import { FilterDropdown } from '../components/ui/FilterDropdown';
 import { ColumnSettings } from '../components/ui/ColumnSettings';
+import { useAuth } from '../contexts/AuthContext';
 import type { Contract, CreateContractDto } from './contracts/types';
-import AddEditContractDialog from './contracts/dialogs/AddEditContractDialog';
+import ContractDialog from './contracts/dialogs/ContractDialog';
+import { toast } from '../lib/toast';
 
 // --- CONFIGURATION ---
 const INITIAL_FORM_STATE: Partial<Contract> = {
@@ -102,6 +104,7 @@ const DEFAULT_COL_ORDER = Object.keys(COLUMN_DEFS);
 
 const ContractsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'list' | 'stats'>('list');
   const [selectedContracts, setSelectedContracts] = useState<string[]>([]);
   
@@ -122,7 +125,7 @@ const ContractsPage: React.FC = () => {
   // Dialog State
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
+  const [mode, setMode] = useState<'add' | 'edit' | 'detail'>('add');
   const [formState, setFormState] = useState<Partial<Contract>>(INITIAL_FORM_STATE);
   
   // Options for Selects
@@ -187,13 +190,19 @@ const ContractsPage: React.FC = () => {
 
   const handleOpenAdd = () => {
     setFormState(INITIAL_FORM_STATE);
-    setIsEditMode(false);
+    setMode('add');
     setIsDialogOpen(true);
   };
 
   const handleOpenEdit = (contract: Contract) => {
     setFormState({ ...contract });
-    setIsEditMode(true);
+    setMode('edit');
+    setIsDialogOpen(true);
+  };
+
+  const handleOpenDetail = (contract: Contract) => {
+    setFormState({ ...contract });
+    setMode('detail');
     setIsDialogOpen(true);
   };
 
@@ -208,25 +217,33 @@ const ContractsPage: React.FC = () => {
   const handleSave = async () => {
     try {
       if (!formState.no_contract) {
-        alert('Contract number is required');
+        toast.error('Contract number is required');
         return;
       }
       if (!formState.customer_id && !formState.supplier_id) {
-        alert('Please select a customer or supplier');
+        toast.error('Please select a customer or supplier');
         return;
       }
 
-      if (isEditMode && formState.id) {
-        await contractService.updateContract(formState.id, formState as any);
+      const dto = {
+        ...formState,
+        pic_id: formState.pic_id || user?.id,
+      };
+
+      if (mode === 'edit' && formState.id) {
+        const updated = await contractService.updateContract(formState.id, dto as any);
+        setFormState({ ...updated });
+        setMode('detail');
       } else {
-        await contractService.createContract(formState as any);
+        await contractService.createContract(dto as any);
+        handleCloseDialog();
+        toast.success('Contract created successfully');
       }
 
-      handleCloseDialog();
       fetchData();
     } catch (err) {
       console.error('Failed to save contract:', err);
-      alert('Failed to save contract');
+      toast.error('Failed to save contract');
     }
   };
 
@@ -235,9 +252,10 @@ const ContractsPage: React.FC = () => {
     try {
       await contractService.deleteContract(id);
       fetchData();
+      toast.success('Contract deleted successfully');
     } catch (err) {
       console.error('Failed to delete contract:', err);
-      alert('Failed to delete contract');
+      toast.error('Failed to delete contract');
     }
   };
 
@@ -363,17 +381,17 @@ const ContractsPage: React.FC = () => {
                       : "bg-white border-border hover:bg-muted text-muted-foreground"
                   )}
                 >
-                  <UserCheck size={14} />
+                  <UserIcon size={14} />
                   Person In Charge
                   {selectedPICs.length > 0 && <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">{selectedPICs.length}</span>}
                   <ChevronRight size={14} className={clsx("transition-transform ml-1 opacity-40", activeDropdown === 'pic' ? "-rotate-90" : "rotate-90")} />
                 </button>
                 <FilterDropdown
                   isOpen={activeDropdown === 'pic'}
-                  options={employeeOptions.map(opt => ({
-                    id: opt.value,
-                    label: opt.label,
-                    count: contracts.filter(c => c.pic_id === opt.value).length
+                  options={Array.from(new Set(contracts.map(c => c.pic_id))).filter(id => id).map(id => ({
+                    id: id!,
+                    label: contracts.find(c => c.pic_id === id)?.employees?.full_name || id!,
+                    count: contracts.filter(c => c.pic_id === id).length
                   }))}
                   selected={selectedPICs}
                   onToggle={(id) => setSelectedPICs(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
@@ -436,13 +454,22 @@ const ContractsPage: React.FC = () => {
                   <tr><td colSpan={10} className="px-4 py-20 text-center italic text-muted-foreground opacity-60">No contracts found.</td></tr>
                 ) : (
                   filteredContracts.map(c => (
-                    <tr key={c.id} className={clsx('hover:bg-slate-50/60 transition-colors group', selectedContracts.includes(c.id) && 'bg-primary/[0.02]')}>
-                      <td className="px-4 py-4 text-center border-r border-border/40"><input type="checkbox" checked={selectedContracts.includes(c.id)} onChange={() => toggleSelect(c.id)} className="rounded border-border" /></td>
+                    <tr 
+                      key={c.id} 
+                      onClick={() => handleOpenDetail(c)}
+                      className={clsx(
+                        'hover:bg-slate-50/60 transition-colors group cursor-pointer', 
+                        selectedContracts.includes(c.id) && 'bg-primary/[0.02]'
+                      )}
+                    >
+                      <td className="px-4 py-4 text-center border-r border-border/40" onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" checked={selectedContracts.includes(c.id)} onChange={() => toggleSelect(c.id)} className="rounded border-border" />
+                      </td>
                       {columnOrder.filter(id => visibleColumns.includes(id)).map(key => (
                         <td key={key} className={COLUMN_DEFS[key].tdClass}>{COLUMN_DEFS[key].renderContent(c)}</td>
                       ))}
-                      <td className="px-4 py-4">
-                        <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <td className="px-4 py-4" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-center gap-1 transition-opacity">
                           {c.file_url && (
                              <a 
                                href={c.file_url} 
@@ -455,13 +482,19 @@ const ContractsPage: React.FC = () => {
                              </a>
                           )}
                           <button 
-                            onClick={() => handleOpenEdit(c)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenEdit(c);
+                            }}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-all"
                           >
                             <Edit size={14} />
                           </button>
                           <button 
-                            onClick={() => handleDelete(c.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(c.id);
+                            }}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-all"
                           >
                             <Trash2 size={14} />
@@ -495,17 +528,18 @@ const ContractsPage: React.FC = () => {
         </div>
       )}
 
-      {/* ADD/EDIT DIALOG */}
-      <AddEditContractDialog 
+      {/* CONTRACT DIALOG */}
+      <ContractDialog
         isOpen={isDialogOpen}
         isClosing={isClosing}
+        mode={mode}
         onClose={handleCloseDialog}
-        isEditMode={isEditMode}
         formState={formState}
         setFormField={setFormField}
         entityOptions={entityOptions}
         employeeOptions={employeeOptions}
         onSave={handleSave}
+        onEdit={() => setMode('edit')}
       />
     </div>
   );

@@ -8,6 +8,9 @@ export interface Supplier {
   address?: string;
   tax_code?: string;
   created_at: string;
+  shipments?: any[];
+  payment_requests?: any[];
+  debit_notes?: any[];
 }
 
 export interface CreateSupplierDto {
@@ -22,6 +25,7 @@ export interface CreateSupplierDto {
 export const supplierService = {
   getSuppliers: () => apiFetch<Supplier[]>('/suppliers'),
   getById: (id: string) => apiFetch<Supplier>(`/suppliers/${id}`),
+  getSupplierDetails: (id: string) => apiFetch<Supplier>(`/suppliers/${id}/details`),
   createSupplier: (dto: CreateSupplierDto) => 
     apiFetch<Supplier>('/suppliers', {
       method: 'POST',

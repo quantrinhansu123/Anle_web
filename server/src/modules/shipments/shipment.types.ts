@@ -16,6 +16,7 @@ export interface Shipment {
   pod?: string;
   etd?: string; // ISO Date
   eta?: string; // ISO Date
+  pic_id?: string;
   created_at: string;
 }
 
@@ -36,6 +37,7 @@ export interface CreateShipmentDto {
   pod?: string;
   etd?: string;
   eta?: string;
+  pic_id?: string;
 }
 
 export interface UpdateShipmentDto extends Partial<CreateShipmentDto> {}

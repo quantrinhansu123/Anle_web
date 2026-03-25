@@ -43,23 +43,25 @@ export const ActionCard: React.FC<ActionCardProps> = ({
         <ArrowUpRight size={16} strokeWidth={2.5} />
       </div>
 
-      <div className="flex flex-col items-center text-center h-full">
+      <div className="flex items-center gap-5 h-full">
         <div 
           className={clsx(
-            "w-16 h-16 rounded-[22px] flex items-center justify-center mb-5 transition-transform duration-300 group-hover:scale-110 shadow-sm",
+            "w-14 h-14 shrink-0 rounded-[18px] flex items-center justify-center transition-transform duration-300 group-hover:scale-110 shadow-sm",
             colorMap[colorScheme]
           )}
         >
-          <Icon size={30} strokeWidth={2} />
+          <Icon size={24} strokeWidth={2} />
         </div>
         
-        <h3 className="font-bold text-[17px] text-foreground mb-1.5 group-hover:text-primary transition-colors">
-          {title}
-        </h3>
-        
-        <p className="text-[13px] text-muted-foreground leading-relaxed line-clamp-2 px-2">
-          {description}
-        </p>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-bold text-[17px] text-foreground mb-1 group-hover:text-primary transition-colors">
+            {title}
+          </h3>
+          
+          <p className="text-[13px] text-muted-foreground leading-relaxed line-clamp-2">
+            {description}
+          </p>
+        </div>
       </div>
     </Link>
   );

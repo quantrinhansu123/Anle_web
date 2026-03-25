@@ -9,6 +9,7 @@ const router = Router();
 
 router.get('/',        SupplierController.list);
 router.get('/:id',     SupplierController.getById);
+router.get('/:id/details', SupplierController.getDetails);
 router.post('/',       validate(createSupplierSchema), SupplierController.create);
 router.patch('/:id',   validate(updateSupplierSchema), SupplierController.update);
 router.delete('/:id',  SupplierController.remove);

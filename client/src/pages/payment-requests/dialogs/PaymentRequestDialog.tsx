@@ -7,12 +7,14 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { SearchableSelect } from '../../../components/ui/SearchableSelect';
+import { DateInput } from '../../../components/ui/DateInput';
 import type { PaymentRequestFormState } from '../types';
 
 interface Props {
   isOpen: boolean;
   isClosing: boolean;
   isEditMode: boolean;
+  isDetailMode?: boolean;
   onClose: () => void;
   formState: PaymentRequestFormState;
   setFormField: <K extends keyof PaymentRequestFormState>(key: K, value: PaymentRequestFormState[K]) => void;
@@ -20,10 +22,11 @@ interface Props {
   onSave: () => void;
 }
 
-const AddEditPaymentRequestDialog: React.FC<Props> = ({
+const PaymentRequestDialog: React.FC<Props> = ({
   isOpen,
   isClosing,
   isEditMode,
+  isDetailMode = false,
   onClose,
   formState,
   setFormField,
@@ -83,7 +86,7 @@ const AddEditPaymentRequestDialog: React.FC<Props> = ({
               <FileText size={20} />
             </div>
             <h2 className="text-lg font-bold text-foreground">
-              {isEditMode ? 'Edit Payment Request' : 'Add New Payment Request'}
+              {isDetailMode ? 'Payment Request Details' : isEditMode ? 'Edit Payment Request' : 'Add New Payment Request'}
             </h2>
           </div>
           <button
@@ -116,6 +119,7 @@ const AddEditPaymentRequestDialog: React.FC<Props> = ({
                   value={shipment_id}
                   onValueChange={(v) => setFormField('shipment_id', v)}
                   placeholder="Select shipment..."
+                  disabled={isDetailMode}
                 />
               </div>
               <div className="space-y-1.5">
@@ -123,11 +127,10 @@ const AddEditPaymentRequestDialog: React.FC<Props> = ({
                   <Calendar size={16} className="text-muted-foreground/70" />
                   <label className="text-[13px] font-bold text-foreground">Request Date <span className="text-red-500">*</span></label>
                 </div>
-                <input
-                  type="date"
+                <DateInput
                   value={request_date}
-                  onChange={e => setFormField('request_date', e.target.value)}
-                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                  onChange={v => setFormField('request_date', v)}
+                  disabled={isDetailMode}
                 />
               </div>
             </div>
@@ -140,18 +143,20 @@ const AddEditPaymentRequestDialog: React.FC<Props> = ({
                 <Receipt size={16} className="text-primary" />
                 <span className="text-[12px] font-bold text-primary uppercase tracking-wider">Invoice Items</span>
               </div>
-              <button
-                onClick={handleAddInvoice}
-                className="flex items-center gap-1.5 px-3 py-1 bg-primary/10 text-primary rounded-lg text-[11px] font-bold hover:bg-primary/20 transition-all"
-              >
-                <Plus size={14} />
-                ADD MORE
-              </button>
+              {!isDetailMode && (
+                <button
+                  onClick={handleAddInvoice}
+                  className="flex items-center gap-1.5 px-3 py-1 bg-primary/10 text-primary rounded-lg text-[11px] font-bold hover:bg-primary/20 transition-all"
+                >
+                  <Plus size={14} />
+                  ADD MORE
+                </button>
+              )}
             </div>
             <div className="p-5 space-y-4">
               {invoices.map((inv, index) => (
                 <div key={index} className="p-4 bg-slate-50/50 rounded-xl border border-border/60 relative group">
-                  {invoices.length > 1 && (
+                  {invoices.length > 1 && !isDetailMode && (
                     <button
                       onClick={() => handleRemoveInvoice(index)}
                       className="absolute -top-2 -right-2 w-7 h-7 bg-white border border-red-100 text-red-400 rounded-full flex items-center justify-center hover:bg-red-50 hover:text-red-600 transition-all shadow-sm opacity-0 group-hover:opacity-100"
@@ -167,7 +172,8 @@ const AddEditPaymentRequestDialog: React.FC<Props> = ({
                         placeholder="Inv-001"
                         value={inv.no_invoice || ''}
                         onChange={e => handleUpdateInvoice(index, 'no_invoice', e.target.value)}
-                        className="w-full px-3 py-1.5 bg-white border border-border rounded-lg text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                        disabled={isDetailMode}
+                        className="w-full px-3 py-1.5 bg-white border border-border rounded-lg text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:opacity-70"
                       />
                     </div>
                     <div className="space-y-1.5 md:col-span-2">
@@ -177,16 +183,16 @@ const AddEditPaymentRequestDialog: React.FC<Props> = ({
                         placeholder="Description of item"
                         value={inv.description || ''}
                         onChange={e => handleUpdateInvoice(index, 'description', e.target.value)}
-                        className="w-full px-3 py-1.5 bg-white border border-border rounded-lg text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                        disabled={isDetailMode}
+                        className="w-full px-3 py-1.5 bg-white border border-border rounded-lg text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:opacity-70"
                       />
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-bold text-slate-400 uppercase">Date Issue</label>
-                      <input
-                        type="date"
+                      <DateInput
                         value={inv.date_issue || ''}
-                        onChange={e => handleUpdateInvoice(index, 'date_issue', e.target.value)}
-                        className="w-full px-3 py-1.5 bg-white border border-border rounded-lg text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                        onChange={v => handleUpdateInvoice(index, 'date_issue', v)}
+                        disabled={isDetailMode}
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -199,7 +205,8 @@ const AddEditPaymentRequestDialog: React.FC<Props> = ({
                           placeholder="0.00"
                           value={inv.payable_amount || ''}
                           onChange={e => handleUpdateInvoice(index, 'payable_amount', parseFloat(e.target.value) || 0)}
-                          className="w-full pl-7 pr-3 py-1.5 bg-white border border-border rounded-lg text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-mono font-bold"
+                          disabled={isDetailMode}
+                          className="w-full pl-7 pr-3 py-1.5 bg-white border border-border rounded-lg text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-mono font-bold disabled:opacity-70"
                         />
                       </div>
                     </div>
@@ -235,7 +242,8 @@ const AddEditPaymentRequestDialog: React.FC<Props> = ({
                   placeholder="Receiver account name"
                   value={account_name}
                   onChange={e => setFormField('account_name', e.target.value)}
-                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:opacity-70"
                 />
               </div>
               <div className="space-y-1.5">
@@ -248,7 +256,8 @@ const AddEditPaymentRequestDialog: React.FC<Props> = ({
                   placeholder="Bank account number"
                   value={account_number}
                   onChange={e => setFormField('account_number', e.target.value)}
-                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:opacity-70"
                 />
               </div>
               <div className="space-y-1.5">
@@ -261,7 +270,8 @@ const AddEditPaymentRequestDialog: React.FC<Props> = ({
                   placeholder="Bank name and branch"
                   value={bank_name}
                   onChange={e => setFormField('bank_name', e.target.value)}
-                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:opacity-70"
                 />
               </div>
             </div>
@@ -274,16 +284,18 @@ const AddEditPaymentRequestDialog: React.FC<Props> = ({
             onClick={onClose}
             className="px-6 py-2 rounded-xl border border-border hover:bg-muted text-foreground text-[13px] font-bold transition-all shadow-sm"
           >
-            Cancel
+            {isDetailMode ? 'Close' : 'Cancel'}
           </button>
-          <button 
-            onClick={onSave}
-            className="flex items-center gap-2 px-8 py-2 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all group active:scale-95"
-          >
-            <Plus size={18} />
-            {isEditMode ? 'Save Changes' : 'Create Payment Request'}
-            <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
-          </button>
+          {!isDetailMode && (
+            <button 
+              onClick={onSave}
+              className="flex items-center gap-2 px-8 py-2 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all group active:scale-95"
+            >
+              <Plus size={18} />
+              {isEditMode ? 'Save Changes' : 'Create Payment Request'}
+              <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+            </button>
+          )}
         </div>
       </div>
     </div>,
@@ -291,4 +303,4 @@ const AddEditPaymentRequestDialog: React.FC<Props> = ({
   );
 };
 
-export default AddEditPaymentRequestDialog;
+export default PaymentRequestDialog;

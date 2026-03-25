@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   X, Truck, Tag, Hash, Info, 
   Plus, ChevronRight, DollarSign, Calculator,
-  User, Package, ClipboardList
+  User, Package, ClipboardList, Edit
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { SearchableSelect } from '../../../components/ui/SearchableSelect';
@@ -12,7 +12,7 @@ import type { PurchasingItem, CreatePurchasingItemDto } from '../../../services/
 interface Props {
   isOpen: boolean;
   isClosing: boolean;
-  isEditMode: boolean;
+  mode: 'add' | 'edit' | 'detail';
   onClose: () => void;
   formState: Partial<PurchasingItem>;
   setFormField: (key: keyof CreatePurchasingItemDto, value: any) => void;
@@ -20,19 +20,21 @@ interface Props {
   supplierOptions: { value: string; label: string }[];
   employeeOptions: { value: string; label: string }[];
   onSave: () => void;
+  onEdit?: () => void;
 }
 
-const AddEditPurchasingDialog: React.FC<Props> = ({
+const PurchasingDialog: React.FC<Props> = ({
   isOpen,
   isClosing,
-  isEditMode,
+  mode,
   onClose,
   formState,
   setFormField,
   shipmentOptions,
   supplierOptions,
   employeeOptions,
-  onSave
+  onSave,
+  onEdit
 }) => {
   const [calculatedTaxValue, setCalculatedTaxValue] = useState(0);
   const [calculatedTotal, setCalculatedTotal] = useState(0);
@@ -52,6 +54,9 @@ const AddEditPurchasingDialog: React.FC<Props> = ({
   }, [formState.rate, formState.quantity, formState.exchange_rate, formState.tax_percent]);
 
   if (!isOpen && !isClosing) return null;
+
+  const isDetailMode = mode === 'detail';
+  const isEditMode = mode === 'edit';
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex justify-end">
@@ -76,7 +81,7 @@ const AddEditPurchasingDialog: React.FC<Props> = ({
               <Truck size={20} />
             </div>
             <h2 className="text-lg font-bold text-foreground">
-              {isEditMode ? 'Edit Purchasing' : 'Add New Purchasing'}
+              {mode === 'add' ? 'Add New Purchasing' : (mode === 'edit' ? 'Edit Purchasing' : 'Purchasing Details')}
             </h2>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-muted rounded-full text-muted-foreground transition-colors">
@@ -99,6 +104,7 @@ const AddEditPurchasingDialog: React.FC<Props> = ({
                 value={formState.shipment_id || ''}
                 onValueChange={(v) => setFormField('shipment_id', v)}
                 placeholder="Select shipment..."
+                disabled={isDetailMode}
               />
             </div>
 
@@ -113,6 +119,7 @@ const AddEditPurchasingDialog: React.FC<Props> = ({
                 value={formState.supplier_id || ''}
                 onValueChange={(v) => setFormField('supplier_id', v)}
                 placeholder="Select supplier..."
+                disabled={isDetailMode}
               />
             </div>
 
@@ -127,7 +134,8 @@ const AddEditPurchasingDialog: React.FC<Props> = ({
                 placeholder="Item description"
                 value={formState.description || ''}
                 onChange={e => setFormField('description', e.target.value)}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                disabled={isDetailMode}
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
               />
             </div>
 
@@ -142,7 +150,8 @@ const AddEditPurchasingDialog: React.FC<Props> = ({
                 placeholder="HS Code"
                 value={formState.hs_code || ''}
                 onChange={e => setFormField('hs_code', e.target.value)}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                disabled={isDetailMode}
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
               />
             </div>
 
@@ -159,7 +168,8 @@ const AddEditPurchasingDialog: React.FC<Props> = ({
                   placeholder="0.00"
                   value={formState.rate || ''}
                   onChange={e => setFormField('rate', parseFloat(e.target.value) || 0)}
-                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
                 />
               </div>
 
@@ -175,7 +185,8 @@ const AddEditPurchasingDialog: React.FC<Props> = ({
                   placeholder="0.00"
                   value={formState.quantity || ''}
                   onChange={e => setFormField('quantity', parseFloat(e.target.value) || 0)}
-                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
                 />
               </div>
             </div>
@@ -192,7 +203,8 @@ const AddEditPurchasingDialog: React.FC<Props> = ({
                   placeholder="E.g. Container, Box"
                   value={formState.unit || ''}
                   onChange={e => setFormField('unit', e.target.value)}
-                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
                 />
               </div>
 
@@ -205,7 +217,8 @@ const AddEditPurchasingDialog: React.FC<Props> = ({
                 <select
                   value={formState.currency || 'USD'}
                   onChange={e => setFormField('currency', e.target.value)}
-                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
                 >
                   <option value="USD">USD</option>
                   <option value="VND">VND</option>
@@ -226,7 +239,8 @@ const AddEditPurchasingDialog: React.FC<Props> = ({
                   placeholder="1.00"
                   value={formState.exchange_rate || ''}
                   onChange={e => setFormField('exchange_rate', parseFloat(e.target.value) || 0)}
-                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
                 />
               </div>
 
@@ -242,7 +256,8 @@ const AddEditPurchasingDialog: React.FC<Props> = ({
                   placeholder="0"
                   value={formState.tax_percent || ''}
                   onChange={e => setFormField('tax_percent', parseFloat(e.target.value) || 0)}
-                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
                 />
               </div>
             </div>
@@ -274,6 +289,7 @@ const AddEditPurchasingDialog: React.FC<Props> = ({
                 value={formState.pic_id || ''}
                 onValueChange={(v) => setFormField('pic_id', v)}
                 placeholder="Select PIC..."
+                disabled={isDetailMode}
               />
             </div>
 
@@ -288,7 +304,8 @@ const AddEditPurchasingDialog: React.FC<Props> = ({
                 placeholder="Item specification"
                 value={formState.specification || ''}
                 onChange={e => setFormField('specification', e.target.value)}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                disabled={isDetailMode}
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
               />
             </div>
 
@@ -302,7 +319,8 @@ const AddEditPurchasingDialog: React.FC<Props> = ({
                 placeholder="Additional notes..."
                 value={formState.note || ''}
                 onChange={e => setFormField('note', e.target.value)}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium min-h-[80px] resize-none"
+                disabled={isDetailMode}
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium min-h-[80px] resize-none disabled:bg-muted/5 disabled:text-muted-foreground"
               />
             </div>
           </div>
@@ -311,13 +329,25 @@ const AddEditPurchasingDialog: React.FC<Props> = ({
         {/* Footer */}
         <div className="bg-white border-t border-border px-6 py-4 flex items-center justify-between shrink-0">
           <button onClick={onClose} className="px-6 py-2 rounded-xl border border-border hover:bg-muted text-foreground text-[13px] font-bold transition-all shadow-sm">
-            Cancel
+            {isDetailMode ? 'Close' : 'Cancel'}
           </button>
-          <button onClick={onSave} className="flex items-center gap-2 px-8 py-2 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all group active:scale-95">
-            <Plus size={18} />
-            {isEditMode ? 'Save Changes' : 'Create Purchasing'}
-            <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
-          </button>
+          
+          {isDetailMode ? (
+            <button 
+              onClick={onEdit}
+              className="flex items-center gap-2 px-8 py-2 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all group active:scale-95"
+            >
+              <Edit size={18} />
+              Edit Purchasing
+              <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+            </button>
+          ) : (
+            <button onClick={onSave} className="flex items-center gap-2 px-8 py-2 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all group active:scale-95">
+              <Plus size={18} />
+              {isEditMode ? 'Save Changes' : 'Create Purchasing'}
+              <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+            </button>
+          )}
         </div>
       </div>
     </div>,
@@ -325,4 +355,4 @@ const AddEditPurchasingDialog: React.FC<Props> = ({
   );
 };
 
-export default AddEditPurchasingDialog;
+export default PurchasingDialog;

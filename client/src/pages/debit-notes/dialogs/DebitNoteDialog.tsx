@@ -5,12 +5,14 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { SearchableSelect } from '../../../components/ui/SearchableSelect';
+import { DateInput } from '../../../components/ui/DateInput';
 import type { DebitNoteFormState, DebitNoteInvoiceItem, DebitNoteChiHoItem } from '../types';
 
 interface Props {
   isOpen: boolean;
   isClosing: boolean;
   isEditMode: boolean;
+  isDetailMode?: boolean;
   onClose: () => void;
   formState: DebitNoteFormState;
   setFormField: <K extends keyof DebitNoteFormState>(key: K, value: DebitNoteFormState[K]) => void;
@@ -18,10 +20,11 @@ interface Props {
   onSave: () => void;
 }
 
-const AddEditDebitNoteDialog: React.FC<Props> = ({
+const DebitNoteDialog: React.FC<Props> = ({
   isOpen,
   isClosing,
   isEditMode,
+  isDetailMode = false,
   onClose,
   formState,
   setFormField,
@@ -137,7 +140,7 @@ const AddEditDebitNoteDialog: React.FC<Props> = ({
               <Receipt size={20} />
             </div>
             <h2 className="text-lg font-bold text-foreground">
-              {isEditMode ? 'Edit Debit Note' : 'Add New Debit Note'}
+              {isDetailMode ? 'Debit Note Details' : isEditMode ? 'Edit Debit Note' : 'Add New Debit Note'}
             </h2>
           </div>
           <button
@@ -169,6 +172,7 @@ const AddEditDebitNoteDialog: React.FC<Props> = ({
                     value={shipment_id}
                     onValueChange={(v) => setFormField('shipment_id', v)}
                     placeholder="Search shipment ID..."
+                    disabled={isDetailMode}
                   />
                 </div>
               </div>
@@ -185,11 +189,10 @@ const AddEditDebitNoteDialog: React.FC<Props> = ({
                     <Calendar size={16} className="text-muted-foreground/70" />
                     <label className="text-[13px] font-bold text-foreground">Date <span className="text-red-500">*</span></label>
                   </div>
-                  <input
-                    type="date"
+                  <DateInput
                     value={note_date || ''}
-                    onChange={e => setFormField('note_date', e.target.value)}
-                    className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                    onChange={v => setFormField('note_date', v)}
+                    disabled={isDetailMode}
                   />
                 </div>
               </div>
@@ -203,12 +206,14 @@ const AddEditDebitNoteDialog: React.FC<Props> = ({
                 <Receipt size={16} className="text-primary" />
                 <span className="text-[12px] font-bold text-primary uppercase tracking-wider">INVOICE Items</span>
               </div>
-              <button
-                onClick={addInvoiceItem}
-                className="flex items-center gap-1.5 px-3 py-1 bg-primary/10 text-primary rounded-lg text-[11px] font-bold hover:bg-primary/20 transition-all"
-              >
-                <Plus size={14} /> Add Item
-              </button>
+              {!isDetailMode && (
+                <button
+                  onClick={addInvoiceItem}
+                  className="flex items-center gap-1.5 px-3 py-1 bg-primary/10 text-primary rounded-lg text-[11px] font-bold hover:bg-primary/20 transition-all"
+                >
+                  <Plus size={14} /> Add Item
+                </button>
+              )}
             </div>
             <div className="p-0 overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -221,13 +226,13 @@ const AddEditDebitNoteDialog: React.FC<Props> = ({
                     <th className="px-4 py-2 font-bold uppercase w-[12%] text-right text-primary">Amount</th>
                     <th className="px-4 py-2 font-bold uppercase w-[8%] text-right">Tax %</th>
                     <th className="px-4 py-2 font-bold uppercase w-[15%] text-right text-primary">Total</th>
-                    <th className="px-4 py-2 w-[5%]"></th>
+                    {!isDetailMode && <th className="px-4 py-2 w-[5%]"></th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
                   {invoice_items.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-[12px] text-muted-foreground italic">No invoice items added</td>
+                      <td colSpan={isDetailMode ? 7 : 8} className="px-4 py-8 text-center text-[12px] text-muted-foreground italic">No invoice items added</td>
                     </tr>
                   ) : invoice_items.map((item, idx) => (
                     <tr key={idx} className="group hover:bg-slate-50/30 transition-colors">
@@ -237,7 +242,8 @@ const AddEditDebitNoteDialog: React.FC<Props> = ({
                           value={item.description}
                           onChange={e => updateInvoiceItem(idx, 'description', e.target.value)}
                           placeholder="Description"
-                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-primary/40 focus:bg-white border rounded-lg text-[12px] font-medium focus:outline-none transition-all"
+                          disabled={isDetailMode}
+                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-primary/40 focus:bg-white border rounded-lg text-[12px] font-medium focus:outline-none transition-all disabled:hover:border-transparent"
                         />
                       </td>
                       <td className="px-3 py-2">
@@ -246,7 +252,8 @@ const AddEditDebitNoteDialog: React.FC<Props> = ({
                           value={item.unit}
                           onChange={e => updateInvoiceItem(idx, 'unit', e.target.value)}
                           placeholder="Unit"
-                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-primary/40 focus:bg-white border rounded-lg text-[12px] font-medium text-center focus:outline-none transition-all"
+                          disabled={isDetailMode}
+                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-primary/40 focus:bg-white border rounded-lg text-[12px] font-medium text-center focus:outline-none transition-all disabled:hover:border-transparent"
                         />
                       </td>
                       <td className="px-3 py-2">
@@ -255,7 +262,8 @@ const AddEditDebitNoteDialog: React.FC<Props> = ({
                           value={item.rate || ''}
                           onChange={e => updateInvoiceItem(idx, 'rate', e.target.value)}
                           placeholder="0"
-                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-primary/40 focus:bg-white border rounded-lg text-[12px] font-bold text-right focus:outline-none transition-all tabular-nums"
+                          disabled={isDetailMode}
+                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-primary/40 focus:bg-white border rounded-lg text-[12px] font-bold text-right focus:outline-none transition-all tabular-nums disabled:hover:border-transparent"
                         />
                       </td>
                       <td className="px-3 py-2">
@@ -264,7 +272,8 @@ const AddEditDebitNoteDialog: React.FC<Props> = ({
                           value={item.quantity || ''}
                           onChange={e => updateInvoiceItem(idx, 'quantity', e.target.value)}
                           placeholder="0"
-                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-primary/40 focus:bg-white border rounded-lg text-[12px] font-bold text-right focus:outline-none transition-all tabular-nums"
+                          disabled={isDetailMode}
+                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-primary/40 focus:bg-white border rounded-lg text-[12px] font-bold text-right focus:outline-none transition-all tabular-nums disabled:hover:border-transparent"
                         />
                       </td>
                       <td className="px-4 py-2 text-right">
@@ -278,7 +287,8 @@ const AddEditDebitNoteDialog: React.FC<Props> = ({
                           value={item.tax_percent || ''}
                           onChange={e => updateInvoiceItem(idx, 'tax_percent', e.target.value)}
                           placeholder="0"
-                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-primary/40 focus:bg-white border rounded-lg text-[12px] font-medium text-right focus:outline-none transition-all tabular-nums"
+                          disabled={isDetailMode}
+                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-primary/40 focus:bg-white border rounded-lg text-[12px] font-medium text-right focus:outline-none transition-all tabular-nums disabled:hover:border-transparent"
                         />
                       </td>
                       <td className="px-4 py-2 text-right">
@@ -286,14 +296,16 @@ const AddEditDebitNoteDialog: React.FC<Props> = ({
                           {new Intl.NumberFormat('en-US').format(item.total || (item.rate * item.quantity * (1 + (item.tax_percent || 0) / 100)))}
                         </span>
                       </td>
-                      <td className="px-2 py-2 text-center">
-                        <button
-                          onClick={() => removeInvoiceItem(idx)}
-                          className="p-1.5 text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
+                      {!isDetailMode && (
+                        <td className="px-2 py-2 text-center">
+                          <button
+                            onClick={() => removeInvoiceItem(idx)}
+                            className="p-1.5 text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -316,12 +328,14 @@ const AddEditDebitNoteDialog: React.FC<Props> = ({
                 <DollarSign size={16} className="text-orange-500" />
                 <span className="text-[12px] font-bold text-orange-600 uppercase tracking-wider">Disbursements</span>
               </div>
-              <button
-                onClick={addChiHoItem}
-                className="flex items-center gap-1.5 px-3 py-1 bg-orange-50 text-orange-600 rounded-lg text-[11px] font-bold hover:bg-orange-100 transition-all border border-orange-200"
-              >
-                <Plus size={14} /> Add Item
-              </button>
+              {!isDetailMode && (
+                <button
+                  onClick={addChiHoItem}
+                  className="flex items-center gap-1.5 px-3 py-1 bg-orange-50 text-orange-600 rounded-lg text-[11px] font-bold hover:bg-orange-100 transition-all border border-orange-200"
+                >
+                  <Plus size={14} /> Add Item
+                </button>
+              )}
             </div>
             <div className="p-0 overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -332,13 +346,13 @@ const AddEditDebitNoteDialog: React.FC<Props> = ({
                     <th className="px-4 py-2 font-bold uppercase w-[15%] text-right">Rate</th>
                     <th className="px-4 py-2 font-bold uppercase w-[12%] text-right">Qty</th>
                     <th className="px-4 py-2 font-bold uppercase w-[18%] text-right text-orange-600 font-bold">Total</th>
-                    <th className="px-4 py-2 w-[8%]"></th>
+                    {!isDetailMode && <th className="px-4 py-2 w-[8%]"></th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
                   {chi_ho_items.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-[12px] text-muted-foreground italic">No disbursement items added</td>
+                      <td colSpan={isDetailMode ? 5 : 6} className="px-4 py-8 text-center text-[12px] text-muted-foreground italic">No disbursement items added</td>
                     </tr>
                   ) : chi_ho_items.map((item, idx) => (
                     <tr key={idx} className="group hover:bg-slate-50/30 transition-colors">
@@ -348,7 +362,8 @@ const AddEditDebitNoteDialog: React.FC<Props> = ({
                           value={item.description}
                           onChange={e => updateChiHoItem(idx, 'description', e.target.value)}
                           placeholder="Description"
-                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-orange-400/40 focus:bg-white border rounded-lg text-[12px] font-medium focus:outline-none transition-all"
+                          disabled={isDetailMode}
+                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-orange-400/40 focus:bg-white border rounded-lg text-[12px] font-medium focus:outline-none transition-all disabled:hover:border-transparent"
                         />
                       </td>
                       <td className="px-3 py-2">
@@ -357,7 +372,8 @@ const AddEditDebitNoteDialog: React.FC<Props> = ({
                           value={item.unit}
                           onChange={e => updateChiHoItem(idx, 'unit', e.target.value)}
                           placeholder="Unit"
-                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-orange-400/40 focus:bg-white border rounded-lg text-[12px] font-medium text-center focus:outline-none transition-all"
+                          disabled={isDetailMode}
+                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-orange-400/40 focus:bg-white border rounded-lg text-[12px] font-medium text-center focus:outline-none transition-all disabled:hover:border-transparent"
                         />
                       </td>
                       <td className="px-3 py-2">
@@ -366,7 +382,8 @@ const AddEditDebitNoteDialog: React.FC<Props> = ({
                           value={item.rate || ''}
                           onChange={e => updateChiHoItem(idx, 'rate', e.target.value)}
                           placeholder="0"
-                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-orange-400/40 focus:bg-white border rounded-lg text-[12px] font-bold text-right focus:outline-none transition-all tabular-nums"
+                          disabled={isDetailMode}
+                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-orange-400/40 focus:bg-white border rounded-lg text-[12px] font-bold text-right focus:outline-none transition-all tabular-nums disabled:hover:border-transparent"
                         />
                       </td>
                       <td className="px-3 py-2">
@@ -375,7 +392,8 @@ const AddEditDebitNoteDialog: React.FC<Props> = ({
                           value={item.quantity || ''}
                           onChange={e => updateChiHoItem(idx, 'quantity', e.target.value)}
                           placeholder="0"
-                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-orange-400/40 focus:bg-white border rounded-lg text-[12px] font-bold text-right focus:outline-none transition-all tabular-nums"
+                          disabled={isDetailMode}
+                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-orange-400/40 focus:bg-white border rounded-lg text-[12px] font-bold text-right focus:outline-none transition-all tabular-nums disabled:hover:border-transparent"
                         />
                       </td>
                       <td className="px-4 py-2 text-right">
@@ -383,14 +401,16 @@ const AddEditDebitNoteDialog: React.FC<Props> = ({
                           {new Intl.NumberFormat('en-US').format(item.total || (item.rate * item.quantity))}
                         </span>
                       </td>
-                      <td className="px-2 py-2 text-center">
-                        <button
-                          onClick={() => removeChiHoItem(idx)}
-                          className="p-1.5 text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
+                      {!isDetailMode && (
+                        <td className="px-2 py-2 text-center">
+                          <button
+                            onClick={() => removeChiHoItem(idx)}
+                            className="p-1.5 text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -414,7 +434,7 @@ const AddEditDebitNoteDialog: React.FC<Props> = ({
               onClick={onClose}
               className="px-6 py-2.5 rounded-xl border border-border hover:bg-muted text-foreground text-[13px] font-bold transition-all shadow-sm"
             >
-              Cancel
+              {isDetailMode ? 'Close' : 'Cancel'}
             </button>
             <div className="hidden md:flex flex-col">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Grand Total</span>
@@ -424,14 +444,16 @@ const AddEditDebitNoteDialog: React.FC<Props> = ({
             </div>
           </div>
 
-          <button
-            onClick={onSave}
-            className="flex items-center gap-2 px-10 py-3 rounded-xl bg-primary text-white text-[14px] font-bold hover:bg-primary/90 shadow-xl shadow-primary/20 transition-all group active:scale-95"
-          >
-            <Plus size={18} />
-            {isEditMode ? 'Save Changes' : 'Create Debit Note'}
-            <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
-          </button>
+          {!isDetailMode && (
+            <button
+              onClick={onSave}
+              className="flex items-center gap-2 px-10 py-3 rounded-xl bg-primary text-white text-[14px] font-bold hover:bg-primary/90 shadow-xl shadow-primary/20 transition-all group active:scale-95"
+            >
+              <Plus size={18} />
+              {isEditMode ? 'Save Changes' : 'Create Debit Note'}
+              <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
+            </button>
+          )}
         </div>
       </div>
     </div>,
@@ -439,4 +461,4 @@ const AddEditDebitNoteDialog: React.FC<Props> = ({
   );
 };
 
-export default AddEditDebitNoteDialog;
+export default DebitNoteDialog;

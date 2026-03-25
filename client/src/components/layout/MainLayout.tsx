@@ -16,17 +16,15 @@ const MainLayout: React.FC = () => {
       {/* Main Content Area */}
       <div 
         className={clsx(
-          "flex-1 flex flex-col w-full min-w-0 transition-all duration-300",
+          "flex-1 flex flex-col w-full min-w-0 transition-all duration-300 print:ml-0",
           sidebarOpen ? "lg:ml-64" : "lg:ml-[72px]"
         )}
       >
         <Topbar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
         {/* Scrollable Content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6 pb-20 lg:pb-6 custom-scrollbar">
-          <div className="w-full h-full flex flex-col">
-            <Outlet />
-          </div>
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6 pb-20 lg:pb-6 custom-scrollbar print:p-0 print:overflow-visible">
+          <Outlet />
         </main>
 
         {/* Mobile Bottom Navigation */}

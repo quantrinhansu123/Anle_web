@@ -1,57 +1,36 @@
 import React, { useState } from 'react';
 import { ActionCard } from '../components/ui/ActionCard';
 import type { ActionCardProps } from '../components/ui/ActionCard';
-import { 
-  Ship, Building2, Users, Briefcase, 
-  FileText, BadgeDollarSign, Settings, 
-  Bot, Copyright, Search 
+import {
+  Package, Users, BadgeDollarSign, Settings,
+  Copyright, Search
 } from 'lucide-react';
 import { clsx } from 'clsx';
-import { moduleData } from '../data/moduleData';
+import { moduleData, getDirectPath } from '../data/moduleData';
 import { ModuleCard } from '../components/ui/ModuleCard';
+import { useBookmarks } from '../hooks/useBookmarks';
 
 const dashboardModules: ActionCardProps[] = [
   {
-    icon: Ship,
-    title: 'Shipments',
-    description: 'Ocean, Air, and Land freight management.',
-    href: '/shipments',
+    icon: Package,
+    title: 'Order',
+    description: 'Shipments, Sales, Purchasing, and Contracts.',
+    href: '/order',
     colorScheme: 'blue'
   },
   {
-    icon: Building2,
-    title: 'Customers',
-    description: 'Client directory, sales leads, and analytics.',
-    href: '/customers',
+    icon: Users,
+    title: 'Internal',
+    description: 'Employees, Customers, and Suppliers.',
+    href: '/internal',
     colorScheme: 'indigo'
   },
   {
-    icon: Users,
-    title: 'Suppliers',
-    description: 'Vendor management and procurement.',
-    href: '/suppliers',
-    colorScheme: 'orange'
-  },
-  {
-    icon: Briefcase,
-    title: 'Employees',
-    description: 'Staff directory, roles, and training.',
-    href: '/employees',
-    colorScheme: 'emerald'
-  },
-  {
-    icon: FileText,
-    title: 'Contracts',
-    description: 'Legal agreements and service contracts.',
-    href: '/contracts',
-    colorScheme: 'purple'
-  },
-  {
     icon: BadgeDollarSign,
-    title: 'Financials',
-    description: 'Invoices, payments, and financial reports.',
-    href: '/financials',
-    colorScheme: 'green'
+    title: 'Accountant',
+    description: 'Debit Notes, Payment Requests, and Settings.',
+    href: '/accountant',
+    colorScheme: 'emerald'
   },
   {
     icon: Settings,
@@ -59,13 +38,6 @@ const dashboardModules: ActionCardProps[] = [
     description: 'System settings, security, and configuration.',
     href: '/system',
     colorScheme: 'slate' as any
-  },
-  {
-    icon: Bot,
-    title: 'AI Assistant',
-    description: 'Intelligent support and automation.',
-    href: '/ai-assistant',
-    colorScheme: 'purple'
   },
   {
     icon: Copyright,
@@ -79,8 +51,9 @@ const dashboardModules: ActionCardProps[] = [
 const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'modules' | 'bookmarks' | 'all'>('modules');
   const [searchQuery, setSearchQuery] = useState('');
+  const { isBookmarked } = useBookmarks();
 
-  const allSections = Object.values(moduleData).flat();
+
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -99,8 +72,8 @@ const Dashboard: React.FC = () => {
             onClick={() => setActiveTab('modules')}
             className={clsx(
               "px-4 py-1.5 rounded-md text-[13px] font-bold transition-all duration-200",
-              activeTab === 'modules' 
-                ? "bg-card text-primary shadow-sm ring-1 ring-black/5" 
+              activeTab === 'modules'
+                ? "bg-card text-primary shadow-sm ring-1 ring-black/5"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -110,8 +83,8 @@ const Dashboard: React.FC = () => {
             onClick={() => setActiveTab('bookmarks')}
             className={clsx(
               "px-4 py-1.5 rounded-md text-[13px] font-bold transition-all duration-200",
-              activeTab === 'bookmarks' 
-                ? "bg-card text-primary shadow-sm ring-1 ring-black/5" 
+              activeTab === 'bookmarks'
+                ? "bg-card text-primary shadow-sm ring-1 ring-black/5"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -121,8 +94,8 @@ const Dashboard: React.FC = () => {
             onClick={() => setActiveTab('all')}
             className={clsx(
               "px-4 py-1.5 rounded-md text-[13px] font-bold transition-all duration-200",
-              activeTab === 'all' 
-                ? "bg-card text-primary shadow-sm ring-1 ring-primary/10" 
+              activeTab === 'all'
+                ? "bg-card text-primary shadow-sm ring-1 ring-primary/10"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -151,46 +124,86 @@ const Dashboard: React.FC = () => {
             <ActionCard
               key={idx}
               {...module}
+              href={getDirectPath(module.href)}
             />
           ))}
         </div>
       )}
 
-      {activeTab === 'bookmarks' && (
-        <div className="text-center py-12 text-muted-foreground bg-card rounded-2xl border border-border border-dashed">
-          No items bookmarked yet.
-        </div>
-      )}
+      {activeTab === 'bookmarks' && (() => {
+        const allItems = Object.values(moduleData).flatMap(sections => sections.flatMap(s => s.items));
+        const bookmarkedItems = allItems.filter(item => item.path && isBookmarked(item.path));
+
+        if (bookmarkedItems.length === 0) {
+          return (
+            <div className="text-center py-12 text-muted-foreground bg-card rounded-2xl border border-border border-dashed">
+              No items bookmarked yet. Start by clicking the star icon on any module.
+            </div>
+          );
+        }
+
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 animate-in fade-in duration-500">
+            {bookmarkedItems.map((item, idx) => (
+              <ModuleCard key={idx} {...item} />
+            ))}
+          </div>
+        );
+      })()}
 
       {activeTab === 'all' && (
         <div className="space-y-8 animate-in fade-in duration-500">
           <div className="space-y-8">
-            {allSections.map((section, idx) => {
-              const filteredItems = section.items.filter(item => 
-                item.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                item.description.toLowerCase().includes(searchQuery.toLowerCase())
-              );
+            {(() => {
+              // Merge sections with the same name
+              const sectionMap: Record<string, any[]> = {};
+              Object.values(moduleData).flat().forEach(section => {
+                if (!sectionMap[section.section]) {
+                  sectionMap[section.section] = [];
+                }
+                sectionMap[section.section].push(...section.items);
+              });
 
-              if (filteredItems.length === 0) return null;
+              // Specific order: Accountant, Internal, Order, System
+              const orderedNames = ['Order', 'Internal', 'Accountant', 'System'];
 
-              return (
-                <div key={idx} className="animate-in fade-in slide-in-from-bottom-2 duration-500" style={{ animationDelay: `${idx * 50}ms` }}>
-                  <h2 className="text-[14px] font-bold text-primary mb-3 flex items-center gap-3">
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="w-1 h-4 bg-primary rounded-full"></span>
-                      <span>{section.section}</span>
+              const sortedNames = Object.keys(sectionMap).sort((a, b) => {
+                const idxA = orderedNames.indexOf(a);
+                const idxB = orderedNames.indexOf(b);
+                if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                if (idxA !== -1) return -1;
+                if (idxB !== -1) return 1;
+                return a.localeCompare(b);
+              });
+
+              return sortedNames.map((sectionName, idx) => {
+                const items = sectionMap[sectionName];
+                const filteredItems = items.filter(item =>
+                  item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  item.description.toLowerCase().includes(searchQuery.toLowerCase())
+                );
+
+                if (filteredItems.length === 0) return null;
+
+                return (
+                  <div key={idx} className="animate-in fade-in slide-in-from-bottom-2 duration-500" style={{ animationDelay: `${idx * 50}ms` }}>
+                    <h2 className="text-[14px] font-bold text-primary mb-4 flex items-center gap-3">
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="w-1 h-4 bg-primary rounded-full"></span>
+                        <span>{sectionName}</span>
+                      </div>
+                      <div className="h-px flex-1 bg-border/60"></div>
+                    </h2>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                      {filteredItems.map((item, itemIdx) => (
+                        <ModuleCard key={itemIdx} {...item} />
+                      ))}
                     </div>
-                    <div className="h-px flex-1 bg-border/60"></div>
-                  </h2>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                    {filteredItems.map((item, itemIdx) => (
-                      <ModuleCard key={itemIdx} {...item} />
-                    ))}
                   </div>
-                </div>
-              );
-            })}
+                );
+              });
+            })()}
           </div>
         </div>
       )}

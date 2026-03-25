@@ -5,12 +5,14 @@ import { ModuleCard } from '../components/ui/ModuleCard';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { moduleData } from '../data/moduleData';
 import { sidebarMenu } from '../data/sidebarMenu';
+import { useBookmarks } from '../hooks/useBookmarks';
 
 const ModulePage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'all' | 'bookmarks'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const location = useLocation();
   const navigate = useNavigate();
+  const { isBookmarked } = useBookmarks();
 
   const data = moduleData[location.pathname] || [];
   const currentItem = sidebarMenu.find(item => item.path === location.pathname);
@@ -77,11 +79,25 @@ const ModulePage: React.FC = () => {
       </div>
 
       {/* Content Area */}
-      {activeTab === 'bookmarks' ? (
-        <div className="text-center py-16 text-muted-foreground bg-card/50 rounded-2xl border border-border mt-4">
-          No items bookmarked yet.
-        </div>
-      ) : data.length > 0 ? (
+      {activeTab === 'bookmarks' ? (() => {
+        const bookmarkedItems = data.flatMap(s => s.items).filter(item => item.path && isBookmarked(item.path));
+
+        if (bookmarkedItems.length === 0) {
+          return (
+            <div className="text-center py-16 text-muted-foreground bg-card/50 rounded-2xl border border-border mt-4">
+              No items bookmarked in this module yet.
+            </div>
+          );
+        }
+
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 animate-in fade-in duration-500 mt-4">
+            {bookmarkedItems.map((item, idx) => (
+              <ModuleCard key={idx} {...item} />
+            ))}
+          </div>
+        );
+      })() : data.length > 0 ? (
         <div className="space-y-8">
           {data.map((section, idx) => {
             // Filter items by search query

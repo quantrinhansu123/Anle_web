@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X, User, Mail, Phone, MapPin, Hash, Plus, ChevronRight, Building2
+  X, User, Mail, Phone, MapPin, Hash, Plus, ChevronRight, Building2, Edit
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { Customer, CreateCustomerDto } from '../../../services/customerService';
@@ -9,23 +9,28 @@ import type { Customer, CreateCustomerDto } from '../../../services/customerServ
 interface Props {
   isOpen: boolean;
   isClosing: boolean;
-  isEditMode: boolean;
+  mode: 'add' | 'edit' | 'detail';
   onClose: () => void;
   formState: Partial<Customer>;
   setFormField: (key: keyof CreateCustomerDto, value: any) => void;
   onSave: () => void;
+  onEdit?: () => void;
 }
 
-const AddEditCustomerDialog: React.FC<Props> = ({
+const CustomerDialog: React.FC<Props> = ({
   isOpen,
   isClosing,
-  isEditMode,
+  mode,
   onClose,
   formState,
   setFormField,
-  onSave
+  onSave,
+  onEdit
 }) => {
   if (!isOpen && !isClosing) return null;
+
+  const isDetailMode = mode === 'detail';
+  const isEditMode = mode === 'edit';
 
   const { company_name, email, phone, address, tax_code } = formState;
 
@@ -54,7 +59,7 @@ const AddEditCustomerDialog: React.FC<Props> = ({
               <User size={20} />
             </div>
             <h2 className="text-lg font-bold text-foreground">
-              {isEditMode ? 'Edit Customer' : 'Add New Customer'}
+              {mode === 'add' ? 'Add New Customer' : (mode === 'edit' ? 'Edit Customer' : 'Customer Details')}
             </h2>
           </div>
           <button
@@ -78,7 +83,8 @@ const AddEditCustomerDialog: React.FC<Props> = ({
                 placeholder="Enter company name"
                 value={company_name || ''}
                 onChange={e => setFormField('company_name', e.target.value)}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                disabled={isDetailMode}
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
               />
             </div>
 
@@ -92,7 +98,8 @@ const AddEditCustomerDialog: React.FC<Props> = ({
                 placeholder="customer@email.com"
                 value={email || ''}
                 onChange={e => setFormField('email', e.target.value)}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                disabled={isDetailMode}
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
               />
             </div>
 
@@ -106,7 +113,8 @@ const AddEditCustomerDialog: React.FC<Props> = ({
                 placeholder="Phone number"
                 value={phone || ''}
                 onChange={e => setFormField('phone', e.target.value)}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                disabled={isDetailMode}
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
               />
             </div>
 
@@ -120,7 +128,8 @@ const AddEditCustomerDialog: React.FC<Props> = ({
                 placeholder="Tax identification number"
                 value={tax_code || ''}
                 onChange={e => setFormField('tax_code', e.target.value)}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                disabled={isDetailMode}
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
               />
             </div>
 
@@ -133,7 +142,8 @@ const AddEditCustomerDialog: React.FC<Props> = ({
                 placeholder="Company address"
                 value={address || ''}
                 onChange={e => setFormField('address', e.target.value)}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium min-h-[100px] resize-none"
+                disabled={isDetailMode}
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium min-h-[100px] resize-none disabled:bg-muted/5 disabled:text-muted-foreground"
               />
             </div>
           </div>
@@ -145,16 +155,28 @@ const AddEditCustomerDialog: React.FC<Props> = ({
             onClick={onClose}
             className="px-6 py-2 rounded-xl border border-border hover:bg-muted text-foreground text-[13px] font-bold transition-all shadow-sm"
           >
-            Cancel
+            {isDetailMode ? 'Close' : 'Cancel'}
           </button>
-          <button 
-            onClick={onSave}
-            className="flex items-center gap-2 px-8 py-2 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all group active:scale-95"
-          >
-            <Plus size={18} />
-            {isEditMode ? 'Save Changes' : 'Create Customer'}
-            <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
-          </button>
+          
+          {isDetailMode ? (
+            <button 
+              onClick={onEdit}
+              className="flex items-center gap-2 px-8 py-2 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all group active:scale-95"
+            >
+              <Edit size={18} />
+              Edit Customer
+              <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+            </button>
+          ) : (
+            <button 
+              onClick={onSave}
+              className="flex items-center gap-2 px-8 py-2 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all group active:scale-95"
+            >
+              <Plus size={18} />
+              {isEditMode ? 'Save Changes' : 'Create Customer'}
+              <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+            </button>
+          )}
         </div>
       </div>
     </div>,
@@ -162,4 +184,5 @@ const AddEditCustomerDialog: React.FC<Props> = ({
   );
 };
 
-export default AddEditCustomerDialog;
+export default CustomerDialog;
+

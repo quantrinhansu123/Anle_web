@@ -9,6 +9,7 @@ import { sidebarMenu, extraMenuItems } from '../../data/sidebarMenu';
 import { moduleData } from '../../data/moduleData';
 import { clsx } from 'clsx';
 import { useTheme } from '../../context/ThemeContext';
+import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 
 interface Notification {
   id: string;
@@ -78,6 +79,7 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { avatar } = useTheme();
+  const { dynamicTitle } = useBreadcrumb();
 
   const defaultAvatar = "https://ui-avatars.com/api/?name=Admin&background=random&color=random";
   const userAvatar = avatar || defaultAvatar;
@@ -87,8 +89,6 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
   const hasMore = notifications.length > 5;
 
   // Enhanced breadcrumb logic
-  const pathSegments = location.pathname.split('/').filter(Boolean);
-  
   const getLabel = (path: string) => {
     // Check specific module items in moduleData first
     for (const mainPath in moduleData) {
@@ -118,17 +118,83 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
       'profile': 'Profile'
     };
     
+    // Check for dynamic breadcrumb override from global state/window
+    const dynamicLabels = (window as any).breadcrumbOverrides || {};
+    if (dynamicLabels[path]) return dynamicLabels[path];
+
     const segment = path.split('/').pop() || '';
+    
+    // If segment is a UUID, try to return better label
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(segment) && dynamicTitle) {
+      return dynamicTitle;
+    }
+
     return segmentLabels[segment] || segment.charAt(0).toUpperCase() + segment.slice(1);
   };
 
-  const breadcrumbs = pathSegments.map((_, index) => {
-    const path = `/${pathSegments.slice(0, index + 1).join('/')}`;
-    return {
-      path,
-      label: getLabel(path)
-    };
-  });
+  const getBreadcrumbs = () => {
+    const fullPath = location.pathname;
+    const segments = fullPath.split('/').filter(Boolean);
+    if (segments.length === 0) return [];
+
+    const b: { path: string; label: string }[] = [];
+
+    // 1. Detect Parent Module (Order, Internal, Accountant, System)
+    let parentModulePath: string | null = null;
+    let currentPageItem: any = null;
+
+    for (const mPath in moduleData) {
+      for (const section of moduleData[mPath]) {
+        // Find best matching item (longest path match)
+        const matchedItem = section.items
+          .filter(item => item.path && fullPath.startsWith(item.path))
+          .sort((a: any, b: any) => (b.path?.length || 0) - (a.path?.length || 0))[0];
+        
+        if (matchedItem) {
+          parentModulePath = mPath;
+          currentPageItem = matchedItem;
+          break;
+        }
+      }
+      if (parentModulePath) break;
+    }
+
+    // 2. Add Module as First Breadcrumb
+    if (parentModulePath) {
+      const moduleItem = sidebarMenu.find(m => m.path === parentModulePath);
+      if (moduleItem) {
+        b.push({ path: parentModulePath, label: moduleItem.label });
+      }
+    }
+
+    // 3. Add anchored page from moduleData
+    if (currentPageItem && currentPageItem.path) {
+      b.push({ path: currentPageItem.path, label: currentPageItem.title });
+
+      // 4. Add remaining dynamic segments
+      const remainingPath = fullPath.substring(currentPageItem.path.length);
+      const dynamicSegments = remainingPath.split('/').filter(Boolean);
+      let p = currentPageItem.path;
+      dynamicSegments.forEach(seg => {
+        p += `/${seg}`;
+        b.push({ path: p, label: getLabel(p) });
+      });
+    } else {
+      // 5. Fallback for pages not in moduleData
+      segments.forEach((_, idx) => {
+        const subPath = `/${segments.slice(0, idx + 1).join('/')}`;
+        if (subPath === parentModulePath) return;
+        const label = getLabel(subPath);
+        if (b.length > 0 && label === b[b.length - 1].label) return;
+        b.push({ path: subPath, label });
+      });
+    }
+
+    return b;
+  };
+
+  const breadcrumbs = getBreadcrumbs();
 
   const pageTitle = breadcrumbs.length > 0 ? breadcrumbs[breadcrumbs.length - 1].label : 'Dashboard';
 
@@ -194,7 +260,7 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
   };
 
   return (
-    <header className="h-[55px] bg-card border-b border-border flex items-center justify-between px-4 lg:px-6 z-30 sticky top-0">
+    <header className="h-[55px] bg-card border-b border-border flex items-center justify-between px-4 lg:px-6 z-30 sticky top-0 print:hidden">
       {/* Left side: Hamburger & Title */}
       <div className="flex items-center gap-2 lg:gap-2.5">
         <button

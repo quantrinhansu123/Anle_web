@@ -10,7 +10,7 @@ const MobileBottomNav: React.FC = () => {
   const isHome = location.pathname === '/';
 
   return (
-    <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-card border-t border-border z-40 px-6 flex items-center justify-between pb-safe">
+    <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-card border-t border-border z-40 px-6 flex items-center justify-between pb-safe print:hidden">
       <button 
         onClick={() => navigate(-1)}
         className="p-2 text-muted-foreground hover:text-foreground transition-colors"

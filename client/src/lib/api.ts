@@ -2,12 +2,23 @@ const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
 
 export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${BASE_URL}${endpoint}`;
+  
+  const headers: Record<string, string> = {
+    ...options.headers as Record<string, string>,
+  };
+
+  const token = localStorage.getItem('token');
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  if (!(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   const response = await fetch(url, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+    headers,
   });
 
   // Attempt to parse the response body. This will be `result.data` on success,
@@ -24,10 +35,13 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
     console.error('API Error:', {
       status: response.status,
       url,
-      ...result // Use the already parsed result as the error body
+      ...result 
     });
     throw new Error(result.error?.message || result.message || 'API request failed');
   }
+
+  // Debug: log the result to find why .data might be missing
+  console.log('API Success:', { url, result });
 
   return result.data;
 }
