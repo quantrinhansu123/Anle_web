@@ -1,0 +1,13 @@
+{
+  "shipment_id": "9ea3e7a9-4c14-4a26-8f26-8872798314dd",
+  "note_date": "2026-03-24",
+  "invoice_items": [
+    {
+      "description": "test",
+      "unit": "set",
+      "rate": 1000,
+      "quantity": 1,
+      "tax_percent": 10
+    }
+  ]
+}
