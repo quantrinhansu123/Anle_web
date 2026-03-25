@@ -1,0 +1,39 @@
+import { apiFetch } from '../lib/api';
+
+export interface Supplier {
+  id: string;
+  company_name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  tax_code?: string;
+  created_at: string;
+}
+
+export interface CreateSupplierDto {
+  id: string;
+  company_name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  tax_code?: string;
+}
+
+export const supplierService = {
+  getSuppliers: () => apiFetch<Supplier[]>('/suppliers'),
+  getById: (id: string) => apiFetch<Supplier>(`/suppliers/${id}`),
+  createSupplier: (dto: CreateSupplierDto) => 
+    apiFetch<Supplier>('/suppliers', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    }),
+  updateSupplier: (id: string, dto: Partial<CreateSupplierDto>) =>
+    apiFetch<Supplier>(`/suppliers/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(dto),
+    }),
+  deleteSupplier: (id: string) =>
+    apiFetch<{ success: boolean }>(`/suppliers/${id}`, {
+      method: 'DELETE',
+    }),
+};

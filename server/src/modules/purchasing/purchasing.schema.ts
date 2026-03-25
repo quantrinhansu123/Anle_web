@@ -1,0 +1,19 @@
+import { z } from 'zod';
+
+export const CreatePurchasingItemSchema = z.object({
+  shipment_id: z.string().uuid(),
+  supplier_id: z.string().length(3),
+  pic_id: z.string().uuid().optional().nullable(),
+  description: z.string().min(1),
+  hs_code: z.string().optional().nullable(),
+  rate: z.number().min(0),
+  quantity: z.number().min(0),
+  unit: z.string().min(1),
+  currency: z.enum(['USD', 'VND']),
+  exchange_rate: z.number().min(0),
+  tax_percent: z.number().min(0).max(100),
+  specification: z.string().optional().nullable(),
+  note: z.string().optional().nullable(),
+});
+
+export const UpdatePurchasingItemSchema = CreatePurchasingItemSchema.partial();
