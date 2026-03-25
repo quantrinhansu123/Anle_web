@@ -1,4 +1,4 @@
-import { supabase } from '@/config/supabase';
+import { supabase } from '../../config/supabase';
 import type { CreateSupplierDto, Supplier, UpdateSupplierDto } from './supplier.types';
 
 export class SupplierService {

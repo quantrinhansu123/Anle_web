@@ -1,6 +1,6 @@
-import { supabase } from '@/config/supabase';
+import { supabase } from '../../config/supabase';
 import { CreateSalesItemDto, UpdateSalesItemDto, SalesItem } from './sales.types';
-import { AppError } from '@/middlewares/error.middleware';
+import { AppError } from '../../middlewares/error.middleware';
 
 export const salesService = {
   async getAll(page = 1, limit = 20) {

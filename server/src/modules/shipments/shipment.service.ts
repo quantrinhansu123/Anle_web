@@ -1,4 +1,4 @@
-import { supabase } from '@/config/supabase';
+import { supabase } from '../../config/supabase';
 import type { CreateShipmentDto, Shipment, UpdateShipmentDto } from './shipment.types';
 
 export class ShipmentService {

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { CustomerController } from './customer.controller';
-import { authMiddleware } from '@/middlewares/auth.middleware';
-import { validate } from '@/middlewares/validate.middleware';
+import { authMiddleware } from '../../middlewares/auth.middleware';
+import { validate } from '../../middlewares/validate.middleware';
 import { createCustomerSchema, updateCustomerSchema } from './customer.schema';
 
 const router = Router();

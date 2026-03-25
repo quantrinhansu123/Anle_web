@@ -1,4 +1,4 @@
-import { supabase } from '@/config/supabase';
+import { supabase } from '../../config/supabase';
 import type { CreateContractDto, Contract, UpdateContractDto } from './contract.types';
 
 export class ContractService {

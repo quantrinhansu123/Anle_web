@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { DebitNoteController } from './debit-note.controller';
-import { validate } from '@/middlewares/validate.middleware';
+import { validate } from '../../middlewares/validate.middleware';
 import { createDebitNoteSchema, updateDebitNoteSchema } from './debit-note.schema';
 
 const router = Router();

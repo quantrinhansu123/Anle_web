@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { PaymentRequestService } from './payment-request.service';
-import { paginatedResponse, successResponse } from '@/utils/response';
+import { paginatedResponse, successResponse } from '../../utils/response';
 import { createPaymentRequestSchema, updatePaymentRequestSchema } from './payment-request.schema';
 
 const service = new PaymentRequestService();

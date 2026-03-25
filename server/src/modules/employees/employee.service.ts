@@ -1,6 +1,6 @@
-import { supabase } from '@/config/supabase';
+import { supabase } from '../../config/supabase';
 import { Employee } from './employee.types';
-import { AppError } from '@/middlewares/error.middleware';
+import { AppError } from '../../middlewares/error.middleware';
 
 export const employeeService = {
   async getAll() {

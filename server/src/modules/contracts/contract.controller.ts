@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { ContractService } from './contract.service';
-import { successResponse, paginatedResponse } from '@/utils/response';
+import { successResponse, paginatedResponse } from '../../utils/response';
 
 const service = new ContractService();
 

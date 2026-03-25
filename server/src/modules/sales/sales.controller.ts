@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { salesService } from './sales.service';
-import { successResponse, paginatedResponse } from '@/utils/response';
+import { successResponse, paginatedResponse } from '../../utils/response';
 import { CreateSalesItemSchema, UpdateSalesItemSchema } from './sales.schema';
 
 export const salesController = {

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { ContractController } from './contract.controller';
-import { validate } from '@/middlewares/validate.middleware';
+import { validate } from '../../middlewares/validate.middleware';
 import { createContractSchema, updateContractSchema } from './contract.schema';
 
 const router = Router();

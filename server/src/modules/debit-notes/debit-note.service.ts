@@ -1,4 +1,4 @@
-import { supabase } from '@/config/supabase';
+import { supabase } from '../../config/supabase';
 import type { CreateDebitNoteDto, DebitNote, UpdateDebitNoteDto } from './debit-note.types';
 
 export class DebitNoteService {

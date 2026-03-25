@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { employeeService } from './employee.service';
-import { successResponse } from '@/utils/response';
+import { successResponse } from '../../utils/response';
 
 export const employeeController = {
   async getAll(req: Request, res: Response, next: NextFunction) {

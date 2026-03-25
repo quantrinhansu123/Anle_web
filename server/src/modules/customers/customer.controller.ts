@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { CustomerService } from './customer.service';
-import { successResponse, paginatedResponse } from '@/utils/response';
+import { successResponse, paginatedResponse } from '../../utils/response';
 
 const service = new CustomerService();
 

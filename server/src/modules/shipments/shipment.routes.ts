@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { ShipmentController } from './shipment.controller';
-import { validate } from '@/middlewares/validate.middleware';
+import { validate } from '../../middlewares/validate.middleware';
 import { createShipmentSchema, updateShipmentSchema } from './shipment.schema';
 
 const router = Router();
