@@ -33,6 +33,7 @@ app.get(`${v1}/health`, (req, res) => {
   res.json(successResponse({ status: 'ok' }, 'Server is running'));
 });
 app.use(`${v1}/auth`, authRoutes); // Auth routes handles its own protection internally for /me
+app.use(`${v1}/system-settings`, systemSettingsRoutes);
 
 // Protected routes
 app.use(authMiddleware);
@@ -47,7 +48,6 @@ app.use(`${v1}/contracts`, contractRoutes);
 app.use(`${v1}/payment-requests`, paymentRequestRoutes);
 app.use(`${v1}/debit-notes`, debitNoteRoutes);
 app.use(`${v1}/exchange-rates`, exchangeRateRoutes);
-app.use(`${v1}/system-settings`, systemSettingsRoutes);
 app.use(`${v1}/upload`, uploadRoutes);
 
 app.use(errorMiddleware);

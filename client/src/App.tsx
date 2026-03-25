@@ -28,7 +28,11 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
+import { useTheme } from './context/ThemeContext';
+
 function App() {
+  const { theme } = useTheme();
+
   return (
     <AuthProvider>
       <BreadcrumbProvider>
@@ -82,7 +86,7 @@ function App() {
         pauseOnFocusLoss
         draggable
         pauseOnHover
-        theme="light"
+        theme={theme === 'system' ? 'colored' : theme}
       />
     </AuthProvider>
   );

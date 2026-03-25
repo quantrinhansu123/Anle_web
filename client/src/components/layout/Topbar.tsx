@@ -10,6 +10,7 @@ import { moduleData } from '../../data/moduleData';
 import { clsx } from 'clsx';
 import { useTheme } from '../../context/ThemeContext';
 import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface Notification {
   id: string;
@@ -80,9 +81,10 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
   const navigate = useNavigate();
   const { avatar } = useTheme();
   const { dynamicTitle } = useBreadcrumb();
+  const { user, logout } = useAuth();
 
   const defaultAvatar = "https://ui-avatars.com/api/?name=Admin&background=random&color=random";
-  const userAvatar = avatar || defaultAvatar;
+  const userAvatar = user?.avatar_url || avatar || defaultAvatar;
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
   const displayNotifications = isExpanded ? notifications : notifications.slice(0, 5);
@@ -468,10 +470,10 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
             </div>
             <div className="hidden sm:flex flex-col">
               <div className="flex items-center gap-1">
-                <span className="text-[13px] font-bold leading-tight text-foreground group-hover:text-primary transition-colors">Administrator</span>
+                <span className="text-[13px] font-bold leading-tight text-foreground group-hover:text-primary transition-colors">{user?.full_name || 'Administrator'}</span>
                 <ChevronDown size={12} className={clsx("text-muted-foreground transition-transform duration-200", showUserDropdown && "rotate-180")} />
               </div>
-              <span className="text-[10px] text-muted-foreground leading-tight font-medium">Anle Logistics Admin</span>
+              <span className="text-[10px] text-muted-foreground leading-tight font-medium">{user?.position ? `${user.position} ${user.department ? ` • ${user.department}` : ''}` : 'Anle Logistics Admin'}</span>
             </div>
           </div>
 
@@ -508,7 +510,10 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
                 <div className="my-1 border-t border-border/50" />
 
                 <button 
-                  onClick={() => setShowUserDropdown(false)}
+                   onClick={() => {
+                    logout();
+                    setShowUserDropdown(false);
+                  }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-all duration-200"
                 >
                   <div className="w-8 h-8 rounded-lg bg-red-500/5 flex items-center justify-center">
