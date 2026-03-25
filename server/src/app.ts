@@ -1,19 +1,19 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import { errorMiddleware } from '@/middlewares/error.middleware';
-import { successResponse } from '@/utils/response';
+import { errorMiddleware } from './middlewares/error.middleware';
+import { successResponse } from './utils/response';
 
 // Routes
-import customerRoutes from '@/modules/customers/customer.routes';
-import supplierRoutes from '@/modules/suppliers/supplier.routes';
-import shipmentRoutes from '@/modules/shipments/shipment.routes';
-import salesRoutes from '@/modules/sales/sales.routes';
-import purchasingRoutes from '@/modules/purchasing/purchasing.routes';
-import employeeRoutes from '@/modules/employees/employee.routes';
-import contractRoutes from '@/modules/contracts/contract.routes';
-import paymentRequestRoutes from '@/modules/payment-requests/payment-request.routes';
-import debitNoteRoutes from '@/modules/debit-notes/debit-note.routes';
+import customerRoutes from './modules/customers/customer.routes';
+import supplierRoutes from './modules/suppliers/supplier.routes';
+import shipmentRoutes from './modules/shipments/shipment.routes';
+import salesRoutes from './modules/sales/sales.routes';
+import purchasingRoutes from './modules/purchasing/purchasing.routes';
+import employeeRoutes from './modules/employees/employee.routes';
+import contractRoutes from './modules/contracts/contract.routes';
+import paymentRequestRoutes from './modules/payment-requests/payment-request.routes';
+import debitNoteRoutes from './modules/debit-notes/debit-note.routes';
 
 const app = express();
 
