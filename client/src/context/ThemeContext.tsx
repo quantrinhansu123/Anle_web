@@ -3,29 +3,29 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 type Theme = 'light' | 'dark' | 'system';
 
 export const THEME_COLORS = [
-  { name: 'Xanh dương', hex: '#3b82f6', class: 'bg-blue-600' },
-  { name: 'Tím', hex: '#8b5cf6', class: 'bg-violet-600' },
-  { name: 'Xanh lá', hex: '#10b981', class: 'bg-emerald-600' },
-  { name: 'Hồng', hex: '#ec4899', class: 'bg-pink-600' },
-  { name: 'Cam vàng', hex: '#f59e0b', class: 'bg-amber-500' },
-  { name: 'Cam', hex: '#f97316', class: 'bg-orange-600' },
-  { name: 'Xanh lơ', hex: '#06b6d4', class: 'bg-cyan-500' },
-  { name: 'Xám', hex: '#475569', class: 'bg-slate-600' },
+  { name: 'Blue', hex: '#3b82f6', class: 'bg-blue-600' },
+  { name: 'Purple', hex: '#8b5cf6', class: 'bg-violet-600' },
+  { name: 'Green', hex: '#10b981', class: 'bg-emerald-600' },
+  { name: 'Pink', hex: '#ec4899', class: 'bg-pink-600' },
+  { name: 'Amber', hex: '#f59e0b', class: 'bg-amber-500' },
+  { name: 'Orange', hex: '#f97316', class: 'bg-orange-600' },
+  { name: 'Cyan', hex: '#06b6d4', class: 'bg-cyan-500' },
+  { name: 'Slate', hex: '#475569', class: 'bg-slate-600' },
 ];
 
 export const THEME_FONTS = [
-  { id: 'Inter', name: 'Inter', description: 'Hiện đại, trung tính' },
-  { id: 'Be Vietnam Pro', name: 'Be Vietnam Pro', description: 'Tối ưu tiếng Việt' },
-  { id: 'Lexend', name: 'Lexend', description: 'Dễ đọc, thoáng' },
-  { id: 'Nunito', name: 'Nunito', description: 'Mềm mại, thân thiện' },
-  { id: 'Source Sans 3', name: 'Source Sans 3', description: 'Chuyên nghiệp' },
-  { id: 'Merriweather', name: 'Merriweather', description: 'Serif cổ điển' },
+  { id: 'Inter', name: 'Inter', description: 'Modern, neutral' },
+  { id: 'Be Vietnam Pro', name: 'Be Vietnam Pro', description: 'Vietnamese optimized' },
+  { id: 'Lexend', name: 'Lexend', description: 'Readable, airy' },
+  { id: 'Nunito', name: 'Nunito', description: 'Soft, friendly' },
+  { id: 'Source Sans 3', name: 'Source Sans 3', description: 'Professional' },
+  { id: 'Merriweather', name: 'Merriweather', description: 'Classic Serif' },
 ];
 
 export const THEME_SIZES = [
-  { id: 'small', name: 'Nhỏ', description: '14px gốc', size: '14px' },
-  { id: 'medium', name: 'Trung bình', description: '16px gốc', size: '16px' },
-  { id: 'large', name: 'Lớn', description: '18px gốc', size: '18px' },
+  { id: 'small', name: 'Small', description: 'Base 14px', size: '14px' },
+  { id: 'medium', name: 'Medium', description: 'Base 16px', size: '16px' },
+  { id: 'large', name: 'Large', description: 'Base 18px', size: '18px' },
 ];
 
 interface ThemeContextType {
@@ -49,7 +49,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   const [primaryColor, setPrimaryColor] = useState<string>(() => {
-    return localStorage.getItem('primaryColor') || 'Xanh dương';
+    return localStorage.getItem('primaryColor') || 'Blue';
   });
 
   const [font, setFont] = useState<string>(() => {
