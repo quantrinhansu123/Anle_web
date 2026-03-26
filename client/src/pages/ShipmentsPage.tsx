@@ -313,6 +313,21 @@ const ShipmentsPage: React.FC = () => {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this shipment? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await shipmentService.deleteShipment(id);
+      toast.success('Shipment deleted successfully');
+      fetchData();
+    } catch (err) {
+      console.error('Failed to delete shipment:', err);
+      toast.error('Failed to delete shipment. Please try again.');
+    }
+  };
+
   const filteredShipments = shipments.filter(s => {
     if (searchText) {
       const search = searchText.toLowerCase();
@@ -615,7 +630,13 @@ const ShipmentsPage: React.FC = () => {
                           >
                             <Edit size={14} />
                           </button>
-                          <button className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-100 transition-all" title="Delete"><Trash2 size={14} /></button>
+                          <button
+                            onClick={() => handleDelete(s.id)}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-100 transition-all" 
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       </td>
                     </tr>
