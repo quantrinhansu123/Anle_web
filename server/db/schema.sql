@@ -70,9 +70,17 @@ create table shipments (
 -- ============================================================
 -- 5. SALES (báo giá)
 -- ============================================================
+create table sales (
+  id uuid primary key default gen_random_uuid(),
+  shipment_id uuid references shipments(id) on delete cascade,
+  quote_date date default current_date,
+  no_doc text generated always as ('Q-' || substring(id::text, 1, 8)) stored,
+  created_at timestamptz default now()
+);
+
 create table sales_items (
   id            uuid primary key default gen_random_uuid(),
-  shipment_id   uuid references shipments(id) on delete cascade,
+  sales_id      uuid references sales(id) on delete cascade,
   description   text,
   rate          numeric(18,4),
   quantity      numeric(18,4),
@@ -214,7 +222,8 @@ select
 from shipments s
 left join customers c      on c.id  = s.customer_id
 left join suppliers sup    on sup.id = s.supplier_id
-left join sales_items si   on si.shipment_id = s.id
+left join sales q          on q.shipment_id = s.id
+left join sales_items si   on si.sales_id = q.id
 left join purchasing_items pi on pi.shipment_id = s.id
 group by s.id, c.company_name, sup.company_name;
 
