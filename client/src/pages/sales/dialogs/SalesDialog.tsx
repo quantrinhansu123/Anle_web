@@ -1,12 +1,12 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X, FileText, Plus, ChevronRight, Hash, Package,
-  DollarSign, Percent, Calculator, Info,
-  Ship
+  X, FileText, Plus, Edit, ChevronRight, Hash, Package,
+  DollarSign, Percent, Calculator, Info, Ship, MapPin, Calendar
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { SearchableSelect } from '../../../components/ui/SearchableSelect';
+import type { Shipment } from '../../shipments/types';
 import type { SalesFormState } from '../types';
 
 interface Props {
@@ -16,8 +16,9 @@ interface Props {
   onClose: () => void;
   formState: SalesFormState;
   setFormField: <K extends keyof SalesFormState>(key: K, value: SalesFormState[K]) => void;
-  shipmentOptions: { value: string; label: string }[];
+  shipmentOptions: (Shipment & { value: string; label: string })[];
   onSave: () => void;
+  onEdit?: () => void;
 }
 
 const SalesDialog: React.FC<Props> = ({
@@ -29,6 +30,7 @@ const SalesDialog: React.FC<Props> = ({
   setFormField,
   shipmentOptions,
   onSave,
+  onEdit,
 }) => {
   if (!isOpen && !isClosing) return null;
 
@@ -43,6 +45,8 @@ const SalesDialog: React.FC<Props> = ({
   const subtotal = rate * quantity * exchange_rate;
   const taxValue = (subtotal * tax_percent) / 100;
   const total = subtotal + taxValue;
+
+  const selectedShipment = formState.relatedShipment || shipmentOptions.find(s => s.value === shipment_id);
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex justify-end">
@@ -102,6 +106,30 @@ const SalesDialog: React.FC<Props> = ({
                   placeholder="Search shipment ID..."
                   disabled={isReadOnly}
                 />
+                {selectedShipment && (
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-4 border-t border-blue-50 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="col-span-2 space-y-1">
+                      <label className="text-[11px] font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5"><Package size={12} className="opacity-70" /> Commodity</label>
+                      <input readOnly value={selectedShipment.commodity || '—'} className="w-full bg-blue-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-blue-900 focus:ring-0 cursor-default" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5"><MapPin size={12} className="opacity-70" /> Route (POL → POD)</label>
+                      <div className="w-full bg-blue-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-blue-900 flex items-center gap-2">
+                        <span>{selectedShipment.pol || '—'}</span>
+                        <span className="opacity-30">→</span>
+                        <span>{selectedShipment.pod || '—'}</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5"><Calendar size={12} className="opacity-70" /> ETD / ETA</label>
+                      <div className="w-full bg-blue-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-blue-900 flex items-center gap-2">
+                        <span className="font-bold">{selectedShipment.etd ? new Date(selectedShipment.etd).toLocaleDateString() : '—'}</span>
+                        <span className="opacity-30">/</span>
+                        <span className="font-bold">{selectedShipment.eta ? new Date(selectedShipment.eta).toLocaleDateString() : '—'}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -123,7 +151,7 @@ const SalesDialog: React.FC<Props> = ({
                   value={description || ''}
                   onChange={e => setFormField('description', e.target.value)}
                   disabled={isReadOnly}
-                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium min-h-[80px] disabled:opacity-70 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold min-h-[80px] disabled:opacity-70 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -140,7 +168,7 @@ const SalesDialog: React.FC<Props> = ({
                     value={rate || ''}
                     onChange={e => setFormField('rate', parseFloat(e.target.value) || 0)}
                     disabled={isReadOnly}
-                    className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:opacity-70 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -155,7 +183,7 @@ const SalesDialog: React.FC<Props> = ({
                     value={quantity || ''}
                     onChange={e => setFormField('quantity', parseFloat(e.target.value) || 0)}
                     disabled={isReadOnly}
-                    className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:opacity-70 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -172,7 +200,7 @@ const SalesDialog: React.FC<Props> = ({
                     value={unit || ''}
                     onChange={e => setFormField('unit', e.target.value)}
                     disabled={isReadOnly}
-                    className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:opacity-70 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -205,7 +233,7 @@ const SalesDialog: React.FC<Props> = ({
                     value={exchange_rate || ''}
                     onChange={e => setFormField('exchange_rate', parseFloat(e.target.value) || 0)}
                     disabled={isReadOnly}
-                    className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:opacity-70 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -255,7 +283,16 @@ const SalesDialog: React.FC<Props> = ({
           >
             {isReadOnly ? 'Close' : 'Cancel'}
           </button>
-          {!isReadOnly && (
+          {isReadOnly ? (
+            <button
+              onClick={onEdit}
+              className="flex items-center gap-2 px-8 py-2 rounded-xl bg-blue-600 text-white text-[13px] font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all group active:scale-95"
+            >
+              <Edit size={18} />
+              Edit Sales Item
+              <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+            </button>
+          ) : (
             <button 
               onClick={onSave}
               className="flex items-center gap-2 px-8 py-2 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all group active:scale-95"

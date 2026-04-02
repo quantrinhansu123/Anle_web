@@ -1,22 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ChevronLeft, Search, Plus,
-  Edit, Trash2, List, 
+  Edit, Trash2, List,
   ChevronRight, RefreshCcw,
-  BarChart2, FileText, User as UserIcon, Truck, ShoppingCart, ExternalLink
+  BarChart2, FileText, User as UserIcon, Truck, ShoppingCart, ExternalLink, AlertCircle, X
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
 import { contractService } from '../services/contractService';
-import { customerService } from '../services/customerService';
-import { supplierService } from '../services/supplierService';
+import { customerService, type Customer } from '../services/customerService';
+import { supplierService, type Supplier } from '../services/supplierService';
 import { employeeService } from '../services/employeeService';
 import { FilterDropdown } from '../components/ui/FilterDropdown';
 import { ColumnSettings } from '../components/ui/ColumnSettings';
 import { useAuth } from '../contexts/AuthContext';
 import type { Contract, CreateContractDto } from './contracts/types';
 import ContractDialog from './contracts/dialogs/ContractDialog';
-import { toast } from '../lib/toast';
+import { useToastContext } from '../contexts/ToastContext';
 
 // --- CONFIGURATION ---
 const INITIAL_FORM_STATE: Partial<Contract> = {
@@ -32,15 +33,15 @@ const INITIAL_FORM_STATE: Partial<Contract> = {
 
 type ColDef = { label: string; thClass: string; tdClass: string; renderContent: (c: Contract) => React.ReactNode };
 const COLUMN_DEFS: Record<string, ColDef> = {
-  id: { 
-    label: 'ID', 
-    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-24 border-r border-border/40', 
+  id: {
+    label: 'ID',
+    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-24 border-r border-border/40',
     tdClass: 'px-4 py-4 border-r border-border/40 font-mono text-[12px] font-bold text-primary',
     renderContent: (c) => <span>#{c.id.slice(0, 8)}</span>
   },
-  name: { 
-    label: 'Name (Customer/Supplier)', 
-    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-64 border-r border-border/40', 
+  name: {
+    label: 'Name (Customer/Supplier)',
+    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-64 border-r border-border/40',
     tdClass: 'px-4 py-4 border-r border-border/40',
     renderContent: (c) => (
       <div className="flex flex-col">
@@ -53,9 +54,9 @@ const COLUMN_DEFS: Record<string, ColDef> = {
       </div>
     )
   },
-  pic: { 
-    label: 'PIC', 
-    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-48 border-r border-border/40', 
+  pic: {
+    label: 'PIC',
+    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-48 border-r border-border/40',
     tdClass: 'px-4 py-4 border-r border-border/40',
     renderContent: (c) => (
       <div className="flex items-center gap-2">
@@ -66,21 +67,21 @@ const COLUMN_DEFS: Record<string, ColDef> = {
       </div>
     )
   },
-  no_contract: { 
-    label: 'No Contract', 
-    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-48 border-r border-border/40', 
+  no_contract: {
+    label: 'No Contract',
+    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-48 border-r border-border/40',
     tdClass: 'px-4 py-4 border-r border-border/40 font-medium text-[13px]',
     renderContent: (c) => <span>{c.no_contract || '—'}</span>
   },
-  payment_term: { 
-    label: 'Payment Term', 
-    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-40 border-r border-border/40', 
+  payment_term: {
+    label: 'Payment Term',
+    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-40 border-r border-border/40',
     tdClass: 'px-4 py-4 border-r border-border/40 text-[13px] text-muted-foreground',
     renderContent: (c) => <span>{c.payment_term || '—'}</span>
   },
-  kind: { 
-    label: 'Kind of Contract', 
-    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-40', 
+  kind: {
+    label: 'Kind of Contract',
+    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-40',
     tdClass: 'px-4 py-4',
     renderContent: (c) => (
       <div className="flex items-center gap-1.5">
@@ -104,14 +105,18 @@ const DEFAULT_COL_ORDER = Object.keys(COLUMN_DEFS);
 
 const ContractsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { success, error } = useToastContext();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'list' | 'stats'>('list');
   const [selectedContracts, setSelectedContracts] = useState<string[]>([]);
-  
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<{ type: 'single' | 'bulk'; id?: string }>({ type: 'single' });
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // Data State
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Search & Filters
   const [searchText, setSearchText] = useState('');
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
@@ -127,11 +132,13 @@ const ContractsPage: React.FC = () => {
   const [isClosing, setIsClosing] = useState(false);
   const [mode, setMode] = useState<'add' | 'edit' | 'detail'>('add');
   const [formState, setFormState] = useState<Partial<Contract>>(INITIAL_FORM_STATE);
-  
+
   // Options for Selects
-  const [entityOptions, setEntityOptions] = useState<{value: string, label: string}[]>([]);
-  const [employeeOptions, setEmployeeOptions] = useState<{value: string, label: string}[]>([]);
-  
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [entityOptions, setEntityOptions] = useState<{ value: string, label: string }[]>([]);
+  const [employeeOptions, setEmployeeOptions] = useState<{ value: string, label: string }[]>([]);
+
   // Column Settings State
   const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_COL_ORDER);
   const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_COL_ORDER);
@@ -171,12 +178,15 @@ const ContractsPage: React.FC = () => {
         supplierService.getSuppliers(),
         employeeService.getEmployees()
       ]);
-      
+
+      setCustomers(customers);
+      setSuppliers(suppliers);
+
       const combined = [
         ...customers.map(c => ({ value: `C:${c.id}`, label: `(Customer) ${c.company_name}` })),
         ...suppliers.map(s => ({ value: `S:${s.id}`, label: `(Supplier) ${s.company_name}` }))
       ];
-      
+
       setEntityOptions(combined);
       setEmployeeOptions(employees.map(e => ({ value: e.id, label: e.full_name })));
     } catch (err) {
@@ -217,11 +227,11 @@ const ContractsPage: React.FC = () => {
   const handleSave = async () => {
     try {
       if (!formState.no_contract) {
-        toast.error('Contract number is required');
+        error('Contract number is required');
         return;
       }
       if (!formState.customer_id && !formState.supplier_id) {
-        toast.error('Please select a customer or supplier');
+        error('Please select a customer or supplier');
         return;
       }
 
@@ -237,25 +247,48 @@ const ContractsPage: React.FC = () => {
       } else {
         await contractService.createContract(dto as any);
         handleCloseDialog();
-        toast.success('Contract created successfully');
+        success('Contract created successfully');
       }
 
       fetchData();
     } catch (err) {
       console.error('Failed to save contract:', err);
-      toast.error('Failed to save contract');
+      error('Failed to save contract');
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this contract?')) return;
+  const handleDeleteClick = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setConfirmAction({ type: 'single', id });
+    setIsConfirmOpen(true);
+  };
+
+  const handleBulkDeleteClick = () => {
+    setConfirmAction({ type: 'bulk' });
+    setIsConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
     try {
-      await contractService.deleteContract(id);
+      setIsDeleting(true);
+      if (confirmAction.type === 'single' && confirmAction.id) {
+        await contractService.deleteContract(confirmAction.id);
+        success('Contract deleted successfully');
+        if (selectedContracts.includes(confirmAction.id)) {
+          setSelectedContracts(prev => prev.filter(i => i !== confirmAction.id));
+        }
+      } else if (confirmAction.type === 'bulk') {
+        await Promise.all(selectedContracts.map(id => contractService.deleteContract(id)));
+        success(`${selectedContracts.length} contracts deleted successfully`);
+        setSelectedContracts([]);
+      }
+      setIsConfirmOpen(false);
       fetchData();
-      toast.success('Contract deleted successfully');
     } catch (err) {
-      console.error('Failed to delete contract:', err);
-      toast.error('Failed to delete contract');
+      console.error('Failed to delete:', err);
+      error('Failed to delete contract(s)');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -276,7 +309,7 @@ const ContractsPage: React.FC = () => {
     const name = c.customers?.company_name || c.suppliers?.company_name || '';
     if (searchText) {
       const search = searchText.toLowerCase();
-      const matches = 
+      const matches =
         name.toLowerCase().includes(search) ||
         c.no_contract?.toLowerCase().includes(search) ||
         c.employees?.full_name?.toLowerCase().includes(search);
@@ -284,7 +317,7 @@ const ContractsPage: React.FC = () => {
     }
 
     if (selectedPICs.length > 0 && c.pic_id && !selectedPICs.includes(c.pic_id)) return false;
-    
+
     if (selectedKinds.length > 0) {
       const isLogistic = selectedKinds.includes('logistic') && c.type_logistic;
       const isTrading = selectedKinds.includes('trading') && c.type_trading;
@@ -330,24 +363,24 @@ const ContractsPage: React.FC = () => {
                 </button>
                 <div className="relative flex-1 max-w-sm">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                  <input 
-                    type="text" 
-                    placeholder="Search contracts..." 
-                    value={searchText} 
-                    onChange={(e) => setSearchText(e.target.value)} 
-                    className="w-full pl-10 pr-8 py-1.5 bg-muted/20 border border-border rounded-xl text-[13px] font-medium" 
+                  <input
+                    type="text"
+                    placeholder="Search contracts..."
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    className="w-full pl-10 pr-8 py-1.5 bg-muted/20 border border-border rounded-xl text-[13px] font-medium"
                   />
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button 
+                <button
                   onClick={fetchData}
                   className="px-3 py-1.5 rounded-xl border border-border bg-white text-muted-foreground hover:bg-muted transition-all"
                 >
                   <RefreshCcw size={16} className={loading ? 'animate-spin' : ''} />
                 </button>
-                
-                <ColumnSettings 
+
+                <ColumnSettings
                   columns={COLUMN_DEFS}
                   visibleColumns={visibleColumns}
                   columnOrder={columnOrder}
@@ -356,7 +389,26 @@ const ContractsPage: React.FC = () => {
                   defaultOrder={DEFAULT_COL_ORDER}
                 />
 
-                <button 
+                {selectedContracts.length > 0 && (
+                  <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2">
+                    <button
+                      onClick={handleBulkDeleteClick}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 transition-all active:scale-95"
+                    >
+                      <Trash2 size={13} />
+                      Delete ({selectedContracts.length})
+                    </button>
+                    <button
+                      onClick={() => setSelectedContracts([])}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold text-slate-600 bg-white border border-border hover:bg-slate-50 transition-all active:scale-95"
+                    >
+                      <X size={14} />
+                      Clear
+                    </button>
+                    <div className="h-4 w-px bg-border mx-1" />
+                  </div>
+                )}
+                <button
                   onClick={handleOpenAdd}
                   className="flex items-center gap-2 px-4 py-1.5 bg-primary text-white rounded-xl text-[13px] font-bold shadow-md shadow-primary/20 hover:bg-primary/90 transition-all"
                 >
@@ -454,11 +506,11 @@ const ContractsPage: React.FC = () => {
                   <tr><td colSpan={10} className="px-4 py-20 text-center italic text-muted-foreground opacity-60">No contracts found.</td></tr>
                 ) : (
                   filteredContracts.map(c => (
-                    <tr 
-                      key={c.id} 
+                    <tr
+                      key={c.id}
                       onClick={() => handleOpenDetail(c)}
                       className={clsx(
-                        'hover:bg-slate-50/60 transition-colors group cursor-pointer', 
+                        'hover:bg-slate-50/60 transition-colors group cursor-pointer',
                         selectedContracts.includes(c.id) && 'bg-primary/[0.02]'
                       )}
                     >
@@ -471,31 +523,30 @@ const ContractsPage: React.FC = () => {
                       <td className="px-4 py-4" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1 transition-opacity">
                           {c.file_url && (
-                             <a 
-                               href={c.file_url} 
-                               target="_blank" 
-                               rel="noopener noreferrer"
-                               className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all"
-                               title="View Contract File"
-                             >
-                               <ExternalLink size={14} />
-                             </a>
+                            <a
+                              href={c.file_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all"
+                              title="View Contract File"
+                            >
+                              <ExternalLink size={14} />
+                            </a>
                           )}
-                          <button 
+                          <button
                             onClick={(e) => {
                               e.stopPropagation();
                               handleOpenEdit(c);
                             }}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-all"
+                            title="Edit"
                           >
                             <Edit size={14} />
                           </button>
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDelete(c.id);
-                            }}
+                          <button
+                            onClick={(e) => handleDeleteClick(c.id, e)}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-all"
+                            title="Delete"
                           >
                             <Trash2 size={14} />
                           </button>
@@ -507,24 +558,24 @@ const ContractsPage: React.FC = () => {
               </tbody>
             </table>
           </div>
-          
+
           {/* Footer */}
           <div className="px-6 py-3 border-t border-border bg-slate-50/50 flex items-center justify-between shrink-0">
-             <span className="text-[12px] font-medium text-slate-500">Showing <b>1</b> – <b>{filteredContracts.length}</b> of <b>{filteredContracts.length}</b> result(s)</span>
-             <div className="flex items-center gap-1">
-                <button className="px-3 py-1.5 rounded-lg border border-border bg-white text-[12px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Prev</button>
-                <button className="px-4 py-1.5 rounded-lg border border-border bg-primary text-white text-[12px] font-bold shadow-sm ring-1 ring-primary/20 transition-all">1</button>
-                <button className="px-3 py-1.5 rounded-lg border border-border bg-white text-[12px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Next</button>
-             </div>
+            <span className="text-[12px] font-medium text-slate-500">Showing <b>1</b> – <b>{filteredContracts.length}</b> of <b>{filteredContracts.length}</b> result(s)</span>
+            <div className="flex items-center gap-1">
+              <button className="px-3 py-1.5 rounded-lg border border-border bg-white text-[12px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Prev</button>
+              <button className="px-4 py-1.5 rounded-lg border border-border bg-primary text-white text-[12px] font-bold shadow-sm ring-1 ring-primary/20 transition-all">1</button>
+              <button className="px-3 py-1.5 rounded-lg border border-border bg-white text-[12px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Next</button>
+            </div>
           </div>
         </div>
       ) : (
         /* Stats Placeholder */
         <div className="flex-1 bg-white rounded-2xl border border-border shadow-sm flex items-center justify-center">
-            <div className="text-center space-y-2">
-                <BarChart2 size={48} className="mx-auto text-muted-foreground/20" />
-                <p className="text-muted-foreground font-medium">Statistics view is coming soon</p>
-            </div>
+          <div className="text-center space-y-2">
+            <BarChart2 size={48} className="mx-auto text-muted-foreground/20" />
+            <p className="text-muted-foreground font-medium">Statistics view is coming soon</p>
+          </div>
         </div>
       )}
 
@@ -538,9 +589,52 @@ const ContractsPage: React.FC = () => {
         setFormField={setFormField}
         entityOptions={entityOptions}
         employeeOptions={employeeOptions}
+        customers={customers}
+        suppliers={suppliers}
         onSave={handleSave}
         onEdit={() => setMode('edit')}
       />
+
+      {/* CONFIRMATION DIALOG */}
+      {isConfirmOpen && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => !isDeleting && setIsConfirmOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl border border-border w-full max-w-sm overflow-hidden animate-in zoom-in-95 fade-in duration-200">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 shrink-0">
+                  <AlertCircle size={20} />
+                </div>
+                <div>
+                  <h3 className="text-[16px] font-bold text-slate-900">Confirm Deletion</h3>
+                  <p className="text-[13px] text-muted-foreground">This action cannot be undone.</p>
+                </div>
+              </div>
+              <p className="text-[14px] text-slate-600 font-medium leading-relaxed">
+                Are you sure you want to delete {confirmAction.type === 'bulk' ? `these ${selectedContracts.length} contracts` : 'this contract'}?
+                All associated data will be permanently removed.
+              </p>
+            </div>
+            <div className="p-4 bg-slate-50 border-t border-border flex items-center gap-3">
+              <button
+                disabled={isDeleting}
+                onClick={() => setIsConfirmOpen(false)}
+                className="flex-1 py-2 rounded-xl border border-border bg-white text-[13px] font-bold text-slate-600 hover:bg-white/80 transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="flex-1 py-2 rounded-xl bg-red-600 text-white text-[13px] font-bold shadow-md shadow-red-200 hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isDeleting ? <RefreshCcw size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+        , document.body)}
     </div>
   );
 };

@@ -44,8 +44,16 @@
 }
 
 @layer base {
-  body {
+  input, textarea, select {
+    font-weight: 600;
+  }
+
+  body, button {
     font-family: var(--font-sans);
+    font-weight: 500;
+  }
+
+  body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     line-height: 1.5;

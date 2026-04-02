@@ -1,10 +1,13 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X, User, Plus, ChevronRight, FileText, CreditCard, Layout, Truck, ShoppingCart, Upload, Link as LinkIcon, Users, ExternalLink, Edit
+  X, User, Plus, ChevronRight, FileText, CreditCard, Layout, Truck, ShoppingCart, Upload, Link as LinkIcon, Users, ExternalLink, Edit,
+  Mail, Phone, Hash, MapPin
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { SearchableSelect } from '../../../components/ui/SearchableSelect';
+import { type Customer } from '../../../services/customerService';
+import { type Supplier } from '../../../services/supplierService';
 import type { Contract, CreateContractDto } from '../types';
 
 interface Props {
@@ -16,6 +19,8 @@ interface Props {
   setFormField: (key: keyof CreateContractDto, value: any) => void;
   entityOptions: { value: string; label: string }[]; // Combined Customer/Supplier
   employeeOptions: { value: string; label: string }[];
+  customers: Customer[];
+  suppliers: Supplier[];
   onSave: () => void;
   onEdit?: () => void;
 }
@@ -29,6 +34,8 @@ const ContractDialog: React.FC<Props> = ({
   setFormField,
   entityOptions,
   employeeOptions,
+  customers,
+  suppliers,
   onSave,
   onEdit
 }) => {
@@ -58,6 +65,9 @@ const ContractDialog: React.FC<Props> = ({
     }
   };
 
+  const selectedCustomer = customers.find(c => c.id === customer_id);
+  const selectedSupplier = suppliers.find(s => s.id === supplier_id);
+
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex justify-end">
       {/* Backdrop */}
@@ -72,7 +82,7 @@ const ContractDialog: React.FC<Props> = ({
       {/* Panel */}
       <div
         className={clsx(
-          'relative w-full max-w-[500px] bg-[#f8fafc] shadow-2xl flex flex-col h-screen border-l border-border transition-transform duration-350 ease-out',
+          'relative w-full max-w-[550px] bg-[#f8fafc] shadow-2xl flex flex-col h-screen border-l border-border transition-transform duration-350 ease-out',
           isClosing ? 'translate-x-full' : 'translate-x-0 animate-in slide-in-from-right duration-350',
         )}
       >
@@ -96,189 +106,258 @@ const ContractDialog: React.FC<Props> = ({
 
         {/* Scrollable Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          <div className="bg-white rounded-2xl border border-border shadow-sm p-6 space-y-4">
-            
-            {/* Entity Selection (Customer/Supplier) */}
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <User size={16} className="text-muted-foreground/70" />
-                <label className="text-[13px] font-bold text-foreground">ID (Customer/Supplier) <span className="text-red-500">*</span></label>
-              </div>
-              <SearchableSelect
-                options={entityOptions}
-                value={currentEntityValue}
-                onValueChange={handleEntityChange}
-                placeholder="Search customer or supplier..."
-                disabled={isDetailMode}
-              />
+          
+          {/* Section 1: Entity Information */}
+          <div className={clsx(
+            "bg-white rounded-2xl border shadow-sm overflow-hidden transition-colors duration-300",
+            selectedCustomer ? "border-blue-100" : selectedSupplier ? "border-emerald-100" : "border-border"
+          )}>
+            <div className={clsx(
+              "px-5 py-3 border-b flex items-center gap-2",
+              selectedCustomer ? "bg-blue-50/50 border-blue-50 text-blue-600" : 
+              selectedSupplier ? "bg-emerald-50/50 border-emerald-50 text-emerald-600" : 
+              "bg-muted/5 border-border text-muted-foreground"
+            )}>
+              <User size={16} />
+              <span className="text-[12px] font-bold uppercase tracking-wider">
+                {selectedCustomer ? "Customer Information" : selectedSupplier ? "Supplier Information" : "Entity Selection"}
+              </span>
             </div>
-
-            {/* PIC Selection */}
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <Users size={16} className="text-muted-foreground/70" />
-                <label className="text-[13px] font-bold text-foreground">Person In Charge</label>
-              </div>
-              <SearchableSelect
-                options={employeeOptions}
-                value={pic_id || ''}
-                onValueChange={v => setFormField('pic_id', v)}
-                placeholder="Select PIC..."
-                disabled={isDetailMode}
-              />
-            </div>
-
-            {/* Contract Number */}
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <Layout size={16} className="text-muted-foreground/70" />
-                <label className="text-[13px] font-bold text-foreground">No Contract <span className="text-red-500">*</span></label>
-              </div>
-              <input
-                type="text"
-                placeholder="Enter contract number"
-                value={no_contract || ''}
-                onChange={e => setFormField('no_contract', e.target.value)}
-                disabled={isDetailMode}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
-              />
-            </div>
-
-            {/* Payment Term */}
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <CreditCard size={16} className="text-muted-foreground/70" />
-                <label className="text-[13px] font-bold text-foreground">Payment Term</label>
-              </div>
-              <input
-                type="text"
-                placeholder="E.g. Net 30, COD"
-                value={payment_term || ''}
-                onChange={e => setFormField('payment_term', e.target.value)}
-                disabled={isDetailMode}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
-              />
-            </div>
-
-            {/* Kind of Contract (Logistic / Trading) */}
-            <div className="space-y-3 pt-2">
-              <label className="text-[13px] font-bold text-foreground block text-muted-foreground/70 uppercase tracking-wider">Kind of Contract</label>
-              <div className="grid grid-cols-2 gap-4">
-                <label className={clsx(
-                  "flex items-center gap-3 p-3 rounded-xl border transition-all group",
-                  !isDetailMode && "cursor-pointer",
-                  type_logistic ? "bg-primary/5 border-primary shadow-sm" : "bg-muted/5 border-border hover:border-muted-foreground/30"
-                )}>
-                  <div className={clsx(
-                     "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
-                     type_logistic ? "bg-primary text-white" : "bg-muted text-muted-foreground"
-                  )}>
-                    <Truck size={20} />
-                  </div>
-                  <div className="flex-1">
-                    <p className={clsx("text-[13px] font-bold", type_logistic ? "text-primary" : "text-foreground")}>Logistic</p>
-                    <input
-                      type="checkbox"
-                      className="hidden"
-                      checked={type_logistic || false}
-                      disabled={isDetailMode}
-                      onChange={e => {
-                        setFormField('type_logistic', e.target.checked);
-                        if (e.target.checked) setFormField('type_trading', false);
-                      }}
-                    />
-                  </div>
-                  <div className={clsx(
-                    "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
-                    type_logistic ? "border-primary bg-primary text-white" : "border-muted-foreground/20"
-                  )}>
-                    {type_logistic && <div className="w-2 h-2 rounded-full bg-white" />}
-                  </div>
-                </label>
-
-                <label className={clsx(
-                  "flex items-center gap-3 p-3 rounded-xl border transition-all group",
-                  !isDetailMode && "cursor-pointer",
-                  type_trading ? "bg-primary/5 border-primary shadow-sm" : "bg-muted/5 border-border hover:border-muted-foreground/30"
-                )}>
-                  <div className={clsx(
-                     "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
-                     type_trading ? "bg-primary text-white" : "bg-muted text-muted-foreground"
-                  )}>
-                    <ShoppingCart size={20} />
-                  </div>
-                  <div className="flex-1">
-                    <p className={clsx("text-[13px] font-bold", type_trading ? "text-primary" : "text-foreground")}>Trading</p>
-                    <input
-                      type="checkbox"
-                      className="hidden"
-                      checked={type_trading || false}
-                      disabled={isDetailMode}
-                      onChange={e => {
-                        setFormField('type_trading', e.target.checked);
-                        if (e.target.checked) setFormField('type_logistic', false);
-                      }}
-                    />
-                  </div>
-                  <div className={clsx(
-                    "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
-                    type_trading ? "border-primary bg-primary text-white" : "border-muted-foreground/20"
-                  )}>
-                    {type_trading && <div className="w-2 h-2 rounded-full bg-white" />}
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            {/* File Upload / Link */}
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center gap-2">
-                <Upload size={16} className="text-muted-foreground/70" />
-                <label className="text-[13px] font-bold text-foreground">Contract File</label>
-              </div>
-              <div className="space-y-3">
+            <div className="p-5 space-y-4">
+              <div className="space-y-1.5">
                 <div className="flex items-center gap-2">
-                   <div className="flex-1">
-                    <div className="relative group">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground/50 group-focus-within:text-primary transition-colors">
-                        <LinkIcon size={14} />
-                      </div>
-                      <input
-                        type="text"
-                        placeholder="Google Drive link or file URL"
-                        value={file_url || ''}
-                        onChange={e => setFormField('file_url', e.target.value)}
-                        disabled={isDetailMode}
-                        className="w-full pl-9 pr-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
-                      />
+                  <User size={16} className="text-muted-foreground/70" />
+                  <label className="text-[13px] font-bold text-foreground">Select Customer or Supplier <span className="text-red-500">*</span></label>
+                </div>
+                <SearchableSelect
+                  options={entityOptions}
+                  value={currentEntityValue}
+                  onValueChange={handleEntityChange}
+                  placeholder="Search customer or supplier..."
+                  disabled={isDetailMode}
+                />
+
+                {/* Customer Detail Card */}
+                {selectedCustomer && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3 pt-4 border-t border-blue-100 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5"><Mail size={12} className="opacity-70" /> Email</label>
+                      <input readOnly value={selectedCustomer.email || '—'} className="w-full bg-blue-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-blue-900 focus:ring-0 cursor-default" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5"><Phone size={12} className="opacity-70" /> Phone</label>
+                      <input readOnly value={selectedCustomer.phone || '—'} className="w-full bg-blue-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-blue-900 focus:ring-0 cursor-default" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5"><Hash size={12} className="opacity-70" /> Tax Code</label>
+                      <input readOnly value={selectedCustomer.tax_code || '—'} className="w-full bg-blue-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-blue-900 focus:ring-0 cursor-default" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5"><MapPin size={12} className="opacity-70" /> Address</label>
+                      <input readOnly value={selectedCustomer.address || '—'} className="w-full bg-blue-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-blue-900 focus:ring-0 cursor-default" />
                     </div>
                   </div>
-                  {isDetailMode && file_url && (
-                    <a 
-                      href={file_url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="p-2 bg-primary/10 text-primary rounded-xl hover:bg-primary/20 transition-colors shrink-0"
-                      title="View Document"
-                    >
-                      <ExternalLink size={18} />
-                    </a>
-                  )}
-                </div>
-                {!isDetailMode && (
-                  <div className="border-2 border-dashed border-border rounded-xl p-6 flex flex-col items-center justify-center gap-2 hover:bg-muted/5 transition-colors cursor-pointer group">
-                    <div className="w-10 h-10 rounded-full bg-muted/20 flex items-center justify-center text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-all duration-300">
-                      <Upload size={20} />
+                )}
+
+                {/* Supplier Detail Card */}
+                {selectedSupplier && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3 pt-4 border-t border-emerald-100 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5"><Mail size={12} className="opacity-70" /> Email</label>
+                      <input readOnly value={selectedSupplier.email || '—'} className="w-full bg-emerald-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-emerald-900 focus:ring-0 cursor-default" />
                     </div>
-                    <div className="text-center">
-                      <p className="text-[13px] font-bold text-foreground">Click to upload or drag & drop</p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">PDF, DOCX up to 10MB</p>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5"><Phone size={12} className="opacity-70" /> Phone</label>
+                      <input readOnly value={selectedSupplier.phone || '—'} className="w-full bg-emerald-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-emerald-900 focus:ring-0 cursor-default" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5"><Hash size={12} className="opacity-70" /> Tax Code</label>
+                      <input readOnly value={selectedSupplier.tax_code || '—'} className="w-full bg-emerald-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-emerald-900 focus:ring-0 cursor-default" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5"><MapPin size={12} className="opacity-70" /> Address</label>
+                      <input readOnly value={selectedSupplier.address || '—'} className="w-full bg-emerald-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-emerald-900 focus:ring-0 cursor-default" />
                     </div>
                   </div>
                 )}
               </div>
             </div>
+          </div>
 
+          {/* Section 2: Contract Details */}
+          <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-border bg-muted/5 flex items-center gap-2">
+              <FileText size={16} className="text-primary" />
+              <span className="text-[12px] font-bold text-primary uppercase tracking-wider">Contract Specification</span>
+            </div>
+            <div className="p-5 space-y-5">
+              {/* PIC Selection */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Users size={16} className="text-muted-foreground/70" />
+                  <label className="text-[13px] font-bold text-foreground">Person In Charge</label>
+                </div>
+                <SearchableSelect
+                  options={employeeOptions}
+                  value={pic_id || ''}
+                  onValueChange={v => setFormField('pic_id', v)}
+                  placeholder="Select PIC..."
+                  disabled={isDetailMode}
+                />
+              </div>
+
+              {/* Contract Number */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Layout size={16} className="text-muted-foreground/70" />
+                  <label className="text-[13px] font-bold text-foreground">No Contract <span className="text-red-500">*</span></label>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Enter contract number"
+                  value={no_contract || ''}
+                  onChange={e => setFormField('no_contract', e.target.value)}
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
+                />
+              </div>
+
+              {/* Payment Term */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <CreditCard size={16} className="text-muted-foreground/70" />
+                  <label className="text-[13px] font-bold text-foreground">Payment Term</label>
+                </div>
+                <input
+                  type="text"
+                  placeholder="E.g. Net 30, COD"
+                  value={payment_term || ''}
+                  onChange={e => setFormField('payment_term', e.target.value)}
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
+                />
+              </div>
+
+              {/* Kind of Contract (Logistic / Trading) */}
+              <div className="space-y-3 pt-2">
+                <label className="text-[13px] font-bold text-foreground block text-muted-foreground/70 uppercase tracking-wider">Kind of Contract</label>
+                <div className="grid grid-cols-2 gap-4">
+                  <label className={clsx(
+                    "flex items-center gap-3 p-3 rounded-xl border transition-all group",
+                    !isDetailMode && "cursor-pointer",
+                    type_logistic ? "bg-primary/5 border-primary shadow-sm" : "bg-muted/5 border-border hover:border-muted-foreground/30"
+                  )}>
+                    <div className={clsx(
+                       "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
+                       type_logistic ? "bg-primary text-white" : "bg-muted text-muted-foreground"
+                    )}>
+                      <Truck size={20} />
+                    </div>
+                    <div className="flex-1">
+                      <p className={clsx("text-[13px] font-bold", type_logistic ? "text-primary" : "text-foreground")}>Logistic</p>
+                      <input
+                        type="checkbox"
+                        className="hidden"
+                        checked={type_logistic || false}
+                        disabled={isDetailMode}
+                        onChange={e => {
+                          setFormField('type_logistic', e.target.checked);
+                          if (e.target.checked) setFormField('type_trading', false);
+                        }}
+                      />
+                    </div>
+                    <div className={clsx(
+                      "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
+                      type_logistic ? "border-primary bg-primary text-white" : "border-muted-foreground/20"
+                    )}>
+                      {type_logistic && <div className="w-2 h-2 rounded-full bg-white" />}
+                    </div>
+                  </label>
+
+                  <label className={clsx(
+                    "flex items-center gap-3 p-3 rounded-xl border transition-all group",
+                    !isDetailMode && "cursor-pointer",
+                    type_trading ? "bg-primary/5 border-primary shadow-sm" : "bg-muted/5 border-border hover:border-muted-foreground/30"
+                  )}>
+                    <div className={clsx(
+                       "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
+                       type_trading ? "bg-primary text-white" : "bg-muted text-muted-foreground"
+                    )}>
+                      <ShoppingCart size={20} />
+                    </div>
+                    <div className="flex-1">
+                      <p className={clsx("text-[13px] font-bold", type_trading ? "text-primary" : "text-foreground")}>Trading</p>
+                      <input
+                        type="checkbox"
+                        className="hidden"
+                        checked={type_trading || false}
+                        disabled={isDetailMode}
+                        onChange={e => {
+                          setFormField('type_trading', e.target.checked);
+                          if (e.target.checked) setFormField('type_logistic', false);
+                        }}
+                      />
+                    </div>
+                    <div className={clsx(
+                      "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
+                      type_trading ? "border-primary bg-primary text-white" : "border-muted-foreground/20"
+                    )}>
+                      {type_trading && <div className="w-2 h-2 rounded-full bg-white" />}
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* File Upload / Link */}
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center gap-2">
+                  <Upload size={16} className="text-muted-foreground/70" />
+                  <label className="text-[13px] font-bold text-foreground">Contract File</label>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                     <div className="flex-1">
+                      <div className="relative group">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground/50 group-focus-within:text-primary transition-colors">
+                          <LinkIcon size={14} />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Google Drive link or file URL"
+                          value={file_url || ''}
+                          onChange={e => setFormField('file_url', e.target.value)}
+                          disabled={isDetailMode}
+                          className="w-full pl-9 pr-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
+                        />
+                      </div>
+                    </div>
+                    {isDetailMode && file_url && (
+                      <a 
+                        href={file_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="p-2 bg-primary/10 text-primary rounded-xl hover:bg-primary/20 transition-colors shrink-0"
+                        title="View Document"
+                      >
+                        <ExternalLink size={18} />
+                      </a>
+                    )}
+                  </div>
+                  {!isDetailMode && (
+                    <div className="border-2 border-dashed border-border rounded-xl p-6 flex flex-col items-center justify-center gap-2 hover:bg-muted/5 transition-colors cursor-pointer group">
+                      <div className="w-10 h-10 rounded-full bg-muted/20 flex items-center justify-center text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-all duration-300">
+                        <Upload size={20} />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[13px] font-bold text-foreground">Click to upload or drag & drop</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">PDF, DOCX up to 10MB</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </div>
           </div>
         </div>
 

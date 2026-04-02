@@ -1,12 +1,14 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X, Plus, Hash, Ship, Calendar, Receipt, Trash2, DollarSign, ChevronRight
+  X, Plus, Hash, Ship, Calendar, Receipt, Trash2, DollarSign, ChevronRight, Edit
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { SearchableSelect } from '../../../components/ui/SearchableSelect';
 import { DateInput } from '../../../components/ui/DateInput';
 import type { DebitNoteFormState, DebitNoteInvoiceItem, DebitNoteChiHoItem } from '../types';
+import type { Shipment } from '../../shipments/types';
+import { Package, MapPin } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -14,9 +16,10 @@ interface Props {
   isEditMode: boolean;
   isDetailMode?: boolean;
   onClose: () => void;
+  onEdit?: () => void;
   formState: DebitNoteFormState;
   setFormField: <K extends keyof DebitNoteFormState>(key: K, value: DebitNoteFormState[K]) => void;
-  shipmentOptions: { value: string; label: string }[];
+  shipmentOptions: (Shipment & { value: string; label: string })[];
   onSave: () => void;
 }
 
@@ -26,6 +29,7 @@ const DebitNoteDialog: React.FC<Props> = ({
   isEditMode,
   isDetailMode = false,
   onClose,
+  onEdit,
   formState,
   setFormField,
   shipmentOptions,
@@ -36,6 +40,8 @@ const DebitNoteDialog: React.FC<Props> = ({
   const {
     shipment_id, note_date, invoice_items, chi_ho_items
   } = formState;
+
+  const selectedShipment = formState.relatedShipment || shipmentOptions.find(s => s.value === shipment_id);
 
   const addInvoiceItem = () => {
     const newItem: DebitNoteInvoiceItem = {
@@ -154,40 +160,70 @@ const DebitNoteDialog: React.FC<Props> = ({
         {/* Scrollable Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
 
-          {/* TOP SECTION: GENERAL INFO */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
+          {/* TOP SECTION: GENERAL INFO & SHIPMENT */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-2 bg-white rounded-2xl border border-border shadow-sm overflow-hidden transition-all hover:shadow-md">
               <div className="px-5 py-3 border-b border-border bg-muted/5 flex items-center gap-2">
                 <Ship size={16} className="text-primary" />
                 <span className="text-[12px] font-bold text-primary uppercase tracking-wider">Related Shipment</span>
               </div>
               <div className="p-5">
                 <div className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <Hash size={16} className="text-muted-foreground/70" />
-                    <label className="text-[13px] font-bold text-foreground">Select Shipment <span className="text-red-500">*</span></label>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <Hash size={14} className="text-primary/60" />
+                    <label className="text-[12px] font-bold text-foreground/80 uppercase tracking-tight">Select Shipment <span className="text-red-500">*</span></label>
                   </div>
                   <SearchableSelect
                     options={shipmentOptions}
                     value={shipment_id}
-                    onValueChange={(v) => setFormField('shipment_id', v)}
+                    onValueChange={(v) => {
+                      const selected = shipmentOptions.find(opt => opt.value === v);
+                      setFormField('shipment_id', v);
+                      if (selected) {
+                        setFormField('relatedShipment' as any, selected);
+                      }
+                    }}
                     placeholder="Search shipment ID..."
                     disabled={isDetailMode}
                   />
+                  {selectedShipment && (
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-4 border-t border-blue-50 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                      <div className="col-span-2 space-y-1">
+                        <label className="text-[11px] font-bold text-primary/60 uppercase tracking-wider flex items-center gap-1.5"><Package size={12} className="opacity-70" /> Commodity</label>
+                        <input readOnly value={selectedShipment.commodity || '—'} className="w-full bg-blue-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-blue-900 focus:ring-0 cursor-default" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-primary/60 uppercase tracking-wider flex items-center gap-1.5"><MapPin size={12} className="opacity-70" /> Route (POL → POD)</label>
+                        <div className="w-full bg-blue-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-blue-900 flex items-center gap-2">
+                          <span>{selectedShipment.pol || '—'}</span>
+                          <span className="opacity-30">→</span>
+                          <span>{selectedShipment.pod || '—'}</span>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-primary/60 uppercase tracking-wider flex items-center gap-1.5"><Calendar size={12} className="opacity-70" /> ETD / ETA</label>
+                        <div className="w-full bg-blue-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-blue-900 flex items-center gap-2">
+                          <span className="font-bold">{selectedShipment.etd ? new Date(selectedShipment.etd).toLocaleDateString() : '—'}</span>
+                          <span className="opacity-30">/</span>
+                          <span className="font-bold">{selectedShipment.eta ? new Date(selectedShipment.eta).toLocaleDateString() : '—'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
+            <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden transition-all hover:shadow-md">
               <div className="px-5 py-3 border-b border-border bg-muted/5 flex items-center gap-2">
                 <Calendar size={16} className="text-primary" />
                 <span className="text-[12px] font-bold text-primary uppercase tracking-wider">Note Date</span>
               </div>
               <div className="p-5">
                 <div className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <Calendar size={16} className="text-muted-foreground/70" />
-                    <label className="text-[13px] font-bold text-foreground">Date <span className="text-red-500">*</span></label>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <Calendar size={14} className="text-primary/60" />
+                    <label className="text-[12px] font-bold text-foreground/80 uppercase tracking-tight">Date <span className="text-red-500">*</span></label>
                   </div>
                   <DateInput
                     value={note_date || ''}
@@ -243,7 +279,7 @@ const DebitNoteDialog: React.FC<Props> = ({
                           onChange={e => updateInvoiceItem(idx, 'description', e.target.value)}
                           placeholder="Description"
                           disabled={isDetailMode}
-                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-primary/40 focus:bg-white border rounded-lg text-[12px] font-medium focus:outline-none transition-all disabled:hover:border-transparent"
+                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-primary/40 focus:bg-white border rounded-lg text-[12px] font-bold focus:outline-none transition-all disabled:hover:border-transparent"
                         />
                       </td>
                       <td className="px-3 py-2">
@@ -288,7 +324,7 @@ const DebitNoteDialog: React.FC<Props> = ({
                           onChange={e => updateInvoiceItem(idx, 'tax_percent', e.target.value)}
                           placeholder="0"
                           disabled={isDetailMode}
-                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-primary/40 focus:bg-white border rounded-lg text-[12px] font-medium text-right focus:outline-none transition-all tabular-nums disabled:hover:border-transparent"
+                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-primary/40 focus:bg-white border rounded-lg text-[12px] font-bold text-right focus:outline-none transition-all tabular-nums disabled:hover:border-transparent"
                         />
                       </td>
                       <td className="px-4 py-2 text-right">
@@ -363,7 +399,7 @@ const DebitNoteDialog: React.FC<Props> = ({
                           onChange={e => updateChiHoItem(idx, 'description', e.target.value)}
                           placeholder="Description"
                           disabled={isDetailMode}
-                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-orange-400/40 focus:bg-white border rounded-lg text-[12px] font-medium focus:outline-none transition-all disabled:hover:border-transparent"
+                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-orange-400/40 focus:bg-white border rounded-lg text-[12px] font-bold focus:outline-none transition-all disabled:hover:border-transparent"
                         />
                       </td>
                       <td className="px-3 py-2">
@@ -373,7 +409,7 @@ const DebitNoteDialog: React.FC<Props> = ({
                           onChange={e => updateChiHoItem(idx, 'unit', e.target.value)}
                           placeholder="Unit"
                           disabled={isDetailMode}
-                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-orange-400/40 focus:bg-white border rounded-lg text-[12px] font-medium text-center focus:outline-none transition-all disabled:hover:border-transparent"
+                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-orange-400/40 focus:bg-white border rounded-lg text-[12px] font-bold text-center focus:outline-none transition-all disabled:hover:border-transparent"
                         />
                       </td>
                       <td className="px-3 py-2">
@@ -432,10 +468,11 @@ const DebitNoteDialog: React.FC<Props> = ({
           <div className="flex items-center gap-8">
             <button
               onClick={onClose}
-              className="px-6 py-2.5 rounded-xl border border-border hover:bg-muted text-foreground text-[13px] font-bold transition-all shadow-sm"
+              className="px-6 py-2 rounded-xl border border-border hover:bg-muted text-foreground text-[13px] font-bold transition-all shadow-sm"
             >
               {isDetailMode ? 'Close' : 'Cancel'}
             </button>
+
             <div className="hidden md:flex flex-col">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Grand Total</span>
               <span className="text-2xl font-black text-primary tabular-nums leading-none">
@@ -443,6 +480,17 @@ const DebitNoteDialog: React.FC<Props> = ({
               </span>
             </div>
           </div>
+
+          {isDetailMode && onEdit && (
+            <button
+              onClick={onEdit}
+              className="flex items-center gap-2 px-8 py-2 rounded-xl bg-blue-600 text-white text-[13px] font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all group active:scale-95"
+            >
+              <Edit size={18} />
+              Edit Record
+              <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+            </button>
+          )}
 
           {!isDetailMode && (
             <button

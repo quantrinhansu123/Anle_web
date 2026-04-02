@@ -98,7 +98,7 @@ const AddEditSupplierDialog: React.FC<Props> = ({
                 placeholder="Enter supplier company name"
                 value={company_name || ''}
                 onChange={e => setFormField('company_name', e.target.value)}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold"
               />
             </div>
 
@@ -112,7 +112,7 @@ const AddEditSupplierDialog: React.FC<Props> = ({
                 placeholder="supplier@email.com"
                 value={email || ''}
                 onChange={e => setFormField('email', e.target.value)}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold"
               />
             </div>
 
@@ -126,7 +126,7 @@ const AddEditSupplierDialog: React.FC<Props> = ({
                 placeholder="Phone number"
                 value={phone || ''}
                 onChange={e => setFormField('phone', e.target.value)}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold"
               />
             </div>
 
@@ -140,7 +140,7 @@ const AddEditSupplierDialog: React.FC<Props> = ({
                 placeholder="Tax identification number"
                 value={tax_code || ''}
                 onChange={e => setFormField('tax_code', e.target.value)}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold"
               />
             </div>
 

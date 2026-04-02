@@ -26,4 +26,5 @@ export interface SalesFormState {
   currency: 'USD' | 'VND';
   exchange_rate: number;
   tax_percent: number;
+  relatedShipment?: Shipment;
 }

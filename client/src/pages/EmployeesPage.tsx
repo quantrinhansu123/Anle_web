@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   ChevronLeft, Search, Plus, Filter, 
   Edit, Trash2, X, BarChart2, List,
   ChevronRight, Users, 
   Briefcase, MapPin, RefreshCcw,
-  TrendingUp, CheckCircle2, Clock, Phone
+  TrendingUp, CheckCircle2, Clock, Phone, AlertCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
@@ -16,7 +17,7 @@ import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
-import { toast } from '../lib/toast';
+import { useToastContext } from '../contexts/ToastContext';
 
 // --- CONFIGURATION ---
 const INITIAL_FORM_STATE: Partial<Employee> = {
@@ -98,8 +99,12 @@ const DEFAULT_COL_ORDER = Object.keys(COLUMN_DEFS);
 
 const EmployeesPage: React.FC = () => {
   const navigate = useNavigate();
+  const { success, error } = useToastContext();
   const [activeTab, setActiveTab] = useState<'list' | 'stats'>('list');
   const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<{ type: 'single' | 'bulk'; id?: string }>({ type: 'single' });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Data State
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -183,34 +188,60 @@ const EmployeesPage: React.FC = () => {
   const handleSave = async () => {
     try {
       if (!formState.full_name || !formState.email) {
-        toast.error('Please fill in required fields (Name and Email).');
+        error('Please fill in required fields (Name and Email).');
         return;
       }
 
+      // Sanitize DTO to remove non-column fields/relations
+      const { id: _id, shipments, contracts, created_at, ...updateDto } = formState as any;
+
       if (isEditMode && formState.id) {
-        await employeeService.updateEmployee(formState.id, formState);
+        await employeeService.updateEmployee(formState.id, updateDto);
       } else {
-        await employeeService.createEmployee(formState as any);
+        await employeeService.createEmployee(updateDto as any);
       }
 
       handleCloseDialog();
       fetchData();
-      toast.success(isEditMode ? 'Employee updated successfully' : 'Employee created successfully');
+      success(isEditMode ? 'Employee updated successfully' : 'Employee created successfully');
     } catch (err) {
       console.error('Failed to save employee:', err);
-      toast.error('Failed to save employee. Please try again.');
+      error('Failed to save employee. Please try again.');
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this employee?')) return;
+  const handleDeleteClick = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setConfirmAction({ type: 'single', id });
+    setIsConfirmOpen(true);
+  };
+
+  const handleBulkDeleteClick = () => {
+    setConfirmAction({ type: 'bulk' });
+    setIsConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
     try {
-      await employeeService.deleteEmployee(id);
+      setIsDeleting(true);
+      if (confirmAction.type === 'single' && confirmAction.id) {
+        await employeeService.deleteEmployee(confirmAction.id);
+        success('Employee deleted successfully');
+        if (selectedEmployees.includes(confirmAction.id)) {
+          setSelectedEmployees(prev => prev.filter(i => i !== confirmAction.id));
+        }
+      } else if (confirmAction.type === 'bulk') {
+        await Promise.all(selectedEmployees.map(id => employeeService.deleteEmployee(id)));
+        success(`${selectedEmployees.length} employees deleted successfully`);
+        setSelectedEmployees([]);
+      }
+      setIsConfirmOpen(false);
       fetchData();
-      toast.success('Employee deleted successfully');
     } catch (err) {
-      console.error('Failed to delete employee:', err);
-      toast.error('Failed to delete employee.');
+      console.error('Failed to delete:', err);
+      error('Failed to delete employee(s)');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -295,6 +326,25 @@ const EmployeesPage: React.FC = () => {
                   onColumnOrderChange={setColumnOrder}
                   defaultOrder={DEFAULT_COL_ORDER}
                 />
+                {selectedEmployees.length > 0 && (
+                  <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2">
+                    <button 
+                      onClick={handleBulkDeleteClick}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 transition-all active:scale-95"
+                    >
+                      <Trash2 size={13} />
+                      Delete ({selectedEmployees.length})
+                    </button>
+                    <button 
+                      onClick={() => setSelectedEmployees([])}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold text-slate-600 bg-white border border-border hover:bg-slate-50 transition-all active:scale-95"
+                    >
+                      <X size={14} />
+                      Clear
+                    </button>
+                    <div className="h-4 w-px bg-border mx-1" />
+                  </div>
+                )}
                 <button 
                   onClick={handleOpenAdd}
                   className="flex items-center gap-2 px-4 py-1.5 bg-primary text-white rounded-xl text-[13px] font-bold shadow-md shadow-primary/20 hover:bg-primary/90 transition-all font-inter"
@@ -423,11 +473,9 @@ const EmployeesPage: React.FC = () => {
                             <Edit size={14} />
                           </button>
                           <button 
-                            onClick={(ev) => {
-                              ev.stopPropagation();
-                              handleDelete(e.id);
-                            }}
+                            onClick={(ev) => handleDeleteClick(e.id, ev)}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-100 transition-all"
+                            title="Delete"
                           >
                             <Trash2 size={14} />
                           </button>
@@ -518,6 +566,47 @@ const EmployeesPage: React.FC = () => {
         setFormField={setFormField}
         onSave={handleSave}
       />
+
+      {/* CONFIRMATION DIALOG */}
+      {isConfirmOpen && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => !isDeleting && setIsConfirmOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl border border-border w-full max-w-sm overflow-hidden animate-in zoom-in-95 fade-in duration-200">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 shrink-0">
+                  <AlertCircle size={20} />
+                </div>
+                <div>
+                  <h3 className="text-[16px] font-bold text-slate-900">Confirm Deletion</h3>
+                  <p className="text-[13px] text-muted-foreground">This action cannot be undone.</p>
+                </div>
+              </div>
+              <p className="text-[14px] text-slate-600 font-medium leading-relaxed">
+                Are you sure you want to delete {confirmAction.type === 'bulk' ? `these ${selectedEmployees.length} employees` : 'this employee'}? 
+                All associated data will be permanently removed.
+              </p>
+            </div>
+            <div className="p-4 bg-slate-50 border-t border-border flex items-center gap-3">
+              <button
+                disabled={isDeleting}
+                onClick={() => setIsConfirmOpen(false)}
+                className="flex-1 py-2 rounded-xl border border-border bg-white text-[13px] font-bold text-slate-600 hover:bg-white/80 transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="flex-1 py-2 rounded-xl bg-red-600 text-white text-[13px] font-bold shadow-md shadow-red-200 hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isDeleting ? <RefreshCcw size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+        , document.body)}
     </div>
   );
 };

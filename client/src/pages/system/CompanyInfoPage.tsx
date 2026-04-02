@@ -7,9 +7,10 @@ import {
 import type { SystemSettings } from '../../types/systemSettings';
 import { apiFetch } from '../../lib/api';
 import { systemSettingsService } from '../../services/systemSettingsService';
-import { toast } from '../../lib/toast';
+import { useToastContext } from '../../contexts/ToastContext';
 
 const CompanyInfoPage: React.FC = () => {
+  const { success, error } = useToastContext();
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -28,7 +29,7 @@ const CompanyInfoPage: React.FC = () => {
       if (data.logo_url) setLogoPreview(data.logo_url);
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || 'Failed to fetch settings');
+      error(err.message || 'Failed to fetch settings');
     } finally {
       setLoading(false);
     }
@@ -77,10 +78,10 @@ const CompanyInfoPage: React.FC = () => {
       });
 
       setSettings(updatedData);
-      toast.success('Changes saved successfully');
+      success('Changes saved successfully');
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || 'An error occurred while saving');
+      error(err.message || 'An error occurred while saving');
     } finally {
       setSaving(false);
     }

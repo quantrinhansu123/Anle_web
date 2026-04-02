@@ -19,7 +19,7 @@ interface Props {
   shipmentOptions: { value: string; label: string }[];
   supplierOptions: { value: string; label: string }[];
   employeeOptions: { value: string; label: string }[];
-  onSave: () => void;
+  onSave: (pushToSales?: boolean) => void;
   onEdit?: () => void;
 }
 
@@ -38,6 +38,13 @@ const PurchasingDialog: React.FC<Props> = ({
 }) => {
   const [calculatedTaxValue, setCalculatedTaxValue] = useState(0);
   const [calculatedTotal, setCalculatedTotal] = useState(0);
+  const [pushToSales, setPushToSales] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setPushToSales(false);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     const rate = Number(formState.rate) || 0;
@@ -135,7 +142,7 @@ const PurchasingDialog: React.FC<Props> = ({
                 value={formState.description || ''}
                 onChange={e => setFormField('description', e.target.value)}
                 disabled={isDetailMode}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
               />
             </div>
 
@@ -151,7 +158,7 @@ const PurchasingDialog: React.FC<Props> = ({
                 value={formState.hs_code || ''}
                 onChange={e => setFormField('hs_code', e.target.value)}
                 disabled={isDetailMode}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
               />
             </div>
 
@@ -169,7 +176,7 @@ const PurchasingDialog: React.FC<Props> = ({
                   value={formState.rate || ''}
                   onChange={e => setFormField('rate', parseFloat(e.target.value) || 0)}
                   disabled={isDetailMode}
-                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
                 />
               </div>
 
@@ -186,7 +193,7 @@ const PurchasingDialog: React.FC<Props> = ({
                   value={formState.quantity || ''}
                   onChange={e => setFormField('quantity', parseFloat(e.target.value) || 0)}
                   disabled={isDetailMode}
-                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
                 />
               </div>
             </div>
@@ -204,7 +211,7 @@ const PurchasingDialog: React.FC<Props> = ({
                   value={formState.unit || ''}
                   onChange={e => setFormField('unit', e.target.value)}
                   disabled={isDetailMode}
-                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
                 />
               </div>
 
@@ -218,7 +225,7 @@ const PurchasingDialog: React.FC<Props> = ({
                   value={formState.currency || 'USD'}
                   onChange={e => setFormField('currency', e.target.value)}
                   disabled={isDetailMode}
-                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
                 >
                   <option value="USD">USD</option>
                   <option value="VND">VND</option>
@@ -240,7 +247,7 @@ const PurchasingDialog: React.FC<Props> = ({
                   value={formState.exchange_rate || ''}
                   onChange={e => setFormField('exchange_rate', parseFloat(e.target.value) || 0)}
                   disabled={isDetailMode}
-                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
                 />
               </div>
 
@@ -257,7 +264,7 @@ const PurchasingDialog: React.FC<Props> = ({
                   value={formState.tax_percent || ''}
                   onChange={e => setFormField('tax_percent', parseFloat(e.target.value) || 0)}
                   disabled={isDetailMode}
-                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
                 />
               </div>
             </div>
@@ -278,7 +285,7 @@ const PurchasingDialog: React.FC<Props> = ({
               </div>
             </div>
 
-            {/* PIC */}
+            {/* Personnel Assignments - PIC */}
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
                 <User size={16} className="text-muted-foreground/70" />
@@ -294,7 +301,7 @@ const PurchasingDialog: React.FC<Props> = ({
             </div>
 
             {/* Specification */}
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 pt-4">
               <div className="flex items-center gap-2">
                 <Package size={16} className="text-muted-foreground/70" />
                 <label className="text-[13px] font-bold text-foreground">Specification</label>
@@ -305,7 +312,7 @@ const PurchasingDialog: React.FC<Props> = ({
                 value={formState.specification || ''}
                 onChange={e => setFormField('specification', e.target.value)}
                 disabled={isDetailMode}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
               />
             </div>
 
@@ -323,6 +330,26 @@ const PurchasingDialog: React.FC<Props> = ({
                 className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium min-h-[80px] resize-none disabled:bg-muted/5 disabled:text-muted-foreground"
               />
             </div>
+            
+            {/* ADD-ON FOR SALES QUOTATION */}
+            {!isDetailMode && mode === 'add' && (
+              <div className="mt-4 p-4 rounded-xl border border-orange-200 bg-orange-50/50 flex flex-col gap-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={pushToSales} 
+                    onChange={(e) => setPushToSales(e.target.checked)}
+                    className="w-4 h-4 rounded border-orange-300 text-orange-500 focus:ring-orange-500" 
+                  />
+                  <span className="text-[13px] font-bold text-orange-800">Generate corresponding Sales Quotation item</span>
+                </label>
+                {pushToSales && (
+                  <p className="text-[11px] text-orange-700/80 pl-6 leading-relaxed">
+                    By checking this, a mirrored Sales Quotation will automatically be created containing the same details. You can further edit its <b>Selling Price (Margin)</b> in the Sales module later.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -342,9 +369,12 @@ const PurchasingDialog: React.FC<Props> = ({
               <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
             </button>
           ) : (
-            <button onClick={onSave} className="flex items-center gap-2 px-8 py-2 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all group active:scale-95">
+            <button 
+              onClick={() => onSave(pushToSales)} 
+              className="flex items-center gap-2 px-8 py-2 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all group active:scale-95"
+            >
               <Plus size={18} />
-              {isEditMode ? 'Save Changes' : 'Create Purchasing'}
+              {isEditMode ? 'Save Changes' : (pushToSales ? 'Save & Push to Sales' : 'Create Purchasing')}
               <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
             </button>
           )}

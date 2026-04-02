@@ -125,9 +125,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [theme]);
 
   return (
-    <ThemeContext.Provider value={{ 
-      theme, setTheme, 
-      primaryColor, setPrimaryColor, 
+    <ThemeContext.Provider value={{
+      theme, setTheme,
+      primaryColor, setPrimaryColor,
       font, setFont,
       fontSize, setFontSize,
       avatar, setAvatar

@@ -1,3 +1,5 @@
+import type { Shipment } from '../shipments/types';
+
 export interface PaymentRequest {
   id: string;
   shipment_id: string;
@@ -15,7 +17,7 @@ export interface PaymentRequest {
     suppliers?: {
       company_name: string;
     };
-  };
+  } & Shipment;
 }
 
 export interface PaymentRequestInvoice {
@@ -36,4 +38,5 @@ export interface PaymentRequestFormState {
   account_number: string;
   bank_name: string;
   invoices: Omit<PaymentRequestInvoice, 'id' | 'payment_request_id' | 'sort_order'>[];
+  relatedShipment?: Shipment | null;
 }

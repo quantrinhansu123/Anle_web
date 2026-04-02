@@ -5,10 +5,11 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { exchangeRateService, type ExchangeRate } from '../services/exchangeRateService';
-import { toast } from '../lib/toast';
+import { useToastContext } from '../contexts/ToastContext';
 
 const ExchangeRatesPage: React.FC = () => {
   const navigate = useNavigate();
+  const { success, error } = useToastContext();
   const [rates, setRates] = useState<ExchangeRate[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
@@ -62,15 +63,15 @@ const ExchangeRatesPage: React.FC = () => {
       await exchangeRateService.update(id, editValue);
       setEditingId(null);
       fetchData();
-      toast.success('Exchange rate updated successfully');
+      success('Exchange rate updated successfully');
     } catch (err) {
-      toast.error('Failed to update rate');
+      error('Failed to update rate');
     }
   };
 
   const handleAdd = async () => {
     if (!newCurrency || newRate <= 0) {
-      toast.error('Please enter valid currency code and rate');
+      error('Please enter valid currency code and rate');
       return;
     }
     try {
@@ -79,9 +80,9 @@ const ExchangeRatesPage: React.FC = () => {
       setNewCurrency('');
       setNewRate(0);
       fetchData();
-      toast.success('Exchange rate added successfully');
+      success('Exchange rate added successfully');
     } catch (err) {
-      toast.error('Failed to add rate');
+      error('Failed to add rate');
     }
   };
 
@@ -90,9 +91,9 @@ const ExchangeRatesPage: React.FC = () => {
     try {
       await exchangeRateService.delete(id);
       fetchData();
-      toast.success('Exchange rate deleted successfully');
+      success('Exchange rate deleted successfully');
     } catch (err) {
-      toast.error('Failed to delete rate');
+      error('Failed to delete rate');
     }
   };
 

@@ -5,8 +5,8 @@ import {
   Edit, Trash2, X, BarChart2, List,
   ChevronRight, Ship, Plane, Truck,
   MapPin, RefreshCcw,
-  TrendingUp, Users, CheckCircle2, Clock,
-  User as UserIcon, Eye
+  TrendingUp, Users, CheckCircle2,
+  User as UserIcon, Eye, AlertCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
@@ -19,7 +19,7 @@ import { ColumnSettings } from '../components/ui/ColumnSettings';
 import { useAuth } from '../contexts/AuthContext';
 import type { Shipment, ShipmentFormState } from './shipments/types';
 import ShipmentDialog from './shipments/dialogs/ShipmentDialog';
-import { toast } from '../lib/toast';
+import { useToastContext } from '../contexts/ToastContext';
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -68,7 +68,13 @@ const COLUMN_DEFS: Record<string, ColDef> = {
     label: 'Shipment ID',
     thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-32 border-r border-border/40',
     tdClass: 'px-4 py-4 border-r border-border/40 font-mono text-[12px] font-bold text-primary',
-    renderContent: (s) => <span>#{s.id.slice(0, 8)}</span>
+    renderContent: (s) => <span className="flex flex-col">
+      {s.code ? (
+        <span className="text-primary font-bold">{s.code}</span>
+      ) : (
+        <span className="text-slate-400 opacity-60">#{s.id.slice(0, 8)}</span>
+      )}
+    </span>
   },
   customer: {
     label: 'Customer',
@@ -126,8 +132,12 @@ const DEFAULT_COL_ORDER = Object.keys(COLUMN_DEFS);
 const ShipmentsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { success, error } = useToastContext();
   const [activeTab, setActiveTab] = useState<'list' | 'stats'>('list');
   const [selectedShipments, setSelectedShipments] = useState<string[]>([]);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<{ type: 'single' | 'bulk'; id?: string }>({ type: 'single' });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Data State
   const [shipments, setShipments] = useState<Shipment[]>([]);
@@ -147,6 +157,10 @@ const ShipmentsPage: React.FC = () => {
   // Mobile Filter sheet
   const [showMobileFilter, setShowMobileFilter] = useState(false);
   const [mobileFilterClosing, setMobileFilterClosing] = useState(false);
+  const [mobileExpandedSection, setMobileExpandedSection] = useState<string | null>('mode');
+  const [pendingModes, setPendingModes] = useState<string[]>([]);
+  const [pendingCustomers, setPendingCustomers] = useState<string[]>([]);
+  const [pendingRoutes, setPendingRoutes] = useState<string[]>([]);
 
   // Dialog State
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -161,6 +175,8 @@ const ShipmentsPage: React.FC = () => {
   // Column Settings State
   const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_COL_ORDER);
   const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_COL_ORDER);
+  const [isSavingCustomer, setIsSavingCustomer] = useState(false);
+  const [isSavingSupplier, setIsSavingSupplier] = useState(false);
 
   const setFormField = <K extends keyof ShipmentFormState>(key: K, value: ShipmentFormState[K]) => {
     setFormState(prev => ({ ...prev, [key]: value }));
@@ -251,27 +267,137 @@ const ShipmentsPage: React.FC = () => {
     }, 350);
   };
 
-  const handleSave = async () => {
+  const handleConfirmCustomer = async () => {
     try {
+      if (!formState.newCustomer?.company_name) {
+        error('Company Name is required');
+        return;
+      }
+      setIsSavingCustomer(true);
       let finalCustomerId = formState.customer_id;
-      let finalSupplierId = formState.supplier_id;
 
-      // Handle New Customer
-      if (formState.isNewCustomer && formState.newCustomer?.company_name) {
+      if (formState.isNewCustomer) {
         const newCust = await customerService.createCustomer({
           company_name: formState.newCustomer.company_name,
+          code: formState.newCustomer.code,
           email: formState.newCustomer.email,
           phone: formState.newCustomer.phone,
           address: formState.newCustomer.address,
           tax_code: formState.newCustomer.tax_code
         });
         finalCustomerId = newCust.id;
+        success('Customer created successfully');
+      } else if (formState.isEditingCustomer && formState.customer_id && formState.newCustomer) {
+        await customerService.updateCustomer(formState.customer_id, {
+          company_name: formState.newCustomer.company_name,
+          code: formState.newCustomer.code,
+          email: formState.newCustomer.email,
+          phone: formState.newCustomer.phone,
+          address: formState.newCustomer.address,
+          tax_code: formState.newCustomer.tax_code
+        });
+        success('Customer updated successfully');
       }
 
-      // Handle New Supplier
+      await fetchOptions(); // Refresh lists
+      setFormState(prev => ({
+        ...prev,
+        customer_id: finalCustomerId,
+        isNewCustomer: false,
+        isEditingCustomer: false,
+        newCustomer: { company_name: '' }
+      }));
+    } catch (err) {
+      console.error('Failed to save customer:', err);
+      error('Failed to save customer info');
+    } finally {
+      setIsSavingCustomer(false);
+    }
+  };
+
+  const handleConfirmSupplier = async () => {
+    try {
+      if (!formState.newSupplier?.company_name) {
+        error('Company Name is required');
+        return;
+      }
+      if (formState.isNewSupplier && (!formState.newSupplier.id || formState.newSupplier.id.length !== 3)) {
+        error('Supplier Code must be exactly 3 characters');
+        return;
+      }
+
+      setIsSavingSupplier(true);
+      let finalSupplierId = formState.supplier_id;
+
+      if (formState.isNewSupplier) {
+        const newSupp = await supplierService.createSupplier({
+          id: formState.newSupplier.id,
+          company_name: formState.newSupplier.company_name,
+          email: formState.newSupplier.email,
+          phone: formState.newSupplier.phone,
+          address: formState.newSupplier.address,
+          tax_code: formState.newSupplier.tax_code
+        });
+        finalSupplierId = newSupp.id;
+        success('Supplier created successfully');
+      } else if (formState.isEditingSupplier && formState.supplier_id && formState.newSupplier) {
+        await supplierService.updateSupplier(formState.supplier_id, {
+          company_name: formState.newSupplier.company_name,
+          email: formState.newSupplier.email,
+          phone: formState.newSupplier.phone,
+          address: formState.newSupplier.address,
+          tax_code: formState.newSupplier.tax_code
+        });
+        success('Supplier updated successfully');
+      }
+
+      await fetchOptions(); // Refresh lists
+      setFormState(prev => ({
+        ...prev,
+        supplier_id: finalSupplierId,
+        isNewSupplier: false,
+        isEditingSupplier: false,
+        newSupplier: { id: '', company_name: '' }
+      }));
+    } catch (err) {
+      console.error('Failed to save supplier:', err);
+      error('Failed to save supplier info');
+    } finally {
+      setIsSavingSupplier(false);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      let finalCustomerId = formState.customer_id;
+      let finalSupplierId = formState.supplier_id;
+
+      // Handle Customer (New or Edit Existing)
+      if (formState.isNewCustomer && formState.newCustomer?.company_name) {
+        const newCust = await customerService.createCustomer({
+          company_name: formState.newCustomer.company_name,
+          code: formState.newCustomer.code,
+          email: formState.newCustomer.email,
+          phone: formState.newCustomer.phone,
+          address: formState.newCustomer.address,
+          tax_code: formState.newCustomer.tax_code
+        });
+        finalCustomerId = newCust.id;
+      } else if (formState.isEditingCustomer && formState.customer_id && formState.newCustomer) {
+        await customerService.updateCustomer(formState.customer_id, {
+          company_name: formState.newCustomer.company_name,
+          code: formState.newCustomer.code,
+          email: formState.newCustomer.email,
+          phone: formState.newCustomer.phone,
+          address: formState.newCustomer.address,
+          tax_code: formState.newCustomer.tax_code
+        });
+      }
+
+      // Handle Supplier (New or Edit Existing)
       if (formState.isNewSupplier && formState.newSupplier?.company_name) {
         if (!formState.newSupplier.id || formState.newSupplier.id.length !== 3) {
-          toast.error('Supplier Code must be exactly 3 characters');
+          error('Supplier Code must be exactly 3 characters');
           return;
         }
         const newSupp = await supplierService.createSupplier({
@@ -283,10 +409,18 @@ const ShipmentsPage: React.FC = () => {
           tax_code: formState.newSupplier.tax_code
         });
         finalSupplierId = newSupp.id;
+      } else if (formState.isEditingSupplier && formState.supplier_id && formState.newSupplier) {
+        await supplierService.updateSupplier(formState.supplier_id, {
+          company_name: formState.newSupplier.company_name,
+          email: formState.newSupplier.email,
+          phone: formState.newSupplier.phone,
+          address: formState.newSupplier.address,
+          tax_code: formState.newSupplier.tax_code
+        });
       }
 
       if (!finalCustomerId || !finalSupplierId) {
-        toast.error('Please select or create a customer and supplier.');
+        error('Please select or create a customer and supplier.');
         return;
       }
 
@@ -306,10 +440,45 @@ const ShipmentsPage: React.FC = () => {
       handleCloseDialog();
       fetchData();
       fetchOptions(); // Refresh lists in case new ones were added
-      toast.success(isEditMode ? 'Shipment updated successfully' : 'Shipment created successfully');
+      success(isEditMode ? 'Shipment updated successfully' : 'Shipment created successfully');
     } catch (err) {
       console.error('Failed to save shipment:', err);
-      toast.error('Failed to save shipment. Please try again.');
+      error('Failed to save shipment. Please try again.');
+    }
+  };
+
+  const handleDeleteClick = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setConfirmAction({ type: 'single', id });
+    setIsConfirmOpen(true);
+  };
+
+  const handleBulkDeleteClick = () => {
+    setConfirmAction({ type: 'bulk' });
+    setIsConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    try {
+      setIsDeleting(true);
+      if (confirmAction.type === 'single' && confirmAction.id) {
+        await shipmentService.deleteShipment(confirmAction.id);
+        success('Shipment deleted successfully');
+        if (selectedShipments.includes(confirmAction.id)) {
+          setSelectedShipments(prev => prev.filter(i => i !== confirmAction.id));
+        }
+      } else if (confirmAction.type === 'bulk') {
+        await Promise.all(selectedShipments.map(id => shipmentService.deleteShipment(id)));
+        success(`${selectedShipments.length} shipments deleted successfully`);
+        setSelectedShipments([]);
+      }
+      setIsConfirmOpen(false);
+      fetchData();
+    } catch (err) {
+      console.error('Failed to delete:', err);
+      error('Failed to delete shipment(s)');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -332,11 +501,12 @@ const ShipmentsPage: React.FC = () => {
       if (!isSea && !isAir && !isLand) return false;
     }
     if (selectedCustomers.length > 0 && !selectedCustomers.includes(s.customer_id)) return false;
+    if (selectedRoutes.length > 0 && s.pod && !selectedRoutes.includes(s.pod)) return false;
 
     return true;
   });
 
-  const hasActiveFilters = selectedModes.length > 0 || selectedCustomers.length > 0;
+  const hasActiveFilters = selectedModes.length > 0 || selectedCustomers.length > 0 || selectedRoutes.length > 0;
 
   // --- ACTIONS ---
   const toggleSelectAll = () => {
@@ -349,7 +519,25 @@ const ShipmentsPage: React.FC = () => {
 
   const closeMobileFilter = () => {
     setMobileFilterClosing(true);
-    setTimeout(() => { setShowMobileFilter(false); setMobileFilterClosing(false); }, 280);
+    setTimeout(() => {
+      setShowMobileFilter(false);
+      setMobileFilterClosing(false);
+    }, 280);
+  };
+
+  const openMobileFilter = () => {
+    setPendingModes(selectedModes);
+    setPendingCustomers(selectedCustomers);
+    setPendingRoutes(selectedRoutes);
+    setMobileExpandedSection('mode');
+    setShowMobileFilter(true);
+  };
+
+  const applyMobileFilter = () => {
+    setSelectedModes(pendingModes);
+    setSelectedCustomers(pendingCustomers);
+    setSelectedRoutes(pendingRoutes);
+    closeMobileFilter();
   };
 
 
@@ -388,8 +576,18 @@ const ShipmentsPage: React.FC = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={15} />
               <input type="text" placeholder="Search shipments..." value={searchText} onChange={(e) => setSearchText(e.target.value)} className="w-full pl-9 pr-8 py-2 bg-muted/20 border border-border rounded-xl text-[13px] font-medium" />
             </div>
-            <button onClick={() => setShowMobileFilter(true)} className={clsx('p-2 rounded-xl border', hasActiveFilters ? 'border-primary bg-primary/5 text-primary' : 'border-border bg-white')}><Filter size={18} /></button>
-            <button className="p-2 rounded-xl bg-primary text-white shadow-md shadow-primary/20"><Plus size={18} /></button>
+            <button
+              onClick={openMobileFilter}
+              className={clsx('p-2 rounded-xl border relative', hasActiveFilters ? 'border-primary bg-primary/5 text-primary' : 'border-border bg-white text-muted-foreground')}
+            >
+              <Filter size={18} />
+              {hasActiveFilters && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-white text-[9px] font-bold flex items-center justify-center">
+                  {selectedModes.length + selectedCustomers.length + selectedRoutes.length}
+                </span>
+              )}
+            </button>
+            <button onClick={handleOpenAdd} className="p-2 rounded-xl bg-primary text-white shadow-md shadow-primary/20"><Plus size={18} /></button>
           </div>
 
           {/* MOBILE CARD LIST */}
@@ -404,7 +602,9 @@ const ShipmentsPage: React.FC = () => {
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex flex-col gap-1">
-                        <span className="text-[11px] font-mono font-bold text-primary">#{s.id.slice(0, 8)}</span>
+                        <span className="text-[12px] font-mono font-bold text-primary">
+                          {s.code || `#${s.id.slice(0, 8)}`}
+                        </span>
                         <span className="text-[14px] font-bold text-slate-900 leading-tight">{s.customers?.company_name || '—'}</span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -433,6 +633,24 @@ const ShipmentsPage: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {selectedShipments.length > 0 && (
+                  <>
+                    <button
+                      onClick={handleBulkDeleteClick}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-600 rounded-xl text-[12px] font-bold border border-red-200 hover:bg-red-100 transition-all animate-in fade-in slide-in-from-right-2"
+                    >
+                      <Trash2 size={16} />
+                      Delete Selected ({selectedShipments.length})
+                    </button>
+                    <button
+                      onClick={() => setSelectedShipments([])}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-white text-slate-600 rounded-xl text-[12px] font-bold border border-border hover:bg-slate-50 transition-all animate-in fade-in slide-in-from-right-2"
+                    >
+                      <X size={16} />
+                      Clear
+                    </button>
+                  </>
+                )}
                 <button
                   onClick={fetchData}
                   className="px-3 py-1.5 rounded-xl border border-border bg-white text-muted-foreground hover:bg-muted transition-all"
@@ -615,7 +833,13 @@ const ShipmentsPage: React.FC = () => {
                           >
                             <Edit size={14} />
                           </button>
-                          <button className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-100 transition-all" title="Delete"><Trash2 size={14} /></button>
+                          <button
+                            onClick={(e) => handleDeleteClick(s.id, e)}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-100 transition-all"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -636,102 +860,363 @@ const ShipmentsPage: React.FC = () => {
         </div>
       ) : (
         /* STATS TAB */
-        <div className="flex-1 overflow-y-auto space-y-4 pb-12 pr-1 no-scrollbar animate-in fade-in slide-in-from-right-4 duration-500">
-          {/* Top Info Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-            {[
-              { label: 'Total Shipments', val: shipments.length, icon: Ship, color: 'text-blue-600', bg: 'bg-blue-100/50' },
-              { label: 'Active Transit', val: shipments.filter(s => !s.eta || new Date(s.eta).getTime() >= new Date().getTime()).length, icon: TrendingUp, color: 'text-indigo-600', bg: 'bg-indigo-100/50' },
-              { label: 'Delivered', val: shipments.filter(s => s.eta && new Date(s.eta).getTime() < new Date().getTime()).length, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-100/50' },
-              { label: 'Delayed / Warning', val: 0, icon: Clock, color: 'text-orange-600', bg: 'bg-orange-100/50' },
-            ].map(card => (
-              <div key={card.label} className="bg-white p-4 rounded-2xl border border-border shadow-sm flex items-center gap-3">
-                <div className={clsx('w-10 h-10 rounded-xl flex items-center justify-center shrink-0', card.bg, card.color)}><card.icon size={20} /></div>
-                <div className="flex flex-col">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-1">{card.label}</span>
-                  <span className="text-xl font-black text-slate-900 tabular-nums">{card.val}</span>
+        <div className="bg-white rounded-2xl border border-border shadow-sm flex flex-col flex-1 min-h-0 animate-in fade-in duration-300">
+          {/* ── MOBILE STATS TOOLBAR ── */}
+          <div className="md:hidden flex items-center justify-between p-3 border-b border-border shrink-0 relative">
+            <button
+              onClick={() => navigate('/shipments')}
+              className="p-2 rounded-xl border border-border bg-white text-muted-foreground flex items-center justify-center shrink-0 active:scale-95 transition-transform"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <span className="absolute left-1/2 -translate-x-1/2 text-[14px] font-bold text-slate-900 whitespace-nowrap">Statistical Overview</span>
+            <button
+              onClick={openMobileFilter}
+              className="relative p-2 rounded-xl border border-border bg-white text-muted-foreground flex items-center justify-center shrink-0 active:scale-95 transition-transform"
+            >
+              <Filter size={18} />
+              {hasActiveFilters && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-white text-[9px] font-bold flex items-center justify-center border border-white">
+                  {selectedModes.length + selectedCustomers.length + selectedRoutes.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* ── DESKTOP STATS TOOLBAR ── */}
+          <div className="hidden md:block p-4 border-b border-border shrink-0">
+            <div className="flex items-center gap-2 flex-wrap" ref={dropdownRef}>
+              <button
+                onClick={() => navigate('/shipments')}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground text-[12px] font-bold transition-all bg-white shadow-sm shrink-0"
+              >
+                <ChevronLeft size={16} />
+                Back
+              </button>
+
+              <div className="w-px h-5 bg-border mx-1" />
+
+              <div className="relative">
+                <button
+                  onClick={() => { setActiveDropdown(activeDropdown === 'mode' ? null : 'mode'); setFilterSearch(''); }}
+                  className={clsx(
+                    'flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-[12px] font-bold',
+                    activeDropdown === 'mode' || selectedModes.length > 0
+                      ? 'bg-primary/5 border-primary text-primary shadow-sm'
+                      : 'bg-white border-border hover:bg-muted text-muted-foreground',
+                  )}
+                >
+                  <Ship size={14} className={clsx(activeDropdown === 'mode' || selectedModes.length > 0 ? 'text-primary' : 'text-muted-foreground/50')} />
+                  Transport Mode
+                  {selectedModes.length > 0 && (
+                    <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">{selectedModes.length}</span>
+                  )}
+                  <ChevronRight size={14} className={clsx('transition-transform ml-1 opacity-40', activeDropdown === 'mode' ? '-rotate-90' : 'rotate-90')} />
+                </button>
+                <FilterDropdown
+                  isOpen={activeDropdown === 'mode'}
+                  options={Object.entries(transportConfig).map(([k, v]) => ({
+                    id: k,
+                    label: v.label,
+                    count: shipments.filter(s => k === 'sea' ? s.transport_sea : k === 'air' ? s.transport_air : (!s.transport_sea && !s.transport_air)).length
+                  }))}
+                  selected={selectedModes}
+                  onToggle={(id) => setSelectedModes(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
+                  searchValue={filterSearch}
+                  onSearchChange={setFilterSearch}
+                />
+              </div>
+
+              <div className="relative">
+                <button
+                  onClick={() => { setActiveDropdown(activeDropdown === 'customer' ? null : 'customer'); setFilterSearch(''); }}
+                  className={clsx(
+                    'flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-[12px] font-bold',
+                    activeDropdown === 'customer' || selectedCustomers.length > 0
+                      ? 'bg-primary/5 border-primary text-primary shadow-sm'
+                      : 'bg-white border-border hover:bg-muted text-muted-foreground',
+                  )}
+                >
+                  <UserIcon size={14} className={clsx(activeDropdown === 'customer' || selectedCustomers.length > 0 ? 'text-primary' : 'text-muted-foreground/50')} />
+                  Customer
+                  {selectedCustomers.length > 0 && (
+                    <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">{selectedCustomers.length}</span>
+                  )}
+                  <ChevronRight size={14} className={clsx('transition-transform ml-1 opacity-40', activeDropdown === 'customer' ? '-rotate-90' : 'rotate-90')} />
+                </button>
+                <FilterDropdown
+                  isOpen={activeDropdown === 'customer'}
+                  options={Array.from(new Set(shipments.map(s => s.customer_id))).filter(id => id).map(id => ({
+                    id,
+                    label: shipments.find(s => s.customer_id === id)?.customers?.company_name || id,
+                    count: shipments.filter(s => s.customer_id === id).length
+                  }))}
+                  selected={selectedCustomers}
+                  onToggle={(id) => setSelectedCustomers(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
+                  searchValue={filterSearch}
+                  onSearchChange={setFilterSearch}
+                />
+              </div>
+
+              <div className="relative">
+                <button
+                  onClick={() => { setActiveDropdown(activeDropdown === 'port' ? null : 'port'); setFilterSearch(''); }}
+                  className={clsx(
+                    'flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-[12px] font-bold',
+                    activeDropdown === 'port' || selectedRoutes.length > 0
+                      ? 'bg-primary/5 border-primary text-primary shadow-sm'
+                      : 'bg-white border-border hover:bg-muted text-muted-foreground',
+                  )}
+                >
+                  <MapPin size={14} className={clsx(activeDropdown === 'port' || selectedRoutes.length > 0 ? 'text-primary' : 'text-muted-foreground/50')} />
+                  Port of Discharge
+                  {selectedRoutes.length > 0 && (
+                    <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">{selectedRoutes.length}</span>
+                  )}
+                  <ChevronRight size={14} className={clsx('transition-transform ml-1 opacity-40', activeDropdown === 'port' ? '-rotate-90' : 'rotate-90')} />
+                </button>
+                <FilterDropdown
+                  isOpen={activeDropdown === 'port'}
+                  options={Array.from(new Set(shipments.map(s => s.pod))).filter(pod => pod).map(pod => ({
+                    id: pod!,
+                    label: pod!,
+                    count: shipments.filter(s => s.pod === pod).length
+                  }))}
+                  selected={selectedRoutes}
+                  onToggle={(id) => setSelectedRoutes(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
+                  searchValue={filterSearch}
+                  onSearchChange={setFilterSearch}
+                />
+              </div>
+
+              {hasActiveFilters && (
+                <button
+                  onClick={() => { setSelectedModes([]); setSelectedCustomers([]); setSelectedRoutes([]); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-dashed border-red-300 text-red-500 text-[12px] font-bold hover:bg-red-50 transition-all"
+                >
+                  <X size={13} />
+                  Clear Filters
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Scrollable stats body */}
+          <div className="flex-1 overflow-y-auto p-3 md:p-4 flex flex-col gap-3 md:gap-4 no-scrollbar">
+            {/* Summary KPI cards */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {[
+                { label: 'Total Shipments', value: filteredShipments.length, icon: <Ship size={18} />, color: 'text-primary', bg: 'bg-primary/10' },
+                { label: 'In Transit', value: filteredShipments.filter(s => !s.eta || new Date(s.eta).getTime() >= new Date().getTime()).length, icon: <TrendingUp size={18} />, color: 'text-indigo-600', bg: 'bg-indigo-500/10' },
+                { label: 'Delivered', value: filteredShipments.filter(s => s.eta && new Date(s.eta).getTime() < new Date().getTime()).length, icon: <CheckCircle2 size={18} />, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
+                { label: 'Sea Freight', value: filteredShipments.filter(s => s.transport_sea).length, icon: <Ship size={18} />, color: 'text-blue-600', bg: 'bg-blue-500/10' },
+                { label: 'Air Freight', value: filteredShipments.filter(s => s.transport_air).length, icon: <Plane size={18} />, color: 'text-sky-600', bg: 'bg-sky-500/10' },
+              ].map((item, idx) => (
+                <div key={item.label} className={clsx('bg-white rounded-2xl border border-border shadow-sm p-4 md:p-5 flex items-center gap-3 md:gap-4', idx === 0 && 'col-span-2 md:col-span-1')}>
+                  <div className={clsx('w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center shrink-0', item.bg, item.color)}>
+                    {item.icon}
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide leading-none mb-1">{item.label}</p>
+                    <p className={clsx('text-xl md:text-2xl font-black tabular-nums', item.color)}>{item.value}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Row 1: charts */}
-            <div className="bg-white rounded-2xl border border-border shadow-sm p-5 h-[280px] flex flex-col">
-              <div className="flex items-center gap-2 mb-4"><Filter size={15} className="text-primary" /><span className="text-[12px] font-bold text-primary uppercase tracking-wider">By Transport Mode</span></div>
-              <div className="flex-1 min-h-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={[
-                        { name: 'Sea', val: shipments.filter(s => s.transport_sea).length },
-                        { name: 'Air', val: shipments.filter(s => s.transport_air).length },
-                        { name: 'Land', val: shipments.filter(s => !s.transport_sea && !s.transport_air).length }
-                      ]}
-                      cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={4} dataKey="val"
-                    >
-                      <Cell fill="#3b82f6" stroke="none" /><Cell fill="#6366f1" stroke="none" /><Cell fill="#f97316" stroke="none" />
-                    </Pie>
-                    <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                  </PieChart>
-                </ResponsiveContainer>
+            {/* Charts row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+              {/* PieChart – Transport Mode */}
+              <div className="bg-white rounded-2xl border border-border shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Ship size={15} className="text-primary" />
+                  <span className="text-[12px] font-bold text-primary uppercase tracking-wider">Transport Mode</span>
+                </div>
+                {(() => {
+                  const COLORS = ['#3b82f6', '#6366f1', '#f97316'];
+                  const pieData = [
+                    { name: 'Sea', value: filteredShipments.filter(s => s.transport_sea).length },
+                    { name: 'Air', value: filteredShipments.filter(s => s.transport_air).length },
+                    { name: 'Land', value: filteredShipments.filter(s => !s.transport_sea && !s.transport_air).length },
+                  ];
+                  return (
+                    <div className="flex flex-col md:flex-row items-center gap-3">
+                      <div className="w-full max-w-55 md:w-40 md:max-w-none shrink-0 mx-auto md:mx-0">
+                        <ResponsiveContainer width="100%" height={160}>
+                          <PieChart>
+                            <Pie data={pieData} cx="50%" cy="50%" innerRadius={46} outerRadius={72} dataKey="value" paddingAngle={3}>
+                              {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="none" />)}
+                            </Pie>
+                            <Tooltip
+                              contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,.08)' }}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="grid grid-cols-2 md:flex md:flex-col gap-2 md:gap-2.5 w-full md:flex-1">
+                        {pieData.map((d, i) => (
+                          <div key={d.name} className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: COLORS[i] }} />
+                            <span className="text-[11px] text-muted-foreground font-medium flex-1 truncate">{d.name}</span>
+                            <span className="text-[11px] font-bold text-foreground">{d.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* BarChart – Top Customers */}
+              <div className="bg-white rounded-2xl border border-border shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <UserIcon size={15} className="text-primary" />
+                  <span className="text-[12px] font-bold text-primary uppercase tracking-wider">Top Customers</span>
+                </div>
+                {(() => {
+                  const BAR_COLORS = ['#3b82f6', '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e'];
+                  const customerData = Array.from(new Set(filteredShipments.map(s => s.customer_id))).slice(0, 5).map((cid, i) => {
+                    const name = filteredShipments.find(s => s.customer_id === cid)?.customers?.company_name || cid;
+                    return {
+                      name: name.length > 10 ? name.slice(0, 10) + '…' : name,
+                      fullName: name,
+                      count: filteredShipments.filter(s => s.customer_id === cid).length,
+                      fill: BAR_COLORS[i % BAR_COLORS.length],
+                    };
+                  });
+                  return (
+                    <ResponsiveContainer width="100%" height={160}>
+                      <BarChart data={customerData} margin={{ top: 4, right: 8, left: -24, bottom: 0 }} barSize={28}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                        <Tooltip
+                          contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,.08)' }}
+                          formatter={(v, _, props) => [v, (props.payload as { fullName?: string })?.fullName ?? '']}
+                          cursor={{ fill: '#f8fafc' }}
+                        />
+                        <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+                          {customerData.map((d, i) => <Cell key={i} fill={d.fill} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  );
+                })()}
+              </div>
+
+              {/* BarChart – Top Ports (POD) */}
+              <div className="bg-white rounded-2xl border border-border shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <MapPin size={15} className="text-primary" />
+                  <span className="text-[12px] font-bold text-primary uppercase tracking-wider">Top Ports (POD)</span>
+                </div>
+                {(() => {
+                  const BAR_COLORS = ['#0ea5e9', '#06b6d4', '#10b981', '#f59e0b', '#ef4444'];
+                  const podData = Array.from(new Set(filteredShipments.filter(s => s.pod).map(s => s.pod!))).slice(0, 5).map((pod, i) => ({
+                    name: pod.length > 10 ? pod.slice(0, 10) + '…' : pod,
+                    fullName: pod,
+                    count: filteredShipments.filter(s => s.pod === pod).length,
+                    fill: BAR_COLORS[i % BAR_COLORS.length],
+                  }));
+                  return (
+                    <ResponsiveContainer width="100%" height={160}>
+                      <BarChart data={podData} margin={{ top: 4, right: 8, left: -24, bottom: 0 }} barSize={28}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                        <Tooltip
+                          contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,.08)' }}
+                          formatter={(v, _, props) => [v, (props.payload as { fullName?: string })?.fullName ?? '']}
+                          cursor={{ fill: '#f8fafc' }}
+                        />
+                        <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+                          {podData.map((d, i) => <Cell key={i} fill={d.fill} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  );
+                })()}
               </div>
             </div>
 
-            <div className="md:col-span-2 bg-white rounded-2xl border border-border shadow-sm p-5 h-[280px] flex flex-col">
-              <div className="flex items-center gap-2 mb-4"><TrendingUp size={15} className="text-primary" /><span className="text-[12px] font-bold text-primary uppercase tracking-wider">Shipment Volume Trend</span></div>
-              <div className="flex-1 min-h-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={[{ name: 'Jan', v: 4 }, { name: 'Feb', v: 8 }, { name: 'Mar', v: 6 }, { name: 'Apr', v: 12 }, { name: 'May', v: 9 }]} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 'bold', fill: '#94a3b8' }} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                    <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                    <Bar dataKey="v" fill="#3b82f6" radius={[6, 6, 0, 0]} barSize={32} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-
-          {/* Row 2: Detail Tables */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
-              <div className="px-5 py-3 border-b border-border bg-slate-50 flex items-center justify-between text-[11px] font-bold text-primary uppercase tracking-wider"><span>Volume by Customer</span><Users size={14} /></div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="bg-slate-50 text-[10px] text-muted-foreground border-b border-border/60">
-                    <tr><th className="px-5 py-2 font-bold uppercase w-2/3">Customer</th><th className="px-5 py-2 font-bold uppercase text-right">Count</th></tr>
+            {/* Detail tables row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 pb-8">
+              {/* Table – Transport Mode */}
+              <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
+                <div className="px-5 py-3 border-b border-border bg-muted/5 flex items-center gap-2">
+                  <Ship size={14} className="text-primary" />
+                  <span className="text-[12px] font-bold text-primary uppercase tracking-wider">Mode Distribution</span>
+                </div>
+                <table className="w-full text-[13px]">
+                  <thead>
+                    <tr className="bg-muted/20">
+                      <th className="px-4 py-2 text-left text-[11px] font-bold text-muted-foreground uppercase tracking-tight">Mode</th>
+                      <th className="px-4 py-2 text-right text-[11px] font-bold text-muted-foreground uppercase tracking-tight">Count</th>
+                    </tr>
                   </thead>
-                  <tbody className="divide-y divide-border/60">
-                    {Array.from(new Set(shipments.map(s => s.customer_id))).slice(0, 5).map(cid => {
-                      const customerName = shipments.find(s => s.customer_id === cid)?.customers?.company_name || 'Unknown';
-                      const count = shipments.filter(s => s.customer_id === cid).length;
+                  <tbody className="divide-y divide-border/50">
+                    {[
+                      { label: 'Ocean Freight', count: filteredShipments.filter(s => s.transport_sea).length },
+                      { label: 'Air Freight', count: filteredShipments.filter(s => s.transport_air).length },
+                      { label: 'Land Freight', count: filteredShipments.filter(s => !s.transport_sea && !s.transport_air).length },
+                    ].map((item) => (
+                      <tr key={item.label} className="hover:bg-muted/10 transition-colors">
+                        <td className="px-4 py-3 font-medium text-slate-700">{item.label}</td>
+                        <td className="px-4 py-3 text-right font-black text-primary tabular-nums">{item.count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Table – Top Customers */}
+              <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
+                <div className="px-5 py-3 border-b border-border bg-muted/5 flex items-center gap-2">
+                  <UserIcon size={14} className="text-primary" />
+                  <span className="text-[12px] font-bold text-primary uppercase tracking-wider">Volume by Customer</span>
+                </div>
+                <table className="w-full text-[13px]">
+                  <thead>
+                    <tr className="bg-muted/20">
+                      <th className="px-4 py-2 text-left text-[11px] font-bold text-muted-foreground uppercase tracking-tight">Customer</th>
+                      <th className="px-4 py-2 text-right text-[11px] font-bold text-muted-foreground uppercase tracking-tight">Count</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/50">
+                    {Array.from(new Set(filteredShipments.map(s => s.customer_id))).slice(0, 6).map(cid => {
+                      const name = filteredShipments.find(s => s.customer_id === cid)?.customers?.company_name || cid;
+                      const count = filteredShipments.filter(s => s.customer_id === cid).length;
                       return (
-                        <tr key={cid} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-5 py-3"><span className="text-[13px] font-bold text-slate-700">{customerName}</span></td>
-                          <td className="px-5 py-3 text-right"><span className="text-[13px] font-black text-primary tabular-nums">{count}</span></td>
+                        <tr key={cid} className="hover:bg-muted/10 transition-colors">
+                          <td className="px-4 py-3 font-medium text-slate-700 truncate max-w-40">{name}</td>
+                          <td className="px-4 py-3 text-right font-black text-primary tabular-nums">{count}</td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
               </div>
-            </div>
-            <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
-              <div className="px-5 py-3 border-b border-border bg-slate-50 flex items-center justify-between text-[11px] font-bold text-primary uppercase tracking-wider"><span>Volume by Port (POD)</span><MapPin size={14} /></div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="bg-slate-50 text-[10px] text-muted-foreground border-b border-border/60">
-                    <tr><th className="px-5 py-2 font-bold uppercase w-2/3">Port of Discharge</th><th className="px-5 py-2 font-bold uppercase text-right">Count</th></tr>
+
+              {/* Table – Top PODs */}
+              <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
+                <div className="px-5 py-3 border-b border-border bg-muted/5 flex items-center gap-2">
+                  <MapPin size={14} className="text-primary" />
+                  <span className="text-[12px] font-bold text-primary uppercase tracking-wider">Volume by POD</span>
+                </div>
+                <table className="w-full text-[13px]">
+                  <thead>
+                    <tr className="bg-muted/20">
+                      <th className="px-4 py-2 text-left text-[11px] font-bold text-muted-foreground uppercase tracking-tight">Port</th>
+                      <th className="px-4 py-2 text-right text-[11px] font-bold text-muted-foreground uppercase tracking-tight">Count</th>
+                    </tr>
                   </thead>
-                  <tbody className="divide-y divide-border/60">
-                    {Array.from(new Set(shipments.map(s => s.pod || 'Unknown'))).slice(0, 5).map(pod => {
-                      const count = shipments.filter(s => s.pod === pod).length;
+                  <tbody className="divide-y divide-border/50">
+                    {Array.from(new Set(filteredShipments.filter(s => s.pod).map(s => s.pod!))).slice(0, 6).map(pod => {
+                      const count = filteredShipments.filter(s => s.pod === pod).length;
                       return (
-                        <tr key={pod} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-5 py-3"><span className="text-[13px] font-bold text-slate-700">{pod}</span></td>
-                          <td className="px-5 py-3 text-right"><span className="text-[13px] font-black text-primary tabular-nums">{count}</span></td>
+                        <tr key={pod} className="hover:bg-muted/10 transition-colors">
+                          <td className="px-4 py-3 font-medium text-slate-700 truncate max-w-40">{pod}</td>
+                          <td className="px-4 py-3 text-right font-black text-primary tabular-nums">{count}</td>
                         </tr>
                       );
                     })}
@@ -746,37 +1231,188 @@ const ShipmentsPage: React.FC = () => {
       {/* MOBILE FILTER BOTTOM SHEET (PORTAL) */}
       {showMobileFilter && createPortal(
         <div className="md:hidden fixed inset-0 z-[9999] flex flex-col justify-end">
-          <div className={clsx('absolute inset-0 bg-black/40 transition-opacity', mobileFilterClosing ? 'opacity-0' : 'opacity-100')} onClick={closeMobileFilter} />
-          <div className={clsx('relative bg-white rounded-t-3xl flex flex-col max-h-[85vh] shadow-2xl', mobileFilterClosing ? 'animate-out slide-out-to-bottom' : 'animate-in slide-in-from-bottom')}>
+          <div className={clsx('absolute inset-0 bg-black/40 transition-opacity duration-300', mobileFilterClosing ? 'opacity-0' : 'opacity-100')} onClick={closeMobileFilter} />
+          <div className={clsx('relative bg-white rounded-t-3xl flex flex-col max-h-[85vh] shadow-2xl', mobileFilterClosing ? 'animate-out slide-out-to-bottom duration-300' : 'animate-in slide-in-from-bottom duration-300')}>
             <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full bg-border" /></div>
             <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-              <span className="text-[16px] font-bold">Filters</span>
-              <button onClick={closeMobileFilter} className="p-1.5 text-muted-foreground"><X size={18} /></button>
+              <div className="flex items-center gap-2">
+                <Filter size={18} className="text-primary" />
+                <span className="text-[17px] font-bold">Filters</span>
+              </div>
+              <button onClick={closeMobileFilter} className="p-1.5 text-muted-foreground hover:bg-slate-100 rounded-lg"><X size={20} /></button>
             </div>
-            <div className="flex-1 overflow-y-auto p-5 space-y-6">
-              {/* Simplified filter view for now */}
-              <div className="space-y-4">
-                <h3 className="text-[14px] font-bold text-slate-900 border-l-4 border-primary pl-3">Transport Mode</h3>
-                <div className="flex flex-wrap gap-2">
-                  {['sea', 'air', 'land'].map(mode => (
-                    <button
-                      key={mode}
-                      onClick={() => setSelectedModes(prev => prev.includes(mode) ? prev.filter(m => m !== mode) : [...prev, mode])}
-                      className={clsx('px-3 py-2 rounded-xl border text-[13px] font-bold transition-all', selectedModes.includes(mode) ? 'bg-primary text-white border-primary' : 'bg-slate-50 text-slate-600 border-slate-200')}
-                    >
-                      {mode.toUpperCase()}
-                    </button>
-                  ))}
+            <div className="flex-1 overflow-y-auto">
+              <div className="divide-y divide-border/60">
+                {/* Transport Mode Section */}
+                <div className="px-5 py-4">
+                  <button
+                    onClick={() => setMobileExpandedSection(mobileExpandedSection === 'mode' ? null : 'mode')}
+                    className="w-full flex items-center justify-between mb-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Ship size={16} className="text-muted-foreground" />
+                      <span className="text-[15px] font-bold text-slate-800">Transport Mode</span>
+                      {pendingModes.length > 0 && <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">{pendingModes.length}</span>}
+                    </div>
+                    <ChevronRight size={18} className={clsx('text-slate-400 transition-transform', mobileExpandedSection === 'mode' && 'rotate-90')} />
+                  </button>
+                  {mobileExpandedSection === 'mode' && (
+                    <div className="flex flex-wrap gap-2 mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                      {['sea', 'air', 'land'].map(mode => (
+                        <button
+                          key={mode}
+                          onClick={() => setPendingModes(prev => prev.includes(mode) ? prev.filter(m => m !== mode) : [...prev, mode])}
+                          className={clsx(
+                            'px-4 py-2 rounded-xl border text-[13px] font-bold transition-all flex items-center gap-2',
+                            pendingModes.includes(mode) ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20' : 'bg-slate-50 text-slate-600 border-slate-200'
+                          )}
+                        >
+                          {mode === 'sea' ? <Ship size={14} /> : mode === 'air' ? <Plane size={14} /> : <Truck size={14} />}
+                          {mode.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Customer Section */}
+                <div className="px-5 py-4">
+                  <button
+                    onClick={() => setMobileExpandedSection(mobileExpandedSection === 'customer' ? null : 'customer')}
+                    className="w-full flex items-center justify-between mb-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Users size={16} className="text-muted-foreground" />
+                      <span className="text-[15px] font-bold text-slate-800">Customer</span>
+                      {pendingCustomers.length > 0 && <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">{pendingCustomers.length}</span>}
+                    </div>
+                    <ChevronRight size={18} className={clsx('text-slate-400 transition-transform', mobileExpandedSection === 'customer' && 'rotate-90')} />
+                  </button>
+                  {mobileExpandedSection === 'customer' && (
+                    <div className="space-y-1 mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                      {Array.from(new Set(shipments.map(s => s.customer_id))).filter(id => id).map(id => {
+                        const name = shipments.find(s => s.customer_id === id)?.customers?.company_name || id;
+                        const isSelected = pendingCustomers.includes(id);
+                        return (
+                          <button
+                            key={id}
+                            onClick={() => setPendingCustomers(prev => isSelected ? prev.filter(v => v !== id) : [...prev, id])}
+                            className={clsx(
+                              'w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all',
+                              isSelected ? 'bg-primary/5 border-primary/30 text-primary' : 'bg-slate-50/50 border-slate-200/60 text-slate-600'
+                            )}
+                          >
+                            <span className="text-[13px] font-bold truncate pr-4">{name}</span>
+                            <div className={clsx('w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all', isSelected ? 'bg-primary border-primary' : 'border-slate-300')}>
+                              {isSelected && <CheckCircle2 size={12} className="text-white" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Port of Discharge Section */}
+                <div className="px-5 py-4">
+                  <button
+                    onClick={() => setMobileExpandedSection(mobileExpandedSection === 'port' ? null : 'port')}
+                    className="w-full flex items-center justify-between mb-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <MapPin size={16} className="text-muted-foreground" />
+                      <span className="text-[15px] font-bold text-slate-800">Port of Discharge</span>
+                      {pendingRoutes.length > 0 && <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">{pendingRoutes.length}</span>}
+                    </div>
+                    <ChevronRight size={18} className={clsx('text-slate-400 transition-transform', mobileExpandedSection === 'port' && 'rotate-90')} />
+                  </button>
+                  {mobileExpandedSection === 'port' && (
+                    <div className="space-y-1 mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                      {Array.from(new Set(shipments.map(s => s.pod))).filter(pod => pod).map(pod => {
+                        const isSelected = pendingRoutes.includes(pod!);
+                        return (
+                          <button
+                            key={pod}
+                            onClick={() => setPendingRoutes(prev => isSelected ? prev.filter(v => v !== pod) : [...prev, pod!])}
+                            className={clsx(
+                              'w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all',
+                              isSelected ? 'bg-primary/5 border-primary/30 text-primary' : 'bg-slate-50/50 border-slate-200/60 text-slate-600'
+                            )}
+                          >
+                            <span className="text-[13px] font-bold truncate pr-4">{pod}</span>
+                            <div className={clsx('w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all', isSelected ? 'bg-primary border-primary' : 'border-slate-300')}>
+                              {isSelected && <CheckCircle2 size={12} className="text-white" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
             <div className="p-4 border-t border-border bg-white flex flex-col gap-2">
-              <button onClick={() => { setSelectedModes([]); setSelectedCustomers([]); closeMobileFilter(); }} className="w-full py-3 rounded-2xl border border-red-300 text-red-500 text-[14px] font-bold">Clear All</button>
-              <button onClick={closeMobileFilter} className="w-full py-4 rounded-2xl bg-primary text-white text-[15px] font-bold shadow-lg shadow-primary/20">Apply Filters</button>
+              <button
+                onClick={() => {
+                  setPendingModes([]);
+                  setPendingCustomers([]);
+                  setPendingRoutes([]);
+                }}
+                className="w-full py-3 rounded-2xl border border-red-200 text-red-500 text-[14px] font-bold hover:bg-red-50 transition-all"
+              >
+                Clear All
+              </button>
+              <button
+                onClick={applyMobileFilter}
+                className="w-full py-4 rounded-2xl bg-primary text-white text-[15px] font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all"
+              >
+                Apply Filters
+              </button>
             </div>
           </div>
         </div>
         , document.body)}
+      {/* CONFIRMATION DIALOG */}
+      {isConfirmOpen && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => !isDeleting && setIsConfirmOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl border border-border w-full max-w-sm overflow-hidden animate-in zoom-in-95 fade-in duration-200">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 shrink-0">
+                  <AlertCircle size={20} />
+                </div>
+                <div>
+                  <h3 className="text-[16px] font-bold text-slate-900">Confirm Deletion</h3>
+                  <p className="text-[13px] text-muted-foreground">This action cannot be undone.</p>
+                </div>
+              </div>
+              <p className="text-[14px] text-slate-600 font-medium leading-relaxed">
+                Are you sure you want to delete {confirmAction.type === 'bulk' ? `these ${selectedShipments.length} shipments` : 'this shipment'}?
+                All associated data will be permanently removed.
+              </p>
+            </div>
+            <div className="p-4 bg-slate-50 border-t border-border flex items-center gap-3">
+              <button
+                disabled={isDeleting}
+                onClick={() => setIsConfirmOpen(false)}
+                className="flex-1 py-2 rounded-xl border border-border bg-white text-[13px] font-bold text-slate-600 hover:bg-white/80 transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="flex-1 py-2 rounded-xl bg-red-600 text-white text-[13px] font-bold shadow-md shadow-red-200 hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isDeleting ? <RefreshCcw size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+        , document.body)}
+
       {/* SHIPMENT DIALOG */}
       <ShipmentDialog
         isOpen={isDialogOpen}
@@ -789,6 +1425,14 @@ const ShipmentsPage: React.FC = () => {
         customerOptions={customerOptions}
         supplierOptions={supplierOptions}
         onSave={handleSave}
+        onEdit={() => {
+          setIsEditMode(true);
+          setIsDetailMode(false);
+        }}
+        onConfirmCustomer={handleConfirmCustomer}
+        onConfirmSupplier={handleConfirmSupplier}
+        isSavingCustomer={isSavingCustomer}
+        isSavingSupplier={isSavingSupplier}
       />
     </div>
   );

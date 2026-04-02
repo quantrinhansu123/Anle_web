@@ -73,19 +73,37 @@ const CustomerDialog: React.FC<Props> = ({
         {/* Scrollable Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           <div className="bg-white rounded-2xl border border-border shadow-sm p-6 space-y-4">
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <Building2 size={16} className="text-muted-foreground/70" />
-                <label className="text-[13px] font-bold text-foreground">Company Name <span className="text-red-500">*</span></label>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="md:col-span-1 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Hash size={16} className="text-muted-foreground/70" />
+                  <label className="text-[13px] font-bold text-foreground">Code <span className="text-red-500">*</span></label>
+                </div>
+                <input
+                  type="text"
+                  placeholder="ABC"
+                  value={formState.code || ''}
+                  onChange={e => setFormField('code', e.target.value.toUpperCase().slice(0, 3))}
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-black text-center uppercase tracking-widest disabled:bg-muted/5 disabled:text-muted-foreground"
+                  maxLength={3}
+                />
               </div>
-              <input
-                type="text"
-                placeholder="Enter company name"
-                value={company_name || ''}
-                onChange={e => setFormField('company_name', e.target.value)}
-                disabled={isDetailMode}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
-              />
+
+              <div className="md:col-span-3 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Building2 size={16} className="text-muted-foreground/70" />
+                  <label className="text-[13px] font-bold text-foreground">Company Name <span className="text-red-500">*</span></label>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Enter company name"
+                  value={company_name || ''}
+                  onChange={e => setFormField('company_name', e.target.value)}
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
+                />
+              </div>
             </div>
 
             <div className="space-y-1.5">
@@ -99,7 +117,7 @@ const CustomerDialog: React.FC<Props> = ({
                 value={email || ''}
                 onChange={e => setFormField('email', e.target.value)}
                 disabled={isDetailMode}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
               />
             </div>
 
@@ -114,7 +132,7 @@ const CustomerDialog: React.FC<Props> = ({
                 value={phone || ''}
                 onChange={e => setFormField('phone', e.target.value)}
                 disabled={isDetailMode}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
               />
             </div>
 
@@ -129,7 +147,7 @@ const CustomerDialog: React.FC<Props> = ({
                 value={tax_code || ''}
                 onChange={e => setFormField('tax_code', e.target.value)}
                 disabled={isDetailMode}
-                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-muted/5 disabled:text-muted-foreground"
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
               />
             </div>
 

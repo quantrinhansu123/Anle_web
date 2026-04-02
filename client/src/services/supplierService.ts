@@ -23,7 +23,7 @@ export interface CreateSupplierDto {
 }
 
 export const supplierService = {
-  getSuppliers: () => apiFetch<Supplier[]>('/suppliers'),
+  getSuppliers: (page = 1, limit = 1000) => apiFetch<Supplier[]>(`/suppliers?page=${page}&limit=${limit}`),
   getById: (id: string) => apiFetch<Supplier>(`/suppliers/${id}`),
   getSupplierDetails: (id: string) => apiFetch<Supplier>(`/suppliers/${id}/details`),
   createSupplier: (dto: CreateSupplierDto) => 

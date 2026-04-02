@@ -3,13 +3,26 @@ import { CreatePurchasingItemDto, UpdatePurchasingItemDto, PurchasingItem } from
 import { AppError } from '../../middlewares/error.middleware';
 
 export const purchasingService = {
-  async getAll(page = 1, limit = 20) {
+  async getAll(page = 1, limit = 20, status?: string) {
     const from = (page - 1) * limit;
     const to = from + limit - 1;
 
-    const { data, error, count } = await supabase
+    let query = supabase
       .from('purchasing_items')
-      .select('*, shipments(*, customers(*), suppliers(*)), suppliers(*), employees(*)', { count: 'exact' })
+      .select(`
+        *, 
+        shipments(*, customers(*), suppliers(*)), 
+        suppliers(*), 
+        pic:employees!purchasing_items_pic_id_fkey(*),
+        creator:employees!purchasing_items_created_by_id_fkey(*),
+        approver:employees!purchasing_items_approved_by_id_fkey(*)
+      `, { count: 'exact' });
+
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    const { data, error, count } = await query
       .order('created_at', { ascending: false })
       .range(from, to);
 
@@ -20,7 +33,14 @@ export const purchasingService = {
   async getById(id: string) {
     const { data, error } = await supabase
       .from('purchasing_items')
-      .select('*, shipments(*, customers(*), suppliers(*)), suppliers(*), employees(*)')
+      .select(`
+        *, 
+        shipments(*, customers(*), suppliers(*)), 
+        suppliers(*), 
+        pic:employees!purchasing_items_pic_id_fkey(*),
+        creator:employees!purchasing_items_created_by_id_fkey(*),
+        approver:employees!purchasing_items_approved_by_id_fkey(*)
+      `)
       .eq('id', id)
       .single();
 

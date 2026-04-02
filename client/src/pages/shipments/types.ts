@@ -1,5 +1,6 @@
 export interface Shipment {
   id: string;
+  code?: string;
   customer_id: string;
   supplier_id: string;
   commodity?: string;
@@ -51,12 +52,14 @@ export interface ShipmentFormState extends CreateShipmentDto {
   isNewCustomer?: boolean;
   newCustomer?: {
     company_name: string;
+    code?: string;
     email?: string;
     phone?: string;
     address?: string;
     tax_code?: string;
   };
   isNewSupplier?: boolean;
+  isEditingSupplier?: boolean;
   newSupplier?: {
     id: string;
     company_name: string;
@@ -65,6 +68,7 @@ export interface ShipmentFormState extends CreateShipmentDto {
     address?: string;
     tax_code?: string;
   };
+  isEditingCustomer?: boolean;
   pic?: { full_name: string };
 }
 

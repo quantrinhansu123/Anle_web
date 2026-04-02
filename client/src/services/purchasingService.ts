@@ -5,6 +5,9 @@ export interface PurchasingItem {
   shipment_id: string;
   supplier_id: string;
   pic_id?: string | null;
+  created_by_id?: string | null;
+  approved_by_id?: string | null;
+  status?: 'pending' | 'approved' | 'rejected' | null;
   description: string;
   hs_code?: string | null;
   rate: number;
@@ -20,10 +23,12 @@ export interface PurchasingItem {
   created_at?: string;
   shipments?: any;
   suppliers?: any;
-  employees?: any;
+  pic?: any;
+  creator?: any;
+  approver?: any;
 }
 
-export type CreatePurchasingItemDto = Omit<PurchasingItem, 'id' | 'tax_value' | 'total' | 'created_at' | 'shipments' | 'suppliers' | 'employees'>;
+export type CreatePurchasingItemDto = Omit<PurchasingItem, 'id' | 'tax_value' | 'total' | 'created_at' | 'shipments' | 'suppliers' | 'pic' | 'creator' | 'approver'>;
 
 export const purchasingService = {
   getPurchasingItems: (page = 1, limit = 20) => 

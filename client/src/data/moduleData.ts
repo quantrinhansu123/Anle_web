@@ -15,6 +15,7 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
         { icon: BadgeDollarSign, title: 'Sales', description: 'Quotation items and service rates.', colorScheme: 'amber', path: '/financials/sales' },
         { icon: ShoppingCart, title: 'Purchasing Department', description: 'Manage purchasing items and costs.', colorScheme: 'orange', path: '/financials/purchasing' },
         { icon: FileSignature, title: 'Contracts', description: 'Comprehensive list of all shipping contracts.', colorScheme: 'slate', path: '/contracts/directory' },
+        { icon: FileText, title: 'Pending Approvals', description: 'Review and approve pending purchase orders.', colorScheme: 'teal', path: '/financials/po-approvals' },
       ]
     }
   ],

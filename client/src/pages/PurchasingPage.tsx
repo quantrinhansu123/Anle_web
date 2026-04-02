@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ChevronLeft, Search, Plus,
   Edit, Trash2, List, BarChart2,
   RefreshCcw, DollarSign, Package,
   TrendingUp, Users, RotateCcw,
-  ChevronRight, Truck
+  ChevronRight, Truck, AlertCircle, X,
+  CheckCircle2, Filter
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
@@ -12,6 +14,7 @@ import { purchasingService, type PurchasingItem, type CreatePurchasingItemDto } 
 import { shipmentService } from '../services/shipmentService';
 import { supplierService } from '../services/supplierService';
 import { employeeService } from '../services/employeeService';
+import { salesService } from '../services/salesService';
 import { FilterDropdown } from '../components/ui/FilterDropdown';
 import { ColumnSettings } from '../components/ui/ColumnSettings';
 import PurchasingDialog from './purchasing/dialogs/PurchasingDialog';
@@ -19,14 +22,15 @@ import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
-import { toast } from '../lib/toast';
+import { useToastContext } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 
 // --- CONFIGURATION ---
-type ColDef = { 
-  label: string; 
-  thClass: string; 
-  tdClass: string; 
-  renderContent: (item: PurchasingItem) => React.ReactNode 
+type ColDef = {
+  label: string;
+  thClass: string;
+  tdClass: string;
+  renderContent: (item: PurchasingItem) => React.ReactNode
 };
 
 const COLUMN_DEFS: Record<string, ColDef> = {
@@ -40,7 +44,7 @@ const COLUMN_DEFS: Record<string, ColDef> = {
     label: 'Shipment ID',
     thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-tight text-left border-b border-r border-border/40 w-32',
     tdClass: 'px-4 py-4 border-r border-border/40 font-mono text-[12px] text-slate-500',
-    renderContent: (item) => <span>#{item.shipment_id.slice(0, 8)}</span>
+    renderContent: (item) => <span>{item.shipments?.code || `#${item.shipment_id.slice(0, 8)}`}</span>
   },
   supplier_name: {
     label: 'Supplier Name',
@@ -66,7 +70,7 @@ const COLUMN_DEFS: Record<string, ColDef> = {
     tdClass: 'px-4 py-4 border-r border-border/40 text-[13px] font-bold text-primary text-center tabular-nums',
     renderContent: (item) => (
       <span>
-        {item.total?.toLocaleString('en-US', { minimumFractionDigits: 2 })} 
+        {item.total?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
         <span className="ml-1 text-[10px] opacity-50 font-normal">VND</span>
       </span>
     )
@@ -87,7 +91,19 @@ const COLUMN_DEFS: Record<string, ColDef> = {
     label: 'PIC',
     thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-tight text-left border-b border-r border-border/40 w-48',
     tdClass: 'px-4 py-4 border-r border-border/40 text-[13px] text-slate-600',
-    renderContent: (item) => <span>{item.employees?.full_name || '—'}</span>
+    renderContent: (item) => <span>{item.pic?.full_name || '—'}</span>
+  },
+  creator: {
+    label: 'Creator',
+    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-tight text-left border-b border-r border-border/40 w-48',
+    tdClass: 'px-4 py-4 border-r border-border/40 text-[13px] text-slate-600',
+    renderContent: (item) => <span>{item.creator?.full_name || '—'}</span>
+  },
+  approver: {
+    label: 'Approver',
+    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-tight text-left border-b border-r border-border/40 w-48',
+    tdClass: 'px-4 py-4 border-r border-border/40 text-[13px] text-slate-600',
+    renderContent: (item) => <span>{item.approver?.full_name || '—'}</span>
   }
 };
 
@@ -110,16 +126,21 @@ const INITIAL_FORM_STATE: Partial<PurchasingItem> = {
 
 const PurchasingPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { success: toastSuccess, error: toastError } = useToastContext();
   const [activeTab, setActiveTab] = useState<'list' | 'stats'>('list');
   const [purchasingItems, setPurchasingItems] = useState<PurchasingItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<{ type: 'single' | 'bulk'; id?: string }>({ type: 'single' });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Column Customization
   const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_COL_ORDER);
   const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_COL_ORDER);
-  
+
   // Filters State
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [filterSearch, setFilterSearch] = useState('');
@@ -128,22 +149,30 @@ const PurchasingPage: React.FC = () => {
   const [selectedHsCodes, setSelectedHsCodes] = useState<string[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Mobile Filter sheet
+  const [showMobileFilter, setShowMobileFilter] = useState(false);
+  const [mobileFilterClosing, setMobileFilterClosing] = useState(false);
+  const [mobileExpandedSection, setMobileExpandedSection] = useState<string | null>('supplier');
+  const [pendingSuppliers, setPendingSuppliers] = useState<string[]>([]);
+  const [pendingPics, setPendingPics] = useState<string[]>([]);
+  const [pendingHsCodes, setPendingHsCodes] = useState<string[]>([]);
+
   // Dialog State
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [dialogMode, setDialogMode] = useState<'add' | 'edit' | 'detail'>('add');
   const [formState, setFormState] = useState<Partial<PurchasingItem>>(INITIAL_FORM_STATE);
-  
+
   // Options
-  const [shipmentOptions, setShipmentOptions] = useState<{value: string, label: string}[]>([]);
+  const [shipmentOptions, setShipmentOptions] = useState<{ value: string, label: string }[]>([]);
   const [fullShipments, setFullShipments] = useState<any[]>([]);
-  const [supplierOptions, setSupplierOptions] = useState<{value: string, label: string}[]>([]);
-  const [employeeOptions, setEmployeeOptions] = useState<{value: string, label: string}[]>([]);
+  const [supplierOptions, setSupplierOptions] = useState<{ value: string, label: string }[]>([]);
+  const [employeeOptions, setEmployeeOptions] = useState<{ value: string, label: string }[]>([]);
 
   useEffect(() => {
     fetchData();
     fetchOptions();
-    
+
     // Handle click outside for dropdowns
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -174,7 +203,7 @@ const PurchasingPage: React.FC = () => {
         employeeService.getEmployees()
       ]);
       setFullShipments(shipments);
-      setShipmentOptions(shipments.map(s => ({ value: s.id, label: `#${s.id.slice(0, 8)} - ${s.commodity}` })));
+      setShipmentOptions(shipments.map(s => ({ value: s.id, label: `${s.code || '#' + s.id.slice(0, 8)} - ${s.commodity}` })));
       setSupplierOptions(suppliers.map(s => ({ value: s.id, label: s.company_name })));
       setEmployeeOptions(employees.map(e => ({ value: e.id, label: e.full_name })));
     } catch (err) {
@@ -221,46 +250,119 @@ const PurchasingPage: React.FC = () => {
     }, 350);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (pushToSales?: boolean) => {
     try {
       if (dialogMode === 'edit' && formState.id) {
-        await purchasingService.updatePurchasingItem(formState.id, formState as any);
+        const updatePayload = {
+          ...formState,
+          created_by_id: formState.created_by_id || user?.id
+        };
+        await purchasingService.updatePurchasingItem(formState.id, updatePayload as any);
       } else {
-        await purchasingService.createPurchasingItem(formState as any);
+        const createPayload = {
+          ...formState,
+          created_by_id: formState.created_by_id || user?.id
+        };
+        await purchasingService.createPurchasingItem(createPayload as any);
       }
+      
+      if (pushToSales && dialogMode === 'add') {
+        try {
+          await salesService.createSalesItem({
+            shipment_id: formState.shipment_id!,
+            description: formState.description || '',
+            rate: formState.rate || 0,
+            quantity: formState.quantity || 0,
+            unit: formState.unit || '',
+            currency: formState.currency || 'VND',
+            exchange_rate: formState.exchange_rate || 1,
+            tax_percent: formState.tax_percent || 0
+          });
+          toastSuccess('Purchasing and Sales Quote created successfully');
+        } catch (salesErr) {
+          console.error('Failed to create sales item:', salesErr);
+          toastError('Purchasing created, but failed to create Sales Quote');
+        }
+      } else {
+        toastSuccess(dialogMode === 'edit' ? 'Purchasing item updated successfully' : 'Purchasing item created successfully');
+      }
+
       handleCloseDialog();
       fetchData();
-      toast.success(dialogMode === 'edit' ? 'Purchasing item updated successfully' : 'Purchasing item created successfully');
     } catch (err) {
       console.error('Failed to save:', err);
-      toast.error('Failed to save purchasing item');
+      toastError('Failed to save purchasing item');
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this item?')) return;
+  const handlePushSelectionToSales = async () => {
     try {
-      await purchasingService.deletePurchasingItem(id);
+      const selected = purchasingItems.filter(i => selectedItems.includes(i.id));
+      if (selected.length === 0) return;
+      
+      let successCount = 0;
+      await Promise.all(selected.map(async (item) => {
+        try {
+          await salesService.createSalesItem({
+            shipment_id: item.shipment_id,
+            description: item.description,
+            rate: item.rate,
+            quantity: item.quantity,
+            unit: item.unit,
+            currency: item.currency,
+            exchange_rate: item.exchange_rate,
+            tax_percent: item.tax_percent
+          });
+          successCount++;
+        } catch (e) {
+          console.error('Failed to push item to sales:', e);
+        }
+      }));
+      
+      if (successCount === selected.length) {
+        toastSuccess(`Successfully pushed ${successCount} items to Sales Quotation`);
+      } else {
+        toastError(`Pushed ${successCount} items, but failed ${selected.length - successCount} items.`);
+      }
+      setSelectedItems([]);
+    } catch (err) {
+      console.error('Error pushing selection to sales:', err);
+      toastError('An error occurred while pushing to Sales Dashboard');
+    }
+  };
+
+  const handleDeleteClick = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setConfirmAction({ type: 'single', id });
+    setIsConfirmOpen(true);
+  };
+
+  const handleBulkDeleteClick = () => {
+    setConfirmAction({ type: 'bulk' });
+    setIsConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    try {
+      setIsDeleting(true);
+      if (confirmAction.type === 'single' && confirmAction.id) {
+        await purchasingService.deletePurchasingItem(confirmAction.id);
+        toastSuccess('Purchasing item deleted successfully');
+        if (selectedItems.includes(confirmAction.id)) {
+          setSelectedItems(prev => prev.filter(i => i !== confirmAction.id));
+        }
+      } else if (confirmAction.type === 'bulk') {
+        await Promise.all(selectedItems.map(id => purchasingService.deletePurchasingItem(id)));
+        toastSuccess(`${selectedItems.length} items deleted successfully`);
+        setSelectedItems([]);
+      }
+      setIsConfirmOpen(false);
       fetchData();
-      toast.success('Purchasing item deleted successfully');
     } catch (err) {
       console.error('Failed to delete:', err);
-      toast.error('Failed to delete item');
-    }
-  };
-
-  const handleDeleteSelected = async () => {
-    if (!confirm(`Are you sure you want to delete ${selectedItems.length} items?`)) return;
-    try {
-      setLoading(true);
-      await Promise.all(selectedItems.map(id => purchasingService.deletePurchasingItem(id)));
-      setSelectedItems([]);
-      fetchData();
-      toast.success('Selected items deleted successfully');
-    } catch (err) {
-      console.error('Failed to delete selected:', err);
-      toast.error('Failed to delete some items');
-      setLoading(false);
+      toastError('Failed to delete item(s)');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -291,6 +393,31 @@ const PurchasingPage: React.FC = () => {
   const toggleSelect = (id: string) => {
     setSelectedItems(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
+
+  const closeMobileFilter = () => {
+    setMobileFilterClosing(true);
+    setTimeout(() => {
+      setShowMobileFilter(false);
+      setMobileFilterClosing(false);
+    }, 280);
+  };
+
+  const openMobileFilter = () => {
+    setPendingSuppliers(selectedSuppliers);
+    setPendingPics(selectedPics);
+    setPendingHsCodes(selectedHsCodes);
+    setMobileExpandedSection('supplier');
+    setShowMobileFilter(true);
+  };
+
+  const applyMobileFilter = () => {
+    setSelectedSuppliers(pendingSuppliers);
+    setSelectedPics(pendingPics);
+    setSelectedHsCodes(pendingHsCodes);
+    closeMobileFilter();
+  };
+
+  const hasActiveFilters = selectedSuppliers.length > 0 || selectedPics.length > 0 || selectedHsCodes.length > 0;
 
   // Table Footer Stats
   const pageTotalCost = filteredItems.reduce((acc, item) => acc + (item.total || 0), 0);
@@ -330,78 +457,149 @@ const PurchasingPage: React.FC = () => {
       </div>
 
       {activeTab === 'list' ? (
-        <div className="bg-white rounded-2xl border border-border shadow-sm flex flex-col flex-1 min-h-0">
-          {/* TOOLBAR */}
-          <div className="p-4 space-y-4">
+        <div className="bg-white rounded-2xl border border-border shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
+          {/* MOBILE TOOLBAR */}
+          <div className="md:hidden flex items-center gap-2 p-3 border-b border-border">
+            <button onClick={() => navigate('/financials')} className="p-2 rounded-xl border border-border bg-white text-muted-foreground active:scale-95"><ChevronLeft size={18} /></button>
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={15} />
+              <input
+                type="text"
+                placeholder="Search purchasing..."
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 bg-muted/20 border border-border rounded-xl text-[13px] font-medium focus:bg-white transition-all outline-none"
+              />
+            </div>
+            <button
+              onClick={openMobileFilter}
+              className={clsx('p-2 rounded-xl border relative active:scale-95', hasActiveFilters ? 'border-primary bg-primary/5 text-primary' : 'border-border bg-white')}
+            >
+              <Filter size={18} />
+              {hasActiveFilters && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-white text-[9px] font-bold flex items-center justify-center">
+                  {selectedSuppliers.length + selectedPics.length + selectedHsCodes.length}
+                </span>
+              )}
+            </button>
+            <button onClick={handleOpenAdd} className="p-2 rounded-xl bg-primary text-white shadow-md shadow-primary/20 active:scale-95"><Plus size={18} /></button>
+          </div>
+
+          {/* MOBILE CARD LIST */}
+          <div className="md:hidden flex-1 overflow-y-auto p-3 flex flex-col gap-3 bg-slate-50/30">
+            {loading ? (
+              <div className="py-16 text-center animate-pulse text-muted-foreground italic">Loading Items...</div>
+            ) : filteredItems.length === 0 ? (
+              <div className="py-16 text-center text-[13px] text-muted-foreground italic">No matching items</div>
+            ) : (
+              filteredItems.map(item => (
+                <div
+                  key={item.id}
+                  onClick={() => handleOpenDetail(item)}
+                  className="bg-white rounded-2xl border border-border p-4 shadow-sm hover:border-primary/40 transition-all cursor-pointer active:scale-[0.98]"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[11px] font-mono font-bold text-primary">{item.shipments?.code || `#${item.shipment_id.slice(0, 8)}`}</span>
+                      <span className="text-[14px] font-bold text-slate-900 leading-tight line-clamp-1">{item.suppliers?.company_name || '—'}</span>
+                    </div>
+                    <div className="text-right flex flex-col items-end">
+                      <span className="text-[14px] font-black text-primary tabular-nums">
+                        {item.total?.toLocaleString()} <span className="text-[9px] font-normal opacity-60 uppercase">VND</span>
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground font-medium pt-3 border-t border-slate-50">
+                    <div className="flex items-center gap-2 truncate pr-4">
+                      <Package size={12} className="shrink-0" />
+                      <span className="truncate">{item.description}</span>
+                    </div>
+                    {item.hs_code && <span className="shrink-0 bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-bold">{item.hs_code}</span>}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* DESKTOP TOOLBAR */}
+          <div className="hidden md:block p-4 space-y-4">
             {/* Top Row: Search & Main Actions */}
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-2 flex-1">
-              {selectedItems.length > 0 ? (
-                <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-2 transition-all">
-                  <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 border border-primary/20 rounded-full text-primary text-[12px] font-bold shadow-sm shadow-primary/5">
-                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                    {selectedItems.length} selected
+                {selectedItems.length > 0 ? (
+                  <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-2 transition-all">
+                    <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 border border-primary/20 rounded-full text-primary text-[12px] font-bold shadow-sm shadow-primary/5">
+                      <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                      {selectedItems.length} selected
+                    </div>
+                    <div className="h-4 w-px bg-border mx-1" />
+                    <button
+                      onClick={handlePushSelectionToSales}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold text-orange-600 bg-orange-50 border border-orange-200 hover:bg-orange-100 transition-all active:scale-95 animate-in fade-in slide-in-from-left-2"
+                    >
+                      <TrendingUp size={13} />
+                      Push to Sales ({selectedItems.length})
+                    </button>
+                    <button
+                      onClick={handleBulkDeleteClick}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 transition-all active:scale-95 animate-in fade-in slide-in-from-left-2"
+                    >
+                      <Trash2 size={13} />
+                      Delete {selectedItems.length > 1 ? 'Items' : 'Item'} ({selectedItems.length})
+                    </button>
+                    <button
+                      onClick={() => setSelectedItems([])}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold text-slate-600 bg-white border border-border hover:bg-slate-50 transition-all active:scale-95 animate-in fade-in slide-in-from-left-2"
+                    >
+                      <X size={14} />
+                      Clear
+                    </button>
                   </div>
-                  <div className="h-4 w-px bg-border mx-1" />
-                  <button 
-                    onClick={handleDeleteSelected}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold text-red-500 hover:text-red-600 hover:bg-red-50 transition-all active:scale-95"
-                  >
-                    <Trash2 size={13} />
-                    Delete {selectedItems.length > 1 ? 'Items' : 'Item'}
-                  </button>
-                  <button 
-                    onClick={() => setSelectedItems([])}
-                    className="px-3 py-1.5 text-[12px] font-bold text-slate-400 hover:text-slate-600 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <button onClick={() => navigate('/financials')} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border hover:bg-muted text-[12px] font-bold transition-all bg-white shadow-sm shrink-0 active:scale-95">
-                    <ChevronLeft size={16} />Back
-                  </button>
-                  <div className="relative flex-1 max-w-sm group">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={16} />
-                    <input 
-                      type="text" 
-                      placeholder="Search items, suppliers, or shipments..." 
-                      value={searchText} 
-                      onChange={(e) => setSearchText(e.target.value)} 
-                      className="w-full pl-10 pr-8 py-1.5 bg-muted/10 border border-border rounded-xl text-[13px] font-medium focus:bg-white focus:ring-2 focus:ring-primary/10 focus:border-primary/30 transition-all outline-none" 
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <button onClick={fetchData} className="px-3 py-1.5 rounded-xl border border-border bg-white text-muted-foreground hover:bg-muted transition-all shadow-sm">
-                <RefreshCcw size={16} className={loading ? 'animate-spin' : ''} />
-              </button>
-              
-              <ColumnSettings 
-                columns={COLUMN_DEFS}
-                visibleColumns={visibleColumns}
-                columnOrder={columnOrder}
-                onVisibleColumnsChange={setVisibleColumns}
-                onColumnOrderChange={setColumnOrder}
-                defaultOrder={DEFAULT_COL_ORDER}
-              />
+                ) : (
+                  <>
+                    <button onClick={() => navigate('/financials')} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border hover:bg-muted text-[12px] font-bold transition-all bg-white shadow-sm shrink-0 active:scale-95">
+                      <ChevronLeft size={16} />Back
+                    </button>
+                    <div className="relative flex-1 max-w-sm group">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={16} />
+                      <input
+                        type="text"
+                        placeholder="Search items, suppliers, or shipments..."
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
+                        className="w-full pl-10 pr-8 py-1.5 bg-muted/10 border border-border rounded-xl text-[13px] font-medium focus:bg-white focus:ring-2 focus:ring-primary/10 focus:border-primary/30 transition-all outline-none"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={fetchData} className="px-3 py-1.5 rounded-xl border border-border bg-white text-muted-foreground hover:bg-muted transition-all shadow-sm">
+                  <RefreshCcw size={16} className={loading ? 'animate-spin' : ''} />
+                </button>
 
-              <button 
-                onClick={handleOpenAdd}
-                className="flex items-center gap-2 px-4 py-1.5 bg-primary text-white rounded-xl text-[13px] font-bold shadow-md shadow-primary/20 hover:bg-primary/90 transition-all active:scale-95"
-              >
-                <Plus size={16} />
-                New Purchasing
-              </button>
+                <ColumnSettings
+                  columns={COLUMN_DEFS}
+                  visibleColumns={visibleColumns}
+                  columnOrder={columnOrder}
+                  onVisibleColumnsChange={setVisibleColumns}
+                  onColumnOrderChange={setColumnOrder}
+                  defaultOrder={DEFAULT_COL_ORDER}
+                />
+
+                <button
+                  onClick={handleOpenAdd}
+                  className="flex items-center gap-2 px-4 py-1.5 bg-primary text-white rounded-xl text-[13px] font-bold shadow-md shadow-primary/20 hover:bg-primary/90 transition-all active:scale-95"
+                >
+                  <Plus size={16} />
+                  New Purchasing
+                </button>
+              </div>
             </div>
-          </div>
 
             {/* Bottom Row: Secondary Filters */}
             <div className="hidden md:flex flex-wrap items-center gap-2" ref={dropdownRef}>
-              
+
               {/* Supplier Filter */}
               <div className="relative" ref={activeDropdown === 'supplier' ? dropdownRef : null}>
                 <button
@@ -508,7 +706,7 @@ const PurchasingPage: React.FC = () => {
               </div>
 
               {(selectedSuppliers.length > 0 || selectedPics.length > 0 || selectedHsCodes.length > 0) && (
-                <button 
+                <button
                   onClick={() => { setSelectedSuppliers([]); setSelectedPics([]); setSelectedHsCodes([]); }}
                   className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-all"
                   title="Clear all filters"
@@ -520,16 +718,16 @@ const PurchasingPage: React.FC = () => {
           </div>
 
           {/* TABLE */}
-          <div className="flex-1 overflow-auto border-t border-border bg-slate-50/20">
+          <div className="hidden md:flex flex-col flex-1 min-h-0 border-t border-border bg-slate-50/20">
             <table className="w-full border-separate border-spacing-0">
               <thead className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm shadow-[0_1px_0_rgba(0,0,0,0.05)]">
                 <tr>
                   <th className="px-4 py-3 border-r border-b border-border/40 w-10 text-center">
-                    <input 
-                      type="checkbox" 
-                      checked={selectedItems.length === filteredItems.length && filteredItems.length > 0} 
-                      onChange={toggleSelectAll} 
-                      className="rounded border-border" 
+                    <input
+                      type="checkbox"
+                      checked={selectedItems.length === filteredItems.length && filteredItems.length > 0}
+                      onChange={toggleSelectAll}
+                      className="rounded border-border"
                     />
                   </th>
                   {columnOrder.filter(id => visibleColumns.includes(id)).map(key => (
@@ -549,11 +747,11 @@ const PurchasingPage: React.FC = () => {
                   filteredItems.map(item => (
                     <tr key={item.id} onClick={() => handleOpenDetail(item)} className={clsx('hover:bg-slate-50/60 transition-colors group cursor-pointer', selectedItems.includes(item.id) && 'bg-primary/[0.02]')}>
                       <td className="px-4 py-4 text-center border-r border-border/40" onClick={e => e.stopPropagation()}>
-                        <input 
-                          type="checkbox" 
-                          checked={selectedItems.includes(item.id)} 
-                          onChange={() => toggleSelect(item.id)} 
-                          className="rounded border-border" 
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.includes(item.id)}
+                          onChange={() => toggleSelect(item.id)}
+                          className="rounded border-border"
                         />
                       </td>
                       {columnOrder.filter(id => visibleColumns.includes(id)).map(key => (
@@ -561,8 +759,20 @@ const PurchasingPage: React.FC = () => {
                       ))}
                       <td className="px-4 py-4" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
-                          <button onClick={() => handleOpenEdit(item)} className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-all"><Edit size={14} /></button>
-                          <button onClick={() => handleDelete(item.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-100 transition-all"><Trash2 size={14} /></button>
+                          <button
+                            onClick={() => handleOpenEdit(item)}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-all"
+                            title="Edit"
+                          >
+                            <Edit size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => handleDeleteClick(item.id, e)}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-100 transition-all"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -573,7 +783,7 @@ const PurchasingPage: React.FC = () => {
           </div>
 
           {/* TABLE FOOTER */}
-          <div className="px-6 py-3 border-t border-border bg-slate-50/50 flex items-center justify-between shrink-0">
+          <div className="px-6 py-3 border-t border-border bg-slate-50/50 hidden md:flex items-center justify-between shrink-0">
             <div className="flex items-center gap-4">
               <span className="text-[12px] font-medium text-slate-500">
                 Showing <b>1</b> – <b>{filteredItems.length}</b> of <b>{filteredItems.length}</b> result(s)
@@ -660,6 +870,196 @@ const PurchasingPage: React.FC = () => {
         onSave={handleSave}
         onEdit={() => setDialogMode('edit')}
       />
+
+      {/* MOBILE FILTER BOTTOM SHEET (PORTAL) */}
+      {showMobileFilter && createPortal(
+        <div className="md:hidden fixed inset-0 z-[9999] flex flex-col justify-end">
+          <div className={clsx('absolute inset-0 bg-black/40 transition-opacity duration-300', mobileFilterClosing ? 'opacity-0' : 'opacity-100')} onClick={closeMobileFilter} />
+          <div className={clsx('relative bg-white rounded-t-3xl flex flex-col max-h-[85vh] shadow-2xl', mobileFilterClosing ? 'animate-out slide-out-to-bottom duration-300' : 'animate-in slide-in-from-bottom duration-300')}>
+            <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full bg-border" /></div>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <Filter size={18} className="text-primary" />
+                <span className="text-[17px] font-bold">Filters</span>
+              </div>
+              <button onClick={closeMobileFilter} className="p-1.5 text-muted-foreground hover:bg-slate-100 rounded-lg"><X size={20} /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <div className="divide-y divide-border/60">
+                {/* Supplier Section */}
+                <div className="px-5 py-4">
+                  <button
+                    onClick={() => setMobileExpandedSection(mobileExpandedSection === 'supplier' ? null : 'supplier')}
+                    className="w-full flex items-center justify-between mb-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Truck size={16} className="text-muted-foreground" />
+                      <span className="text-[15px] font-bold text-slate-800">Supplier</span>
+                      {pendingSuppliers.length > 0 && <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">{pendingSuppliers.length}</span>}
+                    </div>
+                    <ChevronRight size={18} className={clsx('text-slate-400 transition-transform', mobileExpandedSection === 'supplier' && 'rotate-90')} />
+                  </button>
+                  {mobileExpandedSection === 'supplier' && (
+                    <div className="space-y-1 mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                      {supplierOptions.map(opt => {
+                        const isSelected = pendingSuppliers.includes(opt.value);
+                        return (
+                          <button
+                            key={opt.value}
+                            onClick={() => setPendingSuppliers(prev => isSelected ? prev.filter(v => v !== opt.value) : [...prev, opt.value])}
+                            className={clsx(
+                              'w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all',
+                              isSelected ? 'bg-primary/5 border-primary/30 text-primary' : 'bg-slate-50/50 border-slate-200/60 text-slate-600'
+                            )}
+                          >
+                            <span className="text-[13px] font-bold truncate pr-4">{opt.label}</span>
+                            <div className={clsx('w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all', isSelected ? 'bg-primary border-primary' : 'border-slate-300')}>
+                              {isSelected && <CheckCircle2 size={12} className="text-white" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* PIC Section */}
+                <div className="px-5 py-4">
+                  <button
+                    onClick={() => setMobileExpandedSection(mobileExpandedSection === 'pic' ? null : 'pic')}
+                    className="w-full flex items-center justify-between mb-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Users size={16} className="text-muted-foreground" />
+                      <span className="text-[15px] font-bold text-slate-800">PIC</span>
+                      {pendingPics.length > 0 && <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">{pendingPics.length}</span>}
+                    </div>
+                    <ChevronRight size={18} className={clsx('text-slate-400 transition-transform', mobileExpandedSection === 'pic' && 'rotate-90')} />
+                  </button>
+                  {mobileExpandedSection === 'pic' && (
+                    <div className="space-y-1 mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                      {employeeOptions.map(opt => {
+                        const isSelected = pendingPics.includes(opt.value);
+                        return (
+                          <button
+                            key={opt.value}
+                            onClick={() => setPendingPics(prev => isSelected ? prev.filter(v => v !== opt.value) : [...prev, opt.value])}
+                            className={clsx(
+                              'w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all',
+                              isSelected ? 'bg-primary/5 border-primary/30 text-primary' : 'bg-slate-50/50 border-slate-200/60 text-slate-600'
+                            )}
+                          >
+                            <span className="text-[13px] font-bold truncate pr-4">{opt.label}</span>
+                            <div className={clsx('w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all', isSelected ? 'bg-primary border-primary' : 'border-slate-300')}>
+                              {isSelected && <CheckCircle2 size={12} className="text-white" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* HS Code Section */}
+                <div className="px-5 py-4">
+                  <button
+                    onClick={() => setMobileExpandedSection(mobileExpandedSection === 'hs' ? null : 'hs')}
+                    className="w-full flex items-center justify-between mb-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Package size={16} className="text-muted-foreground" />
+                      <span className="text-[15px] font-bold text-slate-800">HS Code</span>
+                      {pendingHsCodes.length > 0 && <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">{pendingHsCodes.length}</span>}
+                    </div>
+                    <ChevronRight size={18} className={clsx('text-slate-400 transition-transform', mobileExpandedSection === 'hs' && 'rotate-90')} />
+                  </button>
+                  {mobileExpandedSection === 'hs' && (
+                    <div className="space-y-1 mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                      {Array.from(new Set(purchasingItems.map(i => i.hs_code).filter(h => h))).map(hs => {
+                        const isSelected = pendingHsCodes.includes(hs!);
+                        return (
+                          <button
+                            key={hs}
+                            onClick={() => setPendingHsCodes(prev => isSelected ? prev.filter(v => v !== hs) : [...prev, hs!])}
+                            className={clsx(
+                              'w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all',
+                              isSelected ? 'bg-primary/5 border-primary/30 text-primary' : 'bg-slate-50/50 border-slate-200/60 text-slate-600'
+                            )}
+                          >
+                            <span className="text-[13px] font-bold truncate pr-4">{hs}</span>
+                            <div className={clsx('w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all', isSelected ? 'bg-primary border-primary' : 'border-slate-300')}>
+                              {isSelected && <CheckCircle2 size={12} className="text-white" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="p-4 border-t border-border bg-white flex flex-col gap-2">
+              <button
+                onClick={() => {
+                  setPendingSuppliers([]);
+                  setPendingPics([]);
+                  setPendingHsCodes([]);
+                }}
+                className="w-full py-3 rounded-2xl border border-red-200 text-red-500 text-[14px] font-bold hover:bg-red-50 transition-all active:scale-95"
+              >
+                Clear All
+              </button>
+              <button
+                onClick={applyMobileFilter}
+                className="w-full py-4 rounded-2xl bg-primary text-white text-[15px] font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-95"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>
+        , document.body)}
+
+      {/* CONFIRMATION DIALOG */}
+      {isConfirmOpen && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => !isDeleting && setIsConfirmOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl border border-border w-full max-w-sm overflow-hidden animate-in zoom-in-95 fade-in duration-200">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 shrink-0">
+                  <AlertCircle size={20} />
+                </div>
+                <div>
+                  <h3 className="text-[16px] font-bold text-slate-900">Confirm Deletion</h3>
+                  <p className="text-[13px] text-muted-foreground">This action cannot be undone.</p>
+                </div>
+              </div>
+              <p className="text-[14px] text-slate-600 font-medium leading-relaxed">
+                Are you sure you want to delete {confirmAction.type === 'bulk' ? `these ${selectedItems.length} items` : 'this item'}?
+                All associated data will be permanently removed.
+              </p>
+            </div>
+            <div className="p-4 bg-slate-50 border-t border-border flex items-center gap-3">
+              <button
+                disabled={isDeleting}
+                onClick={() => setIsConfirmOpen(false)}
+                className="flex-1 py-2 rounded-xl border border-border bg-white text-[13px] font-bold text-slate-600 hover:bg-white/80 transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="flex-1 py-2 rounded-xl bg-red-600 text-white text-[13px] font-bold shadow-md shadow-red-200 hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isDeleting ? <RefreshCcw size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+        , document.body)}
     </div>
   );
 };

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Plus, Search, Edit, Trash2,
   FileText, List, RefreshCcw,
   ChevronLeft, Calendar, Hash,
   Users, ChevronRight, BarChart2,
-  TrendingUp, Clock, Banknote
+  TrendingUp, Clock, Banknote, AlertCircle, X
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
@@ -21,7 +22,7 @@ import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
-import { toast } from '../lib/toast';
+import { useToastContext } from '../contexts/ToastContext';
 
 // --- CONFIGURATION ---
 type ColDef = { label: string; thClass: string; tdClass: string; renderContent: (r: PaymentRequest) => React.ReactNode };
@@ -44,7 +45,7 @@ const COLUMN_DEFS: Record<string, ColDef> = {
     renderContent: (r) => (
       <div className="flex items-center gap-2">
         <Hash size={14} className="text-muted-foreground/40" />
-        <span className="text-[12px] font-mono font-medium text-slate-600">#{r.shipment_id.slice(0, 8)}</span>
+        <span className="text-[12px] font-mono font-medium text-slate-600">{r.shipments?.code || `#${r.shipment_id.slice(0, 8)}`}</span>
       </div>
     )
   },
@@ -89,6 +90,7 @@ const INITIAL_FORM_STATE: PaymentRequestFormState = {
 
 const PaymentRequestsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { success, error } = useToastContext();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<'list' | 'stats'>('list');
 
@@ -97,6 +99,9 @@ const PaymentRequestsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
   const [selectedRequests, setSelectedRequests] = useState<string[]>([]);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<{ type: 'single' | 'bulk'; id?: string }>({ type: 'single' });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Filter State
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
@@ -110,7 +115,7 @@ const PaymentRequestsPage: React.FC = () => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [isDetailMode, setIsDetailMode] = useState(false);
   const [formState, setFormState] = useState<PaymentRequestFormState>(INITIAL_FORM_STATE);
-  const [shipmentOptions, setShipmentOptions] = useState<{ value: string, label: string }[]>([]);
+  const [shipmentOptions, setShipmentOptions] = useState<any[]>([]);
 
   // Column Settings State
   const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_COL_ORDER);
@@ -152,8 +157,9 @@ const PaymentRequestsPage: React.FC = () => {
       ]);
 
       setShipmentOptions(shipmentsData.map(s => ({
+        ...s,
         value: s.id,
-        label: `Shipment #${s.id.slice(0, 8)} - ${s.customers?.company_name || 'N/A'}`
+        label: `Shipment ${s.code || '#' + s.id.slice(0, 8)} - ${s.customers?.company_name || 'N/A'}`
       })));
 
       setSuppliers(suppliersData.map(s => ({ id: s.id, company_name: s.company_name })));
@@ -179,6 +185,7 @@ const PaymentRequestsPage: React.FC = () => {
         account_name: fullRequest.account_name || '',
         account_number: fullRequest.account_number || '',
         bank_name: fullRequest.bank_name || '',
+        relatedShipment: fullRequest.shipments,
         invoices: fullRequest.invoices?.length
           ? fullRequest.invoices.map(inv => ({
             no_invoice: inv.no_invoice,
@@ -206,6 +213,7 @@ const PaymentRequestsPage: React.FC = () => {
         account_name: fullRequest.account_name || '',
         account_number: fullRequest.account_number || '',
         bank_name: fullRequest.bank_name || '',
+        relatedShipment: fullRequest.shipments,
         invoices: fullRequest.invoices?.length
           ? fullRequest.invoices.map(inv => ({
             no_invoice: inv.no_invoice,
@@ -234,7 +242,7 @@ const PaymentRequestsPage: React.FC = () => {
   const handleSave = async () => {
     try {
       if (!formState.shipment_id) {
-        toast.error('Please select a shipment');
+        error('Please select a shipment');
         return;
       }
 
@@ -246,21 +254,45 @@ const PaymentRequestsPage: React.FC = () => {
 
       handleCloseDialog();
       fetchData();
-      toast.success(isEditMode ? 'Payment request updated successfully' : 'Payment request created successfully');
+      success(isEditMode ? 'Payment request updated successfully' : 'Payment request created successfully');
     } catch (err) {
       console.error('Failed to save payment request:', err);
-      toast.error('Failed to save payment request');
+      error('Failed to save payment request');
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this payment request?')) return;
+  const handleDeleteClick = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setConfirmAction({ type: 'single', id });
+    setIsConfirmOpen(true);
+  };
+
+  const handleBulkDeleteClick = () => {
+    setConfirmAction({ type: 'bulk' });
+    setIsConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
     try {
-      await paymentRequestService.deletePaymentRequest(id);
+      setIsDeleting(true);
+      if (confirmAction.type === 'single' && confirmAction.id) {
+        await paymentRequestService.deletePaymentRequest(confirmAction.id);
+        success('Payment request deleted successfully');
+        if (selectedRequests.includes(confirmAction.id)) {
+          setSelectedRequests(prev => prev.filter(i => i !== confirmAction.id));
+        }
+      } else if (confirmAction.type === 'bulk') {
+        await Promise.all(selectedRequests.map(id => paymentRequestService.deletePaymentRequest(id)));
+        success(`${selectedRequests.length} payment requests deleted successfully`);
+        setSelectedRequests([]);
+      }
+      setIsConfirmOpen(false);
       fetchData();
-      toast.success('Payment request deleted successfully');
     } catch (err) {
       console.error('Failed to delete:', err);
+      error('Failed to delete payment request(s)');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -366,6 +398,24 @@ const PaymentRequestsPage: React.FC = () => {
                   onColumnOrderChange={setColumnOrder}
                   defaultOrder={DEFAULT_COL_ORDER}
                 />
+                {selectedRequests.length > 0 && (
+                  <>
+                    <button
+                      onClick={handleBulkDeleteClick}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-600 rounded-xl text-[12px] font-bold border border-red-200 hover:bg-red-100 transition-all animate-in fade-in slide-in-from-right-2"
+                    >
+                      <Trash2 size={16} />
+                      Delete ({selectedRequests.length})
+                    </button>
+                    <button
+                      onClick={() => setSelectedRequests([])}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-white text-slate-600 rounded-xl text-[12px] font-bold border border-border hover:bg-slate-50 transition-all animate-in fade-in slide-in-from-right-2"
+                    >
+                      <X size={16} />
+                      Clear
+                    </button>
+                  </>
+                )}
                 <button
                   onClick={handleOpenAdd}
                   className="flex items-center gap-2 px-4 py-1.5 bg-primary text-white rounded-xl text-[13px] font-bold shadow-md shadow-primary/20 hover:bg-primary/90 transition-all font-inter"
@@ -448,11 +498,11 @@ const PaymentRequestsPage: React.FC = () => {
                   </tr>
                 ) : (
                   filteredRequests.map(r => (
-                    <tr 
-                      key={r.id} 
+                    <tr
+                      key={r.id}
                       onClick={() => handleOpenDetail(r)}
                       className={clsx(
-                        'hover:bg-slate-50/60 transition-colors group cursor-pointer', 
+                        'hover:bg-slate-50/60 transition-colors group cursor-pointer',
                         selectedRequests.includes(r.id) && 'bg-primary/[0.02]'
                       )}
                     >
@@ -472,12 +522,14 @@ const PaymentRequestsPage: React.FC = () => {
                           <button
                             onClick={() => handleOpenEdit(r)}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-all"
+                            title="Edit"
                           >
                             <Edit size={14} />
                           </button>
                           <button
-                            onClick={() => handleDelete(r.id)}
+                            onClick={(e) => handleDeleteClick(r.id, e)}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-all"
+                            title="Delete"
                           >
                             <Trash2 size={14} />
                           </button>
@@ -599,11 +651,56 @@ const PaymentRequestsPage: React.FC = () => {
         isEditMode={isEditMode}
         isDetailMode={isDetailMode}
         onClose={handleCloseDialog}
+        onEdit={() => {
+          setIsEditMode(true);
+          setIsDetailMode(false);
+        }}
         formState={formState}
         setFormField={(key, val) => setFormState(prev => ({ ...prev, [key]: val }))}
         shipmentOptions={shipmentOptions}
         onSave={handleSave}
       />
+
+      {/* CONFIRMATION DIALOG */}
+      {isConfirmOpen && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => !isDeleting && setIsConfirmOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl border border-border w-full max-w-sm overflow-hidden animate-in zoom-in-95 fade-in duration-200">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 shrink-0">
+                  <AlertCircle size={20} />
+                </div>
+                <div>
+                  <h3 className="text-[16px] font-bold text-slate-900">Confirm Deletion</h3>
+                  <p className="text-[13px] text-muted-foreground">This action cannot be undone.</p>
+                </div>
+              </div>
+              <p className="text-[14px] text-slate-600 font-medium leading-relaxed">
+                Are you sure you want to delete {confirmAction.type === 'bulk' ? `these ${selectedRequests.length} payment requests` : 'this payment request'}?
+                All associated data will be permanently removed.
+              </p>
+            </div>
+            <div className="p-4 bg-slate-50 border-t border-border flex items-center gap-3">
+              <button
+                disabled={isDeleting}
+                onClick={() => setIsConfirmOpen(false)}
+                className="flex-1 py-2 rounded-xl border border-border bg-white text-[13px] font-bold text-slate-600 hover:bg-white/80 transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="flex-1 py-2 rounded-xl bg-red-600 text-white text-[13px] font-bold shadow-md shadow-red-200 hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isDeleting ? <RefreshCcw size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+        , document.body)}
     </div>
   );
 };

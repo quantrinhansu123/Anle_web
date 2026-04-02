@@ -8,7 +8,8 @@ export const purchasingController = {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
-      const { data, count } = await purchasingService.getAll(page, limit);
+      const status = req.query.status as string;
+      const { data, count } = await purchasingService.getAll(page, limit, status);
       res.json(paginatedResponse(data, count || 0, page, limit));
     } catch (err) {
       next(err);

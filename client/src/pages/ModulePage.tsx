@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, ChevronLeft } from 'lucide-react';
+import { Search, ChevronLeft, Star, Rocket } from 'lucide-react';
 import { clsx } from 'clsx';
 import { ModuleCard } from '../components/ui/ModuleCard';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -30,38 +30,41 @@ const ModulePage: React.FC = () => {
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-card rounded-xl shadow-sm border border-border p-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 mb-6 relative z-10">
-        <button 
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground text-[13px] font-medium transition-colors bg-card shadow-sm"
-        >
-          <ChevronLeft size={16} />
-          Back
-        </button>
+      <div className="bg-card rounded-xl shadow-sm border border-border p-1.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6 relative z-10">
+        <div className="flex bg-muted/50 rounded-xl p-0.5 w-full sm:w-fit gap-0.5">
+          <button 
+            onClick={() => navigate('/')}
+            className="flex items-center justify-center gap-1 px-3 sm:px-4 py-1.5 rounded-lg border border-border/60 bg-card shadow-sm text-muted-foreground hover:text-foreground transition-all duration-200"
+          >
+            <ChevronLeft size={16} strokeWidth={2} />
+            <span className="hidden sm:inline text-[13px] font-bold">Back</span>
+          </button>
 
-        <div className="flex bg-muted rounded-lg p-1 w-full sm:w-auto">
-          <button
-            onClick={() => setActiveTab('all')}
-            className={clsx(
-              "flex-1 sm:flex-none px-4 py-1.5 rounded-md text-[13px] font-bold transition-all duration-200",
-              activeTab === 'all'
-                ? "bg-card text-primary shadow-sm ring-1 ring-black/5"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            All
-          </button>
-          <button
-            onClick={() => setActiveTab('bookmarks')}
-            className={clsx(
-              "flex-1 sm:flex-none px-4 py-1.5 rounded-md text-[13px] font-bold transition-all duration-200 whitespace-nowrap",
-              activeTab === 'bookmarks'
-                ? "bg-card text-primary shadow-sm ring-1 ring-black/5"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Bookmarks
-          </button>
+          <div className="flex-1 sm:flex-none grid grid-cols-2 gap-0.5 ml-1">
+            <button
+              onClick={() => setActiveTab('all')}
+              className={clsx(
+                "px-4 py-1.5 rounded-lg text-[13px] font-bold transition-all duration-200",
+                activeTab === 'all'
+                  ? "bg-card text-primary shadow-sm ring-1 ring-black/5"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              All
+            </button>
+            
+            <button
+              onClick={() => setActiveTab('bookmarks')}
+              className={clsx(
+                "px-4 py-1.5 rounded-lg text-[13px] font-bold transition-all duration-200 whitespace-nowrap",
+                activeTab === 'bookmarks'
+                  ? "bg-card text-primary shadow-sm ring-1 ring-black/5"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Bookmarks
+            </button>
+          </div>
         </div>
 
         <div className="relative flex-1 w-full">
@@ -70,7 +73,7 @@ const ModulePage: React.FC = () => {
           </div>
           <input
             type="text"
-            className="w-full text-[13px] bg-transparent border border-border rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-muted-foreground/60"
+            className="w-full text-[13px] bg-muted/10 border border-border/60 rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:ring-1 focus:ring-primary/20 focus:border-primary/30 focus:bg-card transition-all placeholder:text-muted-foreground/60"
             placeholder="Search within module..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -84,8 +87,13 @@ const ModulePage: React.FC = () => {
 
         if (bookmarkedItems.length === 0) {
           return (
-            <div className="text-center py-16 text-muted-foreground bg-card/50 rounded-2xl border border-border mt-4">
-              No items bookmarked in this module yet.
+            <div className="flex flex-col items-center justify-center text-center py-16 px-6 text-muted-foreground bg-card/50 rounded-2xl border border-border mt-4 animate-in fade-in zoom-in-95 duration-500">
+              <div className="w-12 h-12 rounded-full bg-muted/30 flex items-center justify-center mb-4">
+                <Star size={24} className="text-muted-foreground/40" />
+              </div>
+              <p className="max-w-[280px] mx-auto text-[13px] leading-relaxed font-medium">
+                No items bookmarked in this module yet.
+              </p>
             </div>
           );
         }
@@ -134,8 +142,13 @@ const ModulePage: React.FC = () => {
           )}
         </div>
       ) : (
-        <div className="text-center py-16 text-muted-foreground bg-card/50 rounded-2xl border border-border border-dashed mt-4">
-          This module is under development...
+        <div className="flex flex-col items-center justify-center text-center py-16 px-6 text-muted-foreground bg-card/50 rounded-2xl border border-border border-dashed mt-4 animate-in fade-in zoom-in-95 duration-500">
+          <div className="w-12 h-12 rounded-full bg-muted/30 flex items-center justify-center mb-4">
+            <Rocket size={24} className="text-muted-foreground/40" />
+          </div>
+          <p className="max-w-[280px] mx-auto text-[13px] leading-relaxed font-medium">
+            This module is under development...
+          </p>
         </div>
       )}
     </div>

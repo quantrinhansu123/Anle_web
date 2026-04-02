@@ -13,8 +13,8 @@ export const employeeService = {
     if (error) throw new AppError(error.message, 400);
     // Remove individual passwords from list
     return (data ?? []).map((e: Employee) => {
-       const { password, ...rest } = e;
-       return rest;
+      const { password, ...rest } = e;
+      return rest;
     });
   },
 
@@ -47,9 +47,29 @@ export const employeeService = {
   },
 
   async create(dto: CreateEmployeeDTO) {
-    const insertData = { ...dto };
-    if (insertData.password) {
-      insertData.password = await authService.hashPassword(insertData.password);
+    const {
+      full_name,
+      department,
+      position,
+      email,
+      phone,
+      address,
+      password,
+      avatar_url
+    } = dto;
+
+    const insertData: any = {
+      full_name,
+      department,
+      position,
+      email,
+      phone,
+      address,
+      avatar_url
+    };
+
+    if (password) {
+      insertData.password = await authService.hashPassword(password);
     }
 
     const { data, error } = await supabase
@@ -59,15 +79,42 @@ export const employeeService = {
       .single();
 
     if (error) throw new AppError(error.message, 400);
-    const { password, ...rest } = data;
+    const { password: _p, ...rest } = data;
     return rest;
   },
 
   async update(id: string, dto: UpdateEmployeeDTO) {
-    const updateData = { ...dto };
-    if (updateData.password) {
-      updateData.password = await authService.hashPassword(updateData.password);
+    const {
+      full_name,
+      department,
+      position,
+      email,
+      phone,
+      address,
+      password,
+      avatar_url
+    } = dto;
+
+    const updateData: any = {
+      full_name,
+      department,
+      position,
+      email,
+      phone,
+      address,
+      avatar_url
+    };
+
+    if (password) {
+      updateData.password = await authService.hashPassword(password);
     }
+
+    // Remove undefined fields to avoid overwriting with null if not intended
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined) {
+        delete updateData[key];
+      }
+    });
 
     const { data, error } = await supabase
       .from('employees')
@@ -77,7 +124,7 @@ export const employeeService = {
       .single();
 
     if (error) throw new AppError(error.message, 400);
-    const { password, ...rest } = data;
+    const { password: _p, ...rest } = data;
     return rest;
   },
 

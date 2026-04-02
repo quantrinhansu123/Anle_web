@@ -3,6 +3,9 @@ export interface PurchasingItem {
   shipment_id: string;
   supplier_id: string;
   pic_id?: string | null;
+  created_by_id?: string | null;
+  approved_by_id?: string | null;
+  status?: 'pending' | 'approved' | 'rejected' | null;
   description: string;
   hs_code?: string | null;
   rate: number;

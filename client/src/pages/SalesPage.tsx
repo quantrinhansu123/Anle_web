@@ -4,7 +4,7 @@ import {
   ChevronLeft, Search, Plus, List,
   Edit, Trash2, RefreshCcw,
   BadgeDollarSign, TrendingUp,
-  BarChart2, Calculator, DollarSign, ChevronRight, X, Building2, Printer
+  BarChart2, Calculator, DollarSign, ChevronRight, X, Building2, Printer, AlertCircle, CheckCircle2, Filter
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
@@ -15,12 +15,13 @@ import type { Supplier } from '../services/supplierService';
 import { FilterDropdown } from '../components/ui/FilterDropdown';
 import { ColumnSettings } from '../components/ui/ColumnSettings';
 import type { SalesItem, SalesFormState } from './sales/types';
+import type { Shipment } from './shipments/types';
 import SalesDialog from './sales/dialogs/SalesDialog';
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
-import { toast } from '../lib/toast';
+import { useToastContext } from '../contexts/ToastContext';
 
 // --- CONFIGURATION ---
 const INITIAL_FORM_STATE: SalesFormState = {
@@ -40,7 +41,7 @@ const COLUMN_DEFS: Record<string, ColDef> = {
     label: 'Shipment ID',
     thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-32 border-r border-border/40',
     tdClass: 'px-4 py-4 border-r border-border/40 font-mono text-[12px] font-bold text-primary',
-    renderContent: (s) => <span>#{s.shipment_id?.slice(0, 8) || '—'}</span>
+    renderContent: (s) => <span>{s.shipments?.code || `#${s.shipment_id?.slice(0, 8) || '—'}`}</span>
   },
   description: {
     label: 'Description',
@@ -67,7 +68,7 @@ const COLUMN_DEFS: Record<string, ColDef> = {
   },
   total: {
     label: 'Total',
-    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-40 text-right',
+    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-64 text-right',
     tdClass: 'px-4 py-4 text-right font-black text-[14px] text-primary tabular-nums',
     renderContent: (s) => <span>{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(s.total)} {s.currency}</span>
   }
@@ -76,12 +77,16 @@ const DEFAULT_COL_ORDER = Object.keys(COLUMN_DEFS);
 
 const SalesPage: React.FC = () => {
   const navigate = useNavigate();
+  const { success: toastSuccess, error: toastError } = useToastContext();
   const [activeTab, setActiveTab] = useState<'list' | 'stats'>('list');
   const [salesItems, setSalesItems] = useState<SalesItem[]>([]);
   const [selectedSalesItems, setSelectedSalesItems] = useState<string[]>([]);
-  const [shipments, setShipments] = useState<{ value: string, label: string }[]>([]);
+  const [shipments, setShipments] = useState<(Shipment & { value: string, label: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<{ type: 'single' | 'bulk'; id?: string }>({ type: 'single' });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Search & Filters
   const [searchText, setSearchText] = useState('');
@@ -138,8 +143,8 @@ const SalesPage: React.FC = () => {
       const data: any = await shipmentService.getShipments(1, 100);
       const shipmentsData = Array.isArray(data) ? data : data.data || [];
       setShipments(shipmentsData.map((s: any) => ({
-        value: s.id,
-        label: `#${s.id.slice(0, 8)} - ${s.customers?.company_name || 'No Customer'}`
+        ...s, value: s.id,
+        label: `${s.code || '#' + s.id.slice(0, 8)} - ${s.customers?.company_name || 'No Customer'}`
       })));
     } catch (err) {
       console.error('Failed to fetch shipments:', err);
@@ -175,6 +180,7 @@ const SalesPage: React.FC = () => {
       currency: item.currency,
       exchange_rate: item.exchange_rate,
       tax_percent: item.tax_percent,
+      relatedShipment: item.shipments,
     });
   };
 
@@ -201,7 +207,7 @@ const SalesPage: React.FC = () => {
   const handleSave = async () => {
     try {
       if (!formState.shipment_id) {
-        toast.error('Please select a shipment');
+        toastError('Please select a shipment');
         return;
       }
       if (mode === 'edit' && formState.id) {
@@ -211,21 +217,45 @@ const SalesPage: React.FC = () => {
       }
       handleCloseDialog();
       fetchData();
-      toast.success(mode === 'edit' ? 'Sales item updated successfully' : 'Sales item created successfully');
+      toastSuccess(mode === 'edit' ? 'Sales item updated successfully' : 'Sales item created successfully');
     } catch (err) {
       console.error('Failed to save sales item:', err);
-      toast.error('Failed to save sales item. Please check your data.');
+      toastError('Failed to save sales item. Please check your data.');
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this sales item?')) return;
+  const handleDeleteClick = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setConfirmAction({ type: 'single', id });
+    setIsConfirmOpen(true);
+  };
+
+  const handleBulkDeleteClick = () => {
+    setConfirmAction({ type: 'bulk' });
+    setIsConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
     try {
-      await salesService.deleteSalesItem(id);
+      setIsDeleting(true);
+      if (confirmAction.type === 'single' && confirmAction.id) {
+        await salesService.deleteSalesItem(confirmAction.id);
+        toastSuccess('Sales item deleted successfully');
+        if (selectedSalesItems.includes(confirmAction.id)) {
+          setSelectedSalesItems(prev => prev.filter(i => i !== confirmAction.id));
+        }
+      } else if (confirmAction.type === 'bulk') {
+        await Promise.all(selectedSalesItems.map(id => salesService.deleteSalesItem(id)));
+        toastSuccess(`${selectedSalesItems.length} sales items deleted successfully`);
+        setSelectedSalesItems([]);
+      }
+      setIsConfirmOpen(false);
       fetchData();
-      toast.success('Sales item deleted successfully');
     } catch (err) {
-      console.error('Failed to delete sales item:', err);
+      console.error('Failed to delete:', err);
+      toastError('Failed to delete sales item(s)');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -285,40 +315,63 @@ const SalesPage: React.FC = () => {
   // UI State for mobile
   const [showMobileFilter, setShowMobileFilter] = useState(false);
   const [mobileFilterClosing, setMobileFilterClosing] = useState(false);
+  const [mobileExpandedSection, setMobileExpandedSection] = useState<string | null>('currency');
+  const [pendingCurrencies, setPendingCurrencies] = useState<string[]>([]);
+  const [pendingSuppliers, setPendingSuppliers] = useState<string[]>([]);
 
   const closeMobileFilter = () => {
     setMobileFilterClosing(true);
     setTimeout(() => {
       setShowMobileFilter(false);
       setMobileFilterClosing(false);
-    }, 300);
+    }, 280);
+  };
+
+  const openMobileFilter = () => {
+    setPendingCurrencies(selectedCurrencies);
+    setPendingSuppliers(selectedSuppliers);
+    setMobileExpandedSection('currency');
+    setShowMobileFilter(true);
+  };
+
+  const applyMobileFilter = () => {
+    setSelectedCurrencies(pendingCurrencies);
+    setSelectedSuppliers(pendingSuppliers);
+    closeMobileFilter();
   };
 
   const stats = React.useMemo(() => {
-    const totalVND = salesItems.reduce((acc, item) => acc + (item.currency === 'VND' ? item.total : item.total * item.exchange_rate), 0);
-    const totalUSD = salesItems.reduce((acc, item) => acc + (item.currency === 'USD' ? item.total : item.total / (item.exchange_rate || 1)), 0);
-    const avgTax = salesItems.length > 0 ? (salesItems.reduce((acc, item) => acc + item.tax_percent, 0) / salesItems.length) : 0;
+    const totalVND = filteredItems.reduce((acc, item) => acc + (item.currency === 'VND' ? item.total : item.total * item.exchange_rate), 0);
+    const totalUSD = filteredItems.reduce((acc, item) => acc + (item.currency === 'USD' ? item.total : item.total / (item.exchange_rate || 1)), 0);
+    const avgTax = filteredItems.length > 0 ? (filteredItems.reduce((acc, item) => acc + item.tax_percent, 0) / filteredItems.length) : 0;
 
     // Currency Distribution (Count of items)
     const currencyValueData = [
-      { name: 'VND', val: salesItems.filter(i => i.currency === 'VND').length },
-      { name: 'USD', val: salesItems.filter(i => i.currency === 'USD').length },
+      { name: 'VND', val: filteredItems.filter(i => i.currency === 'VND').length },
+      { name: 'USD', val: filteredItems.filter(i => i.currency === 'USD').length },
     ];
 
     // Sales by Shipment (Top 5)
-    const shipmentMap = new Map<string, number>();
-    salesItems.forEach(item => {
+    const shipmentMap = new Map<string, { code: string, val: number }>();
+    filteredItems.forEach(item => {
       const val = item.currency === 'VND' ? item.total : item.total * item.exchange_rate;
-      shipmentMap.set(item.shipment_id, (shipmentMap.get(item.shipment_id) || 0) + val);
+      const code = item.shipments?.code || `#${item.shipment_id?.slice(0, 8)}`;
+      const current = shipmentMap.get(item.shipment_id) || { code, val: 0 };
+      current.val += val;
+      shipmentMap.set(item.shipment_id, current);
     });
-    const shipmentData = Array.from(shipmentMap.entries())
-      .map(([id, val]) => ({ name: id.slice(0, 8), val }))
+    const shipmentData = Array.from(shipmentMap.values())
+      .map(data => ({ 
+        name: data.code.length > 12 ? data.code.slice(0, 12) + '...' : data.code, 
+        fullName: data.code,
+        val: data.val 
+      }))
       .sort((a, b) => b.val - a.val)
       .slice(0, 5);
 
     // Supplier performance
     const supplierMap = new Map<string, { name: string, totalVND: number, count: number }>();
-    salesItems.forEach(item => {
+    filteredItems.forEach(item => {
       const supplierName = item.shipments?.suppliers?.company_name || 'Individual / Regular';
       const val = item.currency === 'VND' ? item.total : item.total * item.exchange_rate;
       const current = supplierMap.get(supplierName) || { name: supplierName, totalVND: 0, count: 0 };
@@ -333,7 +386,7 @@ const SalesPage: React.FC = () => {
       .slice(0, 5);
 
     return { totalVND, totalUSD, avgTax, currencyValueData, shipmentData, supplierStats };
-  }, [salesItems]);
+  }, [filteredItems]);
 
   if (error) {
     return (
@@ -388,13 +441,18 @@ const SalesPage: React.FC = () => {
               />
             </div>
             <button
-              onClick={() => setShowMobileFilter(true)}
+              onClick={openMobileFilter}
               className={clsx(
-                'p-2 rounded-xl border transition-all active:scale-95',
+                'p-2 rounded-xl border transition-all active:scale-95 relative',
                 hasActiveFilters ? 'border-primary bg-primary/5 text-primary' : 'border-border bg-white text-muted-foreground'
               )}
             >
-              <Calculator size={18} />
+              <Filter size={18} />
+              {hasActiveFilters && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-white text-[9px] font-bold flex items-center justify-center">
+                  {selectedCurrencies.length + selectedSuppliers.length}
+                </span>
+              )}
             </button>
             <button
               onClick={handleOpenAdd}
@@ -426,7 +484,7 @@ const SalesPage: React.FC = () => {
                 >
                   <div className="flex items-start justify-between relative z-10">
                     <div className="flex flex-col gap-1 pr-12 min-w-0">
-                      <span className="text-[10px] font-mono font-black text-primary uppercase tracking-tighter opacity-70">#{item.shipment_id?.slice(0, 8)}</span>
+                      <span className="text-[10px] font-mono font-black text-primary uppercase tracking-tighter opacity-70">{item.shipments?.code || `#${item.shipment_id?.slice(0, 8)}`}</span>
                       <span className="text-[14px] font-bold text-slate-900 leading-tight line-clamp-2">{item.description || 'No Description'}</span>
                       <span className="text-[11px] text-muted-foreground font-medium underline mt-1">{item.unit} x {item.quantity}</span>
                     </div>
@@ -443,7 +501,7 @@ const SalesPage: React.FC = () => {
                       <Edit size={14} />
                     </button>
                     <button 
-                      onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} 
+                      onClick={(e) => handleDeleteClick(item.id, e)} 
                       className="p-2 rounded-xl bg-red-50 text-red-400 active:bg-red-500 active:text-white transition-all"
                     >
                       <Trash2 size={14} />
@@ -471,6 +529,24 @@ const SalesPage: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {selectedSalesItems.length > 0 && (
+                  <>
+                    <button
+                      onClick={handleBulkDeleteClick}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-600 rounded-xl text-[12px] font-bold border border-red-200 hover:bg-red-100 transition-all animate-in fade-in slide-in-from-right-2"
+                    >
+                      <Trash2 size={16} />
+                      Delete ({selectedSalesItems.length})
+                    </button>
+                    <button
+                      onClick={() => setSelectedSalesItems([])}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-white text-slate-600 rounded-xl text-[12px] font-bold border border-border hover:bg-slate-50 transition-all animate-in fade-in slide-in-from-right-2"
+                    >
+                      <X size={16} />
+                      Clear
+                    </button>
+                  </>
+                )}
                 <button
                   onClick={fetchData}
                   className="px-3 py-1.5 rounded-xl border border-border bg-white text-muted-foreground hover:bg-muted transition-all active:scale-95 shadow-sm"
@@ -625,12 +701,14 @@ const SalesPage: React.FC = () => {
                           <button
                             onClick={() => handleOpenEdit(item)}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-all"
+                            title="Edit"
                           >
                             <Edit size={14} />
                           </button>
                           <button
-                            onClick={() => handleDelete(item.id)}
+                            onClick={(e) => handleDeleteClick(item.id, e)}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-100 transition-all"
+                            title="Delete"
                           >
                             <Trash2 size={14} />
                           </button>
@@ -654,105 +732,227 @@ const SalesPage: React.FC = () => {
           </div>
         </div>
       ) : (
-        /* STATISTICS TAB content */
-        <div className="flex-1 overflow-y-auto space-y-4 pb-12 pr-1 no-scrollbar animate-in fade-in slide-in-from-right-4 duration-500">
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-            {[
-              { label: 'Total Items', val: salesItems.length, icon: List, color: 'text-blue-600', bg: 'bg-blue-100/50' },
-              { label: 'Total Value (VND)', val: new Intl.NumberFormat('vi-VN').format(Math.round(stats.totalVND)), icon: Calculator, color: 'text-emerald-600', bg: 'bg-emerald-100/50' },
-              { label: 'Total Value (USD)', val: '$' + new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(stats.totalUSD), icon: BadgeDollarSign, color: 'text-indigo-600', bg: 'bg-indigo-100/50' },
-              { label: 'Avg Tax Rate', val: stats.avgTax.toFixed(1) + '%', icon: TrendingUp, color: 'text-orange-600', bg: 'bg-orange-100/50' },
-            ].map(card => (
-              <div key={card.label} className="bg-white p-4 rounded-2xl border border-border shadow-sm flex items-center gap-3">
-                <div className={clsx('w-10 h-10 rounded-xl flex items-center justify-center shrink-0', card.bg, card.color)}><card.icon size={20} /></div>
-                <div className="flex flex-col">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-1">{card.label}</span>
-                  <span className="text-[15px] lg:text-xl font-black text-slate-900 tabular-nums truncate">{card.val}</span>
+        /* STATISTICS TAB */
+        <div className="bg-white rounded-2xl border border-border shadow-sm flex flex-col flex-1 min-h-0 animate-in fade-in duration-300">
+          {/* ── MOBILE STATS TOOLBAR ── */}
+          <div className="md:hidden flex items-center justify-between p-3 border-b border-border shrink-0 relative">
+            <button
+              onClick={() => navigate('/financials')}
+              className="p-2 rounded-xl border border-border bg-white text-muted-foreground flex items-center justify-center shrink-0 active:scale-95 transition-transform"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <span className="absolute left-1/2 -translate-x-1/2 text-[14px] font-bold text-slate-900 whitespace-nowrap">Financial Overview</span>
+            <button
+              onClick={openMobileFilter}
+              className="relative p-2 rounded-xl border border-border bg-white text-muted-foreground flex items-center justify-center shrink-0 active:scale-95 transition-transform"
+            >
+              <Filter size={18} />
+              {hasActiveFilters && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-white text-[9px] font-bold flex items-center justify-center border border-white">
+                  {selectedCurrencies.length + selectedSuppliers.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* ── DESKTOP STATS TOOLBAR ── */}
+          <div className="hidden md:block p-4 border-b border-border shrink-0">
+            <div className="flex items-center gap-2 flex-wrap" ref={dropdownRef}>
+              <button
+                onClick={() => navigate('/financials')}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground text-[12px] font-bold transition-all bg-white shadow-sm shrink-0"
+              >
+                <ChevronLeft size={16} />
+                Back
+              </button>
+
+              <div className="w-px h-5 bg-border mx-1" />
+
+              <div className="relative">
+                <button
+                  onClick={() => { setActiveDropdown(activeDropdown === 'currency' ? null : 'currency'); setFilterSearch(''); }}
+                  className={clsx(
+                    'flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-[12px] font-bold',
+                    activeDropdown === 'currency' || selectedCurrencies.length > 0
+                      ? 'bg-primary/5 border-primary text-primary shadow-sm'
+                      : 'bg-white border-border hover:bg-muted text-muted-foreground',
+                  )}
+                >
+                  <DollarSign size={14} className={clsx(activeDropdown === 'currency' || selectedCurrencies.length > 0 ? 'text-primary' : 'text-muted-foreground/50')} />
+                  Currency
+                  {selectedCurrencies.length > 0 && (
+                    <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">{selectedCurrencies.length}</span>
+                  )}
+                  <ChevronRight size={14} className={clsx('transition-transform ml-1 opacity-40', activeDropdown === 'currency' ? '-rotate-90' : 'rotate-90')} />
+                </button>
+                <FilterDropdown
+                  isOpen={activeDropdown === 'currency'}
+                  options={['VND', 'USD'].map(curr => ({ 
+                    id: curr, 
+                    label: curr === 'VND' ? 'Vietnamese Dong (VND)' : 'US Dollar (USD)', 
+                    count: salesItems.filter(i => i.currency === curr).length 
+                  }))}
+                  selected={selectedCurrencies}
+                  onToggle={toggleCurrency}
+                  searchValue={filterSearch}
+                  onSearchChange={setFilterSearch}
+                />
+              </div>
+
+              <div className="relative">
+                <button
+                  onClick={() => { setActiveDropdown(activeDropdown === 'supplier' ? null : 'supplier'); setFilterSearch(''); }}
+                  className={clsx(
+                    'flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-[12px] font-bold',
+                    activeDropdown === 'supplier' || selectedSuppliers.length > 0
+                      ? 'bg-primary/5 border-primary text-primary shadow-sm'
+                      : 'bg-white border-border hover:bg-muted text-muted-foreground',
+                  )}
+                >
+                  <Building2 size={14} className={clsx(activeDropdown === 'supplier' || selectedSuppliers.length > 0 ? 'text-primary' : 'text-muted-foreground/50')} />
+                  Supplier
+                  {selectedSuppliers.length > 0 && (
+                    <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">{selectedSuppliers.length}</span>
+                  )}
+                  <ChevronRight size={14} className={clsx('transition-transform ml-1 opacity-40', activeDropdown === 'supplier' ? '-rotate-90' : 'rotate-90')} />
+                </button>
+                <FilterDropdown
+                  isOpen={activeDropdown === 'supplier'}
+                  options={suppliers.map(s => ({
+                    id: s.id,
+                    label: s.company_name,
+                    count: salesItems.filter(i => i.shipments?.supplier_id === s.id).length
+                  }))}
+                  selected={selectedSuppliers}
+                  onToggle={toggleSupplier}
+                  searchValue={filterSearch}
+                  onSearchChange={setFilterSearch}
+                />
+              </div>
+
+              {hasActiveFilters && (
+                <button
+                  onClick={() => { setSelectedCurrencies([]); setSelectedSuppliers([]); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-dashed border-red-300 text-red-500 text-[12px] font-bold hover:bg-red-50 transition-all"
+                >
+                  <X size={13} />
+                  Clear Filters
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Scrollable stats body */}
+          <div className="flex-1 overflow-y-auto p-3 md:p-4 flex flex-col gap-3 md:gap-4 no-scrollbar bg-slate-50/10">
+            {/* Summary KPI cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { label: 'Total Items', value: filteredItems.length, icon: <List size={18} />, color: 'text-blue-600', bg: 'bg-blue-500/10' },
+                { label: 'Total (VND)', value: new Intl.NumberFormat('vi-VN').format(Math.round(stats.totalVND)), icon: <Calculator size={18} />, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
+                { label: 'Total (USD)', value: '$' + new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(stats.totalUSD), icon: <BadgeDollarSign size={18} />, color: 'text-indigo-600', bg: 'bg-indigo-500/10' },
+                { label: 'Avg Tax', value: stats.avgTax.toFixed(1) + '%', icon: <TrendingUp size={18} />, color: 'text-orange-600', bg: 'bg-orange-500/10' },
+              ].map((item) => (
+                <div key={item.label} className="bg-white rounded-2xl border border-border shadow-sm p-4 md:p-5 flex items-center gap-3 md:gap-4">
+                  <div className={clsx('w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center shrink-0', item.bg, item.color)}>
+                    {item.icon}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide leading-none mb-1">{item.label}</p>
+                    <p className={clsx('text-[16px] md:text-xl font-black tabular-nums truncate', item.color)} title={item.value.toString()}>{item.value}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Charts row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+              {/* PieChart – Currency Distribution */}
+              <div className="bg-white rounded-2xl border border-border shadow-sm p-5 md:p-6 h-[280px] flex flex-col">
+                <div className="flex items-center gap-2 mb-4 shrink-0">
+                  <BadgeDollarSign size={15} className="text-primary" />
+                  <span className="text-[12px] font-bold text-primary uppercase tracking-wider">Currency Distribution</span>
+                </div>
+                <div className="flex-1 min-h-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={stats.currencyValueData}
+                        cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={4} dataKey="val"
+                      >
+                        <Cell fill="#3b82f6" stroke="none" />
+                        <Cell fill="#10b981" stroke="none" />
+                      </Pie>
+                      <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: 12 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex justify-center gap-4 mt-2 shrink-0">
+                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-500" /><span className="text-[10px] font-bold text-slate-500 uppercase font-inter">VND</span></div>
+                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500" /><span className="text-[10px] font-bold text-slate-500 uppercase font-inter">USD</span></div>
                 </div>
               </div>
-            ))}
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Currency Chart */}
-            <div className="bg-white rounded-[2rem] border border-border shadow-sm p-6 h-[280px] flex flex-col">
-              <div className="flex items-center gap-2 mb-4">
-                <BadgeDollarSign size={15} className="text-primary" />
-                <span className="text-[12px] font-bold text-primary uppercase tracking-wider">Currency Distribution</span>
-              </div>
-              <div className="flex-1 min-h-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={stats.currencyValueData}
-                      cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={4} dataKey="val"
-                    >
-                      <Cell fill="#3b82f6" stroke="none" />
-                      <Cell fill="#10b981" stroke="none" />
-                    </Pie>
-                    <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: 12 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex justify-center gap-4 mt-2">
-                <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-500" /><span className="text-[10px] font-bold text-slate-500 uppercase">VND</span></div>
-                <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500" /><span className="text-[10px] font-bold text-slate-500 uppercase">USD</span></div>
+              {/* BarChart – Top Shipments by Value */}
+              <div className="md:col-span-2 bg-white rounded-2xl border border-border shadow-sm p-5 md:p-6 h-[280px] flex flex-col">
+                <div className="flex items-center gap-2 mb-4 shrink-0">
+                  <TrendingUp size={15} className="text-primary" />
+                  <span className="text-[12px] font-bold text-primary uppercase tracking-wider">Top Shipments by Value (VND)</span>
+                </div>
+                <div className="flex-1 min-h-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={stats.shipmentData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 'bold', fill: '#94a3b8' }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                      <Tooltip 
+                        cursor={{ fill: '#f8fafc' }} 
+                        contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: 11 }}
+                        formatter={(v, _, props) => [new Intl.NumberFormat('vi-VN').format(v as number) + ' ₫', (props.payload as { fullName?: string })?.fullName ?? '']}
+                      />
+                      <Bar dataKey="val" fill="#3b82f6" radius={[6, 6, 0, 0]} barSize={32} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </div>
 
-            {/* Shipment Chart */}
-            <div className="md:col-span-2 bg-white rounded-[2rem] border border-border shadow-sm p-6 h-[280px] flex flex-col">
-              <div className="flex items-center gap-2 mb-4">
-                <TrendingUp size={15} className="text-primary" />
-                <span className="text-[12px] font-bold text-primary uppercase tracking-wider">Top Shipments by Value (VND)</span>
+            {/* Supplier Performance */}
+            <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden mb-4">
+              <div className="px-6 py-4 border-b border-border bg-slate-50 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Building2 size={16} className="text-primary" />
+                  <span className="text-[11px] font-bold text-primary uppercase tracking-wider leading-none">Top Suppliers Performance</span>
+                </div>
+                <TrendingUp size={14} className="text-emerald-500" />
               </div>
-              <div className="flex-1 min-h-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={stats.shipmentData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 'bold', fill: '#94a3b8' }} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                    <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: 11 }} />
-                    <Bar dataKey="val" fill="#3b82f6" radius={[6, 6, 0, 0]} barSize={32} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-
-          {/* Supplier Performance */}
-          <div className="bg-white rounded-[2rem] border border-border shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-border bg-slate-50 flex items-center justify-between">
-              <span className="text-[11px] font-bold text-primary uppercase tracking-wider leading-none">Top Suppliers Performance</span>
-              <Building2 size={16} className="text-primary" />
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50 text-[10px] text-muted-foreground border-b border-border/60">
-                  <tr>
-                    <th className="px-6 py-3 font-bold uppercase tracking-tight">Supplier</th>
-                    <th className="px-6 py-3 font-bold uppercase text-right tracking-tight w-24">Items</th>
-                    <th className="px-6 py-3 font-bold uppercase text-right tracking-tight w-48">Revenue (VND)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {stats.supplierStats.length > 0 ? stats.supplierStats.map(sup => (
-                    <tr key={sup.name} className="hover:bg-slate-50/50 transition-colors group">
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="text-[13px] font-bold text-slate-700 group-hover:text-primary transition-colors">{sup.name}</span>
-                          <span className="text-[11px] text-slate-400 font-medium">Logistics Partner</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right"><span className="text-[13px] font-black text-primary tabular-nums">{sup.count}</span></td>
-                      <td className="px-6 py-4 text-right"><span className="text-[13px] font-black text-slate-900 tabular-nums">{new Intl.NumberFormat('vi-VN').format(Math.round(sup.totalVND))} ₫</span></td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50/50 text-[10px] text-muted-foreground border-b border-border/60">
+                    <tr>
+                      <th className="px-6 py-3 font-bold uppercase tracking-tight">Supplier</th>
+                      <th className="px-6 py-3 font-bold uppercase text-right tracking-tight w-24">Items</th>
+                      <th className="px-6 py-3 font-bold uppercase text-right tracking-tight w-48">Revenue (VND)</th>
                     </tr>
-                  )) : (
-                    <tr><td colSpan={3} className="px-6 py-12 text-center text-muted-foreground italic text-[13px]">No supplier data available yet.</td></tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {stats.supplierStats.length > 0 ? stats.supplierStats.map(sup => (
+                      <tr key={sup.name} className="hover:bg-slate-50/50 transition-colors group">
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <span className="text-[13px] font-bold text-slate-700 group-hover:text-primary transition-colors">{sup.name}</span>
+                            <span className="text-[11px] text-slate-400 font-medium">Logistics Partner</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right"><span className="text-[13px] font-black text-primary tabular-nums">{sup.count}</span></td>
+                        <td className="px-6 py-4 text-right"><span className="text-[13px] font-black text-slate-900 tabular-nums">{new Intl.NumberFormat('vi-VN').format(Math.round(sup.totalVND))} ₫</span></td>
+                      </tr>
+                    )) : (
+                      <tr><td colSpan={3} className="px-6 py-20 text-center text-muted-foreground italic text-[13px]">No supplier data available for the current filters.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
@@ -761,50 +961,103 @@ const SalesPage: React.FC = () => {
       {/* MOBILE FILTER BOTTOM SHEET (PORTAL) */}
       {showMobileFilter && createPortal(
         <div className="md:hidden fixed inset-0 z-[9999] flex flex-col justify-end">
-          <div className={clsx('absolute inset-0 bg-black/40 transition-opacity', mobileFilterClosing ? 'opacity-0' : 'opacity-100')} onClick={closeMobileFilter} />
-          <div className={clsx('relative bg-white rounded-t-3xl flex flex-col max-h-[85vh] shadow-2xl', mobileFilterClosing ? 'animate-out slide-out-to-bottom' : 'animate-in slide-in-from-bottom')}>
+          <div className={clsx('absolute inset-0 bg-black/40 transition-opacity duration-300', mobileFilterClosing ? 'opacity-0' : 'opacity-100')} onClick={closeMobileFilter} />
+          <div className={clsx('relative bg-white rounded-t-3xl flex flex-col max-h-[85vh] shadow-2xl', mobileFilterClosing ? 'animate-out slide-out-to-bottom duration-300' : 'animate-in slide-in-from-bottom duration-300')}>
             <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full bg-border" /></div>
             <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-              <span className="text-[16px] font-bold">Filters</span>
-              <button onClick={closeMobileFilter} className="p-1.5 text-muted-foreground"><X size={18} /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-5 space-y-6">
-              <div className="space-y-4">
-                <h3 className="text-[14px] font-bold text-slate-900 border-l-4 border-primary pl-3">Currency</h3>
-                <div className="flex flex-wrap gap-2">
-                  {['VND', 'USD'].map(curr => (
-                    <button
-                      key={curr}
-                      onClick={() => toggleCurrency(curr)}
-                      className={clsx('px-4 py-2 rounded-xl border text-[13px] font-bold transition-all', selectedCurrencies.includes(curr) ? 'bg-primary text-white border-primary' : 'bg-slate-50 text-slate-600 border-slate-200')}
-                    >
-                      {curr}
-                    </button>
-                  ))}
-                </div>
+              <div className="flex items-center gap-2">
+                <Filter size={18} className="text-primary" />
+                <span className="text-[17px] font-bold">Filters</span>
               </div>
-              <div className="space-y-4">
-                <h3 className="text-[14px] font-bold text-slate-900 border-l-4 border-primary pl-3">Supplier</h3>
-                <div className="flex flex-col gap-2 max-h-60 overflow-y-auto pr-2 no-scrollbar">
-                  {suppliers.map(s => (
-                    <button
-                      key={s.id}
-                      onClick={() => toggleSupplier(s.id)}
-                      className={clsx(
-                        'px-4 py-3 rounded-xl border text-[13px] font-bold transition-all text-left flex items-center justify-between',
-                        selectedSuppliers.includes(s.id) ? 'bg-primary text-white border-primary' : 'bg-slate-50 text-slate-600 border-slate-200'
-                      )}
-                    >
-                      <span className="truncate">{s.company_name}</span>
-                      {selectedSuppliers.includes(s.id) && <div className="w-2 h-2 rounded-full bg-white shrink-0 ml-2" />}
-                    </button>
-                  ))}
+              <button onClick={closeMobileFilter} className="p-1.5 text-muted-foreground hover:bg-slate-100 rounded-lg transition-colors"><X size={20} /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <div className="divide-y divide-border/60">
+                {/* Currency Section */}
+                <div className="px-5 py-4">
+                  <button 
+                    onClick={() => setMobileExpandedSection(mobileExpandedSection === 'currency' ? null : 'currency')}
+                    className="w-full flex items-center justify-between mb-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <DollarSign size={16} className="text-muted-foreground" />
+                      <span className="text-[15px] font-bold text-slate-800">Currency</span>
+                      {pendingCurrencies.length > 0 && <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">{pendingCurrencies.length}</span>}
+                    </div>
+                    <ChevronRight size={18} className={clsx('text-slate-400 transition-transform', mobileExpandedSection === 'currency' && 'rotate-90')} />
+                  </button>
+                  {mobileExpandedSection === 'currency' && (
+                    <div className="flex flex-wrap gap-2 mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                      {['VND', 'USD'].map(curr => (
+                        <button
+                          key={curr}
+                          onClick={() => setPendingCurrencies(prev => prev.includes(curr) ? prev.filter(c => c !== curr) : [...prev, curr])}
+                          className={clsx(
+                            'px-4 py-2 rounded-xl border text-[13px] font-bold transition-all',
+                            pendingCurrencies.includes(curr) ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20' : 'bg-slate-50 text-slate-600 border-slate-200'
+                          )}
+                        >
+                          {curr}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Supplier Section */}
+                <div className="px-5 py-4">
+                  <button 
+                    onClick={() => setMobileExpandedSection(mobileExpandedSection === 'supplier' ? null : 'supplier')}
+                    className="w-full flex items-center justify-between mb-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Building2 size={16} className="text-muted-foreground" />
+                      <span className="text-[15px] font-bold text-slate-800">Supplier</span>
+                      {pendingSuppliers.length > 0 && <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">{pendingSuppliers.length}</span>}
+                    </div>
+                    <ChevronRight size={18} className={clsx('text-slate-400 transition-transform', mobileExpandedSection === 'supplier' && 'rotate-90')} />
+                  </button>
+                  {mobileExpandedSection === 'supplier' && (
+                    <div className="space-y-1 mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                      {suppliers.map(s => {
+                        const isSelected = pendingSuppliers.includes(s.id);
+                        return (
+                          <button
+                            key={s.id}
+                            onClick={() => setPendingSuppliers(prev => isSelected ? prev.filter(v => v !== s.id) : [...prev, s.id])}
+                            className={clsx(
+                              'w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all',
+                              isSelected ? 'bg-primary/5 border-primary/30 text-primary' : 'bg-slate-50/50 border-slate-200/60 text-slate-600'
+                            )}
+                          >
+                            <span className="text-[13px] font-bold truncate pr-4">{s.company_name}</span>
+                            <div className={clsx('w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all', isSelected ? 'bg-primary border-primary' : 'border-slate-300')}>
+                              {isSelected && <CheckCircle2 size={12} className="text-white" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
             <div className="p-4 border-t border-border bg-white flex flex-col gap-2">
-              <button onClick={() => { setSelectedCurrencies([]); setSelectedSuppliers([]); closeMobileFilter(); }} className="w-full py-3 rounded-2xl border border-red-300 text-red-500 text-[14px] font-bold transition-all active:bg-red-50">Clear All</button>
-              <button onClick={closeMobileFilter} className="w-full py-4 rounded-2xl bg-primary text-white text-[15px] font-bold shadow-lg shadow-primary/20 transition-all active:scale-[0.98]">Apply Filters</button>
+              <button 
+                onClick={() => { 
+                  setPendingCurrencies([]); 
+                  setPendingSuppliers([]); 
+                }} 
+                className="w-full py-3 rounded-2xl border border-red-200 text-red-500 text-[14px] font-bold hover:bg-red-50 transition-all active:scale-95"
+              >
+                Clear All
+              </button>
+              <button 
+                onClick={applyMobileFilter} 
+                className="w-full py-4 rounded-2xl bg-primary text-white text-[15px] font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-[0.98]"
+              >
+                Apply Filters
+              </button>
             </div>
           </div>
         </div>
@@ -820,9 +1073,52 @@ const SalesPage: React.FC = () => {
         setFormField={setFormField}
         shipmentOptions={shipments}
         onSave={handleSave}
+        onEdit={() => setMode('edit')}
       />
+
+      {/* CONFIRMATION DIALOG */}
+      {isConfirmOpen && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => !isDeleting && setIsConfirmOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl border border-border w-full max-w-sm overflow-hidden animate-in zoom-in-95 fade-in duration-200">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 shrink-0">
+                  <AlertCircle size={20} />
+                </div>
+                <div>
+                  <h3 className="text-[16px] font-bold text-slate-900">Confirm Deletion</h3>
+                  <p className="text-[13px] text-muted-foreground">This action cannot be undone.</p>
+                </div>
+              </div>
+              <p className="text-[14px] text-slate-600 font-medium leading-relaxed">
+                Are you sure you want to delete {confirmAction.type === 'bulk' ? `these ${selectedSalesItems.length} sales items` : 'this sales item'}? 
+                All associated data will be permanently removed.
+              </p>
+            </div>
+            <div className="p-4 bg-slate-50 border-t border-border flex items-center gap-3">
+              <button
+                disabled={isDeleting}
+                onClick={() => setIsConfirmOpen(false)}
+                className="flex-1 py-2 rounded-xl border border-border bg-white text-[13px] font-bold text-slate-600 hover:bg-white/80 transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="flex-1 py-2 rounded-xl bg-red-600 text-white text-[13px] font-bold shadow-md shadow-red-200 hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isDeleting ? <RefreshCcw size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+        , document.body)}
     </div>
   );
 };
 
 export default SalesPage;
+

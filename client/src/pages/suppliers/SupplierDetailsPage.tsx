@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { supplierService, type Supplier } from '../../services/supplierService';
 import { shipmentService } from '../../services/shipmentService';
+import { type Shipment } from '../shipments/types';
 import { customerService, type Customer } from '../../services/customerService';
 import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -22,7 +23,7 @@ import PaymentRequestDialog from '../payment-requests/dialogs/PaymentRequestDial
 import { debitNoteService } from '../../services/debitNoteService';
 import { paymentRequestService } from '../../services/paymentRequestService';
 import AddEditSupplierDialog from './dialogs/AddEditSupplierDialog';
-import { toast } from '../../lib/toast';
+import { useToastContext } from '../../contexts/ToastContext';
 
 const INITIAL_SHIPMENT_FORM: ShipmentFormState = {
   customer_id: '',
@@ -68,6 +69,7 @@ const SupplierDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { success: toastSuccess, error: toastError } = useToastContext();
   const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,16 +91,18 @@ const SupplierDetailsPage: React.FC = () => {
   const [isDebitOpen, setIsDebitOpen] = useState(false);
   const [isDebitClosing, setIsDebitClosing] = useState(false);
   const [isDebitDetail, setIsDebitDetail] = useState(false);
+  const [isDebitEdit, setIsDebitEdit] = useState(false);
   const [debitForm, setDebitForm] = useState<DebitNoteFormState>(INITIAL_DEBIT_FORM);
 
   // Payment Request Dialog State
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isPaymentClosing, setIsPaymentClosing] = useState(false);
   const [isPaymentDetail, setIsPaymentDetail] = useState(false);
+  const [isPaymentEdit, setIsPaymentEdit] = useState(false);
   const [paymentForm, setPaymentForm] = useState<PaymentRequestFormState>(INITIAL_PAYMENT_FORM);
 
   // Shipment Options for Dialogs
-  const [shipmentOptions, setShipmentOptions] = useState<{ value: string, label: string }[]>([]);
+  const [shipmentOptions, setShipmentOptions] = useState<(Shipment & { value: string, label: string })[]>([]);
 
   // Supplier Edit Dialog State
   const [isSupplierDialogOpen, setIsSupplierDialogOpen] = useState(false);
@@ -127,7 +131,7 @@ const SupplierDetailsPage: React.FC = () => {
       ]);
       setCustomerOptions(customers.map(c => ({ ...c, value: c.id, label: c.company_name })));
       setSupplierOptions(suppliers.map(s => ({ ...s, value: s.id, label: s.company_name })));
-      setShipmentOptions(shipments.map(s => ({ value: s.id, label: `Shipment #${s.id.slice(0, 8)} - ${s.customers?.company_name || 'N/A'}` })));
+      setShipmentOptions(shipments.map(s => ({ ...s, value: s.id, label: `Shipment ${s.code || '#' + s.id.slice(0, 8)} - ${s.customers?.company_name || 'N/A'}` })));
     } catch (err) {
       console.error('Failed to fetch options', err);
     }
@@ -183,6 +187,7 @@ const SupplierDetailsPage: React.FC = () => {
           chi_ho_items: data.chi_ho_items || []
         });
         setIsDebitDetail(true);
+        setIsDebitEdit(false);
         setIsDebitOpen(true);
       }
     } catch (err) {
@@ -201,6 +206,7 @@ const SupplierDetailsPage: React.FC = () => {
           account_name: data.account_name || '',
           account_number: data.account_number || '',
           bank_name: data.bank_name || '',
+          relatedShipment: data.shipments,
           invoices: data.invoices?.length ? data.invoices.map((inv: any) => ({
             no_invoice: inv.no_invoice,
             description: inv.description,
@@ -209,6 +215,7 @@ const SupplierDetailsPage: React.FC = () => {
           })) : []
         });
         setIsPaymentDetail(true);
+        setIsPaymentEdit(false);
         setIsPaymentOpen(true);
       }
     } catch (err) {
@@ -234,7 +241,7 @@ const SupplierDetailsPage: React.FC = () => {
   const handleSaveSupplier = async () => {
     try {
       if (!supplierFormState.company_name) {
-        toast.error('Company name is required');
+        toastError('Company name is required');
         return;
       }
 
@@ -243,10 +250,10 @@ const SupplierDetailsPage: React.FC = () => {
 
       handleCloseSupplierDialog();
       fetchDetails(); // Refresh page data
-      toast.success('Supplier saved successfully');
+      toastSuccess('Supplier saved successfully');
     } catch (err) {
       console.error('Failed to save supplier:', err);
-      toast.error('Failed to save supplier');
+      toastError('Failed to save supplier');
     }
   };
 
@@ -260,14 +267,72 @@ const SupplierDetailsPage: React.FC = () => {
 
   const handleSaveShipment = async () => {
     try {
-      const { id: _id, isNewCustomer, newCustomer, isNewSupplier, newSupplier, ...dto } = shipmentForm;
-      await shipmentService.createShipment(dto);
+      let finalCustomerId = shipmentForm.customer_id;
+      let finalSupplierId = shipmentForm.supplier_id;
+
+      // Handle Customer (New or Edit Existing)
+      if (shipmentForm.isNewCustomer && shipmentForm.newCustomer?.company_name) {
+        const newCust = await customerService.createCustomer({
+          company_name: shipmentForm.newCustomer.company_name,
+          email: shipmentForm.newCustomer.email,
+          phone: shipmentForm.newCustomer.phone,
+          address: shipmentForm.newCustomer.address,
+          tax_code: shipmentForm.newCustomer.tax_code
+        });
+        finalCustomerId = newCust.id;
+      } else if (shipmentForm.isEditingCustomer && shipmentForm.customer_id && shipmentForm.newCustomer) {
+        await customerService.updateCustomer(shipmentForm.customer_id, {
+          company_name: shipmentForm.newCustomer.company_name,
+          email: shipmentForm.newCustomer.email,
+          phone: shipmentForm.newCustomer.phone,
+          address: shipmentForm.newCustomer.address,
+          tax_code: shipmentForm.newCustomer.tax_code
+        });
+      }
+
+      // Handle Supplier (New or Edit Existing)
+      if (shipmentForm.isNewSupplier && shipmentForm.newSupplier?.company_name) {
+        if (!shipmentForm.newSupplier.id || shipmentForm.newSupplier.id.length !== 3) {
+          toastError('Supplier Code must be exactly 3 characters');
+          return;
+        }
+        const newSupp = await supplierService.createSupplier({
+          id: shipmentForm.newSupplier.id,
+          company_name: shipmentForm.newSupplier.company_name,
+          email: shipmentForm.newSupplier.email,
+          phone: shipmentForm.newSupplier.phone,
+          address: shipmentForm.newSupplier.address,
+          tax_code: shipmentForm.newSupplier.tax_code
+        });
+        finalSupplierId = newSupp.id;
+      } else if (shipmentForm.isEditingSupplier && shipmentForm.supplier_id && shipmentForm.newSupplier) {
+        await supplierService.updateSupplier(shipmentForm.supplier_id, {
+          company_name: shipmentForm.newSupplier.company_name,
+          email: shipmentForm.newSupplier.email,
+          phone: shipmentForm.newSupplier.phone,
+          address: shipmentForm.newSupplier.address,
+          tax_code: shipmentForm.newSupplier.tax_code
+        });
+      }
+
+      const { id: _id, isNewCustomer, isEditingCustomer, newCustomer, isNewSupplier, isEditingSupplier, newSupplier, ...dto } = shipmentForm;
+      const finalDto = {
+        ...dto,
+        customer_id: finalCustomerId,
+        supplier_id: finalSupplierId,
+      };
+
+      if (isShipmentEdit && shipmentForm.id) {
+        await shipmentService.updateShipment(shipmentForm.id, finalDto);
+      } else {
+        await shipmentService.createShipment(finalDto);
+      }
       handleShipmentClose();
       fetchDetails(); // Refresh list
-      toast.success('Shipment created successfully');
+      toastSuccess(isShipmentEdit ? 'Shipment updated successfully' : 'Shipment created successfully');
     } catch (err) {
       console.error(err);
-      toast.error('Failed to save shipment');
+      toastError('Failed to save shipment');
     }
   };
 
@@ -624,36 +689,70 @@ const SupplierDetailsPage: React.FC = () => {
         customerOptions={customerOptions}
         supplierOptions={supplierOptions}
         onSave={handleSaveShipment}
+        onEdit={() => {
+          setIsShipmentEdit(true);
+          setIsShipmentDetail(false);
+        }}
       />
 
       <DebitNoteDialog
         isOpen={isDebitOpen}
         isClosing={isDebitClosing}
+        formState={debitForm}
+        setFormField={(key, val) => setDebitForm(prev => ({ ...prev, [key]: val }))}
+        isEditMode={isDebitEdit}
+        isDetailMode={isDebitDetail}
         onClose={() => {
           setIsDebitClosing(true);
           setTimeout(() => { setIsDebitOpen(false); setIsDebitClosing(false); }, 350);
         }}
-        formState={debitForm}
-        setFormField={(key, val) => setDebitForm(prev => ({ ...prev, [key]: val }))}
-        isEditMode={false}
-        isDetailMode={isDebitDetail}
+        onEdit={() => {
+          setIsDebitEdit(true);
+          setIsDebitDetail(false);
+        }}
         shipmentOptions={shipmentOptions}
-        onSave={() => { }}
+        onSave={async () => {
+          try {
+            if (!debitForm.id) return;
+            await debitNoteService.updateDebitNote(debitForm.id, debitForm);
+            setIsDebitOpen(false);
+            fetchDetails();
+            toastSuccess('Debit note updated successfully');
+          } catch (err) {
+            console.error(err);
+            toastError('Failed to save debit note');
+          }
+        }}
       />
 
       <PaymentRequestDialog
         isOpen={isPaymentOpen}
         isClosing={isPaymentClosing}
+        formState={paymentForm}
+        setFormField={(key, val) => setPaymentForm(prev => ({ ...prev, [key]: val }))}
+        isEditMode={isPaymentEdit}
+        isDetailMode={isPaymentDetail}
         onClose={() => {
           setIsPaymentClosing(true);
           setTimeout(() => { setIsPaymentOpen(false); setIsPaymentClosing(false); }, 350);
         }}
-        formState={paymentForm}
-        setFormField={(key, val) => setPaymentForm(prev => ({ ...prev, [key]: val }))}
-        isEditMode={false}
-        isDetailMode={isPaymentDetail}
+        onEdit={() => {
+          setIsPaymentEdit(true);
+          setIsPaymentDetail(false);
+        }}
         shipmentOptions={shipmentOptions}
-        onSave={() => { }}
+        onSave={async () => {
+          try {
+            if (!paymentForm.id) return;
+            await paymentRequestService.updatePaymentRequest(paymentForm.id, paymentForm);
+            setIsPaymentOpen(false);
+            fetchDetails();
+            toastSuccess('Payment request updated successfully');
+          } catch (err) {
+            console.error(err);
+            toastError('Failed to save payment request');
+          }
+        }}
       />
 
       <AddEditSupplierDialog

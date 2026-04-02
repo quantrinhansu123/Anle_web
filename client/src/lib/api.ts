@@ -1,8 +1,8 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3006/api/v1';
 
 export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${BASE_URL}${endpoint}`;
-  
+
   const headers: Record<string, string> = {
     ...options.headers as Record<string, string>,
   };
@@ -35,7 +35,7 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
     console.error('API Error:', {
       status: response.status,
       url,
-      ...result 
+      ...result
     });
     throw new Error(result.error?.message || result.message || 'API request failed');
   }

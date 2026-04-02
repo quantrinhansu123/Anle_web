@@ -7,6 +7,7 @@ export interface Customer {
   phone?: string;
   address?: string;
   tax_code?: string;
+  code?: string;
   created_at: string;
 }
 
@@ -16,6 +17,7 @@ export interface CreateCustomerDto {
   phone?: string;
   address?: string;
   tax_code?: string;
+  code?: string;
 }
 
 export const customerService = {

@@ -13,7 +13,7 @@ import { supplierService, type Supplier } from '../../services/supplierService';
 import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDate } from '../../lib/utils';
-import { toast } from '../../lib/toast';
+import { useToastContext } from '../../contexts/ToastContext';
 
 // Import Types and Dialogs
 import type { ShipmentFormState } from '../shipments/types';
@@ -61,6 +61,7 @@ const INITIAL_CONTRACT_FORM: Partial<Contract> = {
 const EmployeeDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { success: toastSuccess, error: toastError } = useToastContext();
   const { user } = useAuth();
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
@@ -161,14 +162,72 @@ const EmployeeDetailsPage: React.FC = () => {
 
   const handleSaveShipment = async () => {
     try {
-      const { id: _id, isNewCustomer, newCustomer, isNewSupplier, newSupplier, ...dto } = shipmentForm;
-      await shipmentService.createShipment(dto);
+      let finalCustomerId = shipmentForm.customer_id;
+      let finalSupplierId = shipmentForm.supplier_id;
+
+      // Handle Customer (New or Edit Existing)
+      if (shipmentForm.isNewCustomer && shipmentForm.newCustomer?.company_name) {
+        const newCust = await customerService.createCustomer({
+          company_name: shipmentForm.newCustomer.company_name,
+          email: shipmentForm.newCustomer.email,
+          phone: shipmentForm.newCustomer.phone,
+          address: shipmentForm.newCustomer.address,
+          tax_code: shipmentForm.newCustomer.tax_code
+        });
+        finalCustomerId = newCust.id;
+      } else if (shipmentForm.isEditingCustomer && shipmentForm.customer_id && shipmentForm.newCustomer) {
+        await customerService.updateCustomer(shipmentForm.customer_id, {
+          company_name: shipmentForm.newCustomer.company_name,
+          email: shipmentForm.newCustomer.email,
+          phone: shipmentForm.newCustomer.phone,
+          address: shipmentForm.newCustomer.address,
+          tax_code: shipmentForm.newCustomer.tax_code
+        });
+      }
+
+      // Handle Supplier (New or Edit Existing)
+      if (shipmentForm.isNewSupplier && shipmentForm.newSupplier?.company_name) {
+        if (!shipmentForm.newSupplier.id || shipmentForm.newSupplier.id.length !== 3) {
+          toastError('Supplier Code must be exactly 3 characters');
+          return;
+        }
+        const newSupp = await supplierService.createSupplier({
+          id: shipmentForm.newSupplier.id,
+          company_name: shipmentForm.newSupplier.company_name,
+          email: shipmentForm.newSupplier.email,
+          phone: shipmentForm.newSupplier.phone,
+          address: shipmentForm.newSupplier.address,
+          tax_code: shipmentForm.newSupplier.tax_code
+        });
+        finalSupplierId = newSupp.id;
+      } else if (shipmentForm.isEditingSupplier && shipmentForm.supplier_id && shipmentForm.newSupplier) {
+        await supplierService.updateSupplier(shipmentForm.supplier_id, {
+          company_name: shipmentForm.newSupplier.company_name,
+          email: shipmentForm.newSupplier.email,
+          phone: shipmentForm.newSupplier.phone,
+          address: shipmentForm.newSupplier.address,
+          tax_code: shipmentForm.newSupplier.tax_code
+        });
+      }
+
+      const { id: _id, isNewCustomer, isEditingCustomer, newCustomer, isNewSupplier, isEditingSupplier, newSupplier, ...dto } = shipmentForm;
+      const finalDto = {
+        ...dto,
+        customer_id: finalCustomerId,
+        supplier_id: finalSupplierId,
+      };
+
+      if (isShipmentEdit && shipmentForm.id) {
+        await shipmentService.updateShipment(shipmentForm.id, finalDto);
+      } else {
+        await shipmentService.createShipment(finalDto);
+      }
       handleShipmentClose();
       fetchDetails(); // Refresh list
-      toast.success('Shipment created successfully');
+      toastSuccess(isShipmentEdit ? 'Shipment updated successfully' : 'Shipment created successfully');
     } catch (err) {
       console.error(err);
-      toast.error('Failed to save shipment');
+      toastError('Failed to save shipment');
     }
   };
 
@@ -199,14 +258,21 @@ const EmployeeDetailsPage: React.FC = () => {
 
   const handleSaveContract = async () => {
     try {
-      const { ...dto } = contractForm;
-      await contractService.createContract(dto as any);
+      if (contractMode === 'edit' && contractForm.id) {
+        // Sanitize DTO for update (remove non-column fields)
+        const { id, customers, suppliers, bill_of_ladings, shipments, created_at, ...updateDto } = contractForm as any;
+        await contractService.updateContract(contractForm.id, updateDto);
+        toastSuccess('Contract updated successfully');
+      } else {
+        const { ...dto } = contractForm;
+        await contractService.createContract(dto as any);
+        toastSuccess('Contract created successfully');
+      }
       handleContractClose();
       fetchDetails(); // Refresh list
-      toast.success('Contract created successfully');
     } catch (err) {
       console.error(err);
-      toast.error('Failed to save contract');
+      toastError('Failed to save contract');
     }
   };
 
@@ -232,17 +298,20 @@ const EmployeeDetailsPage: React.FC = () => {
   const handleSaveEmployee = async () => {
     try {
       if (!employeeForm.full_name || !employeeForm.email) {
-        toast.error('Name and Email are required');
+        toastError('Name and Email are required');
         return;
       }
 
-      await employeeService.updateEmployee(employeeForm.id!, employeeForm);
+      // Sanitize DTO to remove non-column fields/relations
+      const { id: _id, shipments, contracts, created_at, ...updateDto } = employeeForm as any;
+
+      await employeeService.updateEmployee(employeeForm.id!, updateDto);
       handleEmployeeClose();
       fetchDetails(); // Refresh page data
-      toast.success('Employee updated successfully');
+      toastSuccess('Employee updated successfully');
     } catch (err) {
       console.error('Failed to update employee:', err);
-      toast.error('Failed to update employee');
+      toastError('Failed to update employee');
     }
   };
 
@@ -570,6 +639,10 @@ const EmployeeDetailsPage: React.FC = () => {
         customerOptions={customerOptions}
         supplierOptions={supplierOptions}
         onSave={handleSaveShipment}
+        onEdit={() => {
+          setIsShipmentEdit(true);
+          setIsShipmentDetail(false);
+        }}
       />
 
       <ContractDialog
@@ -581,7 +654,10 @@ const EmployeeDetailsPage: React.FC = () => {
         setFormField={setContractField}
         entityOptions={entityOptions}
         employeeOptions={employeeOptions}
+        customers={customerOptions}
+        suppliers={supplierOptions}
         onSave={handleSaveContract}
+        onEdit={() => setContractMode('edit')}
       />
 
       <EmployeeDialog

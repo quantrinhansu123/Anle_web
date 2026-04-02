@@ -1,3 +1,5 @@
+import type { Shipment } from '../shipments/types';
+
 export interface DebitNoteInvoiceItem {
   id?: string;
   description: string;
@@ -27,6 +29,7 @@ export interface DebitNote {
   created_at: string;
   shipments?: {
     id: string;
+    code?: string;
     customers?: { company_name: string };
     suppliers?: { company_name: string };
   };
@@ -40,6 +43,7 @@ export interface DebitNoteFormState {
   note_date: string;
   invoice_items: DebitNoteInvoiceItem[];
   chi_ho_items: DebitNoteChiHoItem[];
+  relatedShipment?: Shipment;
 }
 
 export interface CreateDebitNoteDto {

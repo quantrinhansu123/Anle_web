@@ -3,7 +3,7 @@ import { ActionCard } from '../components/ui/ActionCard';
 import type { ActionCardProps } from '../components/ui/ActionCard';
 import {
   Package, Users, BadgeDollarSign, Settings,
-  Copyright, Search
+  Copyright, Search, Star
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { moduleData, getDirectPath } from '../data/moduleData';
@@ -64,10 +64,10 @@ const Dashboard: React.FC = () => {
       </div>
 
       <div className={clsx(
-        "bg-card rounded-xl shadow-sm border border-border p-1.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6 lg:mb-8 transition-all duration-300",
-        activeTab === 'all' ? "w-full" : "max-w-fit"
+        "bg-card rounded-xl shadow-sm border border-border p-1.5 flex flex-col items-stretch gap-3 mb-6 lg:mb-8 transition-all duration-300",
+        activeTab === 'all' ? "w-full" : "w-full sm:max-w-fit"
       )}>
-        <div className="flex bg-muted/20 rounded-lg p-0.5 shrink-0">
+        <div className="grid grid-cols-3 bg-muted/20 rounded-lg p-0.5 shrink-0 w-full sm:max-w-fit">
           <button
             onClick={() => setActiveTab('modules')}
             className={clsx(
@@ -99,7 +99,7 @@ const Dashboard: React.FC = () => {
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
-            All Functions
+            All <span className="hidden sm:inline">Functions</span>
           </button>
         </div>
 
@@ -119,7 +119,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {activeTab === 'modules' && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-5">
           {dashboardModules.map((module, idx) => (
             <ActionCard
               key={idx}
@@ -136,8 +136,14 @@ const Dashboard: React.FC = () => {
 
         if (bookmarkedItems.length === 0) {
           return (
-            <div className="text-center py-12 text-muted-foreground bg-card rounded-2xl border border-border border-dashed">
-              No items bookmarked yet. Start by clicking the star icon on any module.
+            <div className="flex flex-col items-center justify-center text-center py-12 px-6 text-muted-foreground bg-card rounded-2xl border border-border border-dashed animate-in fade-in zoom-in-95 duration-500">
+              <div className="w-12 h-12 rounded-full bg-muted/30 flex items-center justify-center mb-4">
+                <Star size={24} className="text-muted-foreground/40" />
+              </div>
+              <p className="max-w-[280px] mx-auto text-[13px] leading-relaxed">
+                No items bookmarked yet. <br className="hidden sm:block" />
+                Start by clicking the star icon on any module.
+              </p>
             </div>
           );
         }

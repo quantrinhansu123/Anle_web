@@ -1,5 +1,6 @@
 export interface Shipment {
   id: string;
+  code?: string;
   customer_id: string;
   supplier_id: string;
   commodity?: string;

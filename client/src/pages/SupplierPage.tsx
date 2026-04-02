@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Search, Plus, RefreshCcw, Edit, Trash2, 
   List, BarChart2, Mail, Phone, MapPin, 
   ChevronLeft, Building2, TrendingUp, Users, 
-  Globe, Truck
+  Globe, Truck, AlertCircle, X, Eye
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
@@ -14,7 +15,7 @@ import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
-import { toast } from '../lib/toast';
+import { useToastContext } from '../contexts/ToastContext';
 
 const INITIAL_FORM_STATE: Partial<Supplier> = {
   id: '',
@@ -84,11 +85,16 @@ const COLUMN_DEFS: Record<string, ColDef> = {
 const DEFAULT_COL_ORDER = ['id', 'company_name', 'tax_code', 'contact', 'address'];
 
 const SupplierPage: React.FC = () => {
+  const { success, error } = useToastContext();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'list' | 'stats'>('list');
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
+  const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<{ type: 'single' | 'bulk'; id?: string }>({ type: 'single' });
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // Column Settings State
   const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_COL_ORDER);
@@ -139,11 +145,11 @@ const SupplierPage: React.FC = () => {
   const handleSave = async () => {
     try {
       if (!isEditMode && (!formState.id || formState.id.length !== 3)) {
-        toast.error('Supplier Code must be exactly 3 characters');
+        error('Supplier Code must be exactly 3 characters');
         return;
       }
       if (!formState.company_name) {
-        toast.error('Company name is required');
+        error('Company name is required');
         return;
       }
 
@@ -156,23 +162,59 @@ const SupplierPage: React.FC = () => {
 
       handleCloseDialog();
       fetchData();
-      toast.success(isEditMode ? 'Supplier updated successfully' : 'Supplier created successfully');
+      success(isEditMode ? 'Supplier updated successfully' : 'Supplier created successfully');
     } catch (err) {
       console.error('Failed to save supplier:', err);
-      toast.error('Failed to save supplier');
+      error('Failed to save supplier');
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this supplier?')) return;
+  const handleDeleteClick = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setConfirmAction({ type: 'single', id });
+    setIsConfirmOpen(true);
+  };
+
+  const handleBulkDeleteClick = () => {
+    setConfirmAction({ type: 'bulk' });
+    setIsConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
     try {
-      await supplierService.deleteSupplier(id);
+      setIsDeleting(true);
+      if (confirmAction.type === 'single' && confirmAction.id) {
+        await supplierService.deleteSupplier(confirmAction.id);
+        success('Supplier deleted successfully');
+        if (selectedSuppliers.includes(confirmAction.id)) {
+          setSelectedSuppliers(prev => prev.filter(i => i !== confirmAction.id));
+        }
+      } else if (confirmAction.type === 'bulk') {
+        await Promise.all(selectedSuppliers.map(id => supplierService.deleteSupplier(id)));
+        success(`${selectedSuppliers.length} suppliers deleted successfully`);
+        setSelectedSuppliers([]);
+      }
+      setIsConfirmOpen(false);
       fetchData();
-      toast.success('Supplier deleted successfully');
     } catch (err) {
-      console.error('Failed to delete supplier:', err);
-      toast.error('Failed to delete supplier');
+      console.error('Failed to delete:', err);
+      error('Failed to delete supplier(s)');
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedSuppliers.length === filteredSuppliers.length) {
+      setSelectedSuppliers([]);
+    } else {
+      setSelectedSuppliers(filteredSuppliers.map(s => s.id));
+    }
+  };
+
+  const toggleSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedSuppliers(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
   const filteredSuppliers = suppliers.filter(s => 
@@ -218,6 +260,24 @@ const SupplierPage: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {selectedSuppliers.length > 0 && (
+                  <>
+                    <button
+                      onClick={handleBulkDeleteClick}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-600 rounded-xl text-[12px] font-bold border border-red-200 hover:bg-red-100 transition-all animate-in fade-in slide-in-from-right-2"
+                    >
+                      <Trash2 size={16} />
+                      Delete ({selectedSuppliers.length})
+                    </button>
+                    <button
+                      onClick={() => setSelectedSuppliers([])}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-white text-slate-600 rounded-xl text-[12px] font-bold border border-border hover:bg-slate-50 transition-all animate-in fade-in slide-in-from-right-2"
+                    >
+                      <X size={16} />
+                      Clear
+                    </button>
+                  </>
+                )}
                 <button 
                   onClick={fetchData}
                   className="px-3 py-1.5 rounded-xl border border-border bg-white text-muted-foreground hover:bg-muted transition-all"
@@ -249,6 +309,14 @@ const SupplierPage: React.FC = () => {
             <table className="w-full border-separate border-spacing-0">
               <thead className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm shadow-[0_1px_0_rgba(0,0,0,0.05)]">
                 <tr>
+                  <th className="px-4 py-3 border-r border-b border-border/40 w-10 text-center">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedSuppliers.length === filteredSuppliers.length && filteredSuppliers.length > 0} 
+                      onChange={toggleSelectAll} 
+                      className="rounded border-border" 
+                    />
+                  </th>
                   {columnOrder.filter(id => visibleColumns.includes(id)).map(key => (
                     <th key={key} className={COLUMN_DEFS[key].thClass}>{COLUMN_DEFS[key].label}</th>
                   ))}
@@ -264,22 +332,39 @@ const SupplierPage: React.FC = () => {
                   <tr 
                     key={s.id} 
                     onClick={() => navigate(`/suppliers/directory/${s.id}`)}
-                    className="hover:bg-slate-50/60 transition-colors group cursor-pointer"
+                    className={clsx("hover:bg-slate-50/60 transition-colors group cursor-pointer", selectedSuppliers.includes(s.id) && "bg-primary/[0.02]")}
                   >
+                    <td className="px-4 py-4 text-center border-r border-border/40" onClick={(e) => toggleSelect(s.id, e)}>
+                      <input 
+                        type="checkbox" 
+                        checked={selectedSuppliers.includes(s.id)} 
+                        onChange={() => {}} 
+                        className="rounded border-border" 
+                      />
+                    </td>
                     {columnOrder.filter(id => visibleColumns.includes(id)).map(key => (
                       <td key={key} className={COLUMN_DEFS[key].tdClass}>{COLUMN_DEFS[key].renderContent(s)}</td>
                     ))}
                     <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-1">
                         <button 
+                          onClick={() => navigate(`/suppliers/directory/${s.id}`)}
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all"
+                          title="View Details"
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button 
                           onClick={() => handleOpenEdit(s)}
-                          className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all font-bold"
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-all font-bold"
+                          title="Edit"
                         >
                           <Edit size={14} />
                         </button>
                         <button 
-                          onClick={() => handleDelete(s.id)}
+                          onClick={(e) => handleDeleteClick(s.id, e)}
                           className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-all font-bold"
+                          title="Delete"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -362,6 +447,47 @@ const SupplierPage: React.FC = () => {
         setFormField={(key, val) => setFormState(prev => ({ ...prev, [key]: val }))}
         onSave={handleSave}
       />
+
+      {/* CONFIRMATION DIALOG */}
+      {isConfirmOpen && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => !isDeleting && setIsConfirmOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl border border-border w-full max-w-sm overflow-hidden animate-in zoom-in-95 fade-in duration-200">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 shrink-0">
+                  <AlertCircle size={20} />
+                </div>
+                <div>
+                  <h3 className="text-[16px] font-bold text-slate-900">Confirm Deletion</h3>
+                  <p className="text-[13px] text-muted-foreground">This action cannot be undone.</p>
+                </div>
+              </div>
+              <p className="text-[14px] text-slate-600 font-medium leading-relaxed">
+                Are you sure you want to delete {confirmAction.type === 'bulk' ? `these ${selectedSuppliers.length} suppliers` : 'this supplier'}? 
+                All associated data will be permanently removed.
+              </p>
+            </div>
+            <div className="p-4 bg-slate-50 border-t border-border flex items-center gap-3">
+              <button
+                disabled={isDeleting}
+                onClick={() => setIsConfirmOpen(false)}
+                className="flex-1 py-2 rounded-xl border border-border bg-white text-[13px] font-bold text-slate-600 hover:bg-white/80 transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="flex-1 py-2 rounded-xl bg-red-600 text-white text-[13px] font-bold shadow-md shadow-red-200 hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isDeleting ? <RefreshCcw size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+        , document.body)}
     </div>
   );
 };

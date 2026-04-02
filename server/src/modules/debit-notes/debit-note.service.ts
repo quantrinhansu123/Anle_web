@@ -8,7 +8,7 @@ export class DebitNoteService {
       .from('debit_notes')
       .select(`
         *,
-        shipments(id, customers(company_name), suppliers(company_name)),
+        shipments(*, customers(company_name), suppliers(company_name)),
         invoice_items:debit_note_invoice_items(*),
         chi_ho_items:debit_note_chi_ho_items(*)
       `, { count: 'exact' })
@@ -22,7 +22,7 @@ export class DebitNoteService {
   async findById(id: string): Promise<DebitNote | null> {
     const { data: note, error: noteError } = await supabase
       .from('debit_notes')
-      .select('*, shipments(id, customers(company_name), suppliers(company_name))')
+      .select('*, shipments(*, customers(company_name), suppliers(company_name))')
       .eq('id', id)
       .single();
 

@@ -4,7 +4,7 @@ import { X, User, Briefcase, Mail, Phone, MapPin, Lock, Camera, Loader2, Plus, C
 import { clsx } from 'clsx';
 import { apiFetch } from '../../../lib/api';
 import type { Employee } from '../../../services/employeeService';
-import { toast } from '../../../lib/toast';
+import { useToastContext } from '../../../contexts/ToastContext';
 
 interface EmployeeDialogProps {
   isOpen: boolean;
@@ -27,6 +27,7 @@ const EmployeeDialog: React.FC<EmployeeDialogProps> = ({
   setFormField,
   onSave
 }) => {
+  const { error } = useToastContext();
   const [isUploading, setIsUploading] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -58,7 +59,7 @@ const EmployeeDialog: React.FC<EmployeeDialogProps> = ({
       }
     } catch (err: any) {
       console.error('File upload failed:', err);
-      toast.error('Failed to upload image: ' + (err.message || 'Please try again.'));
+      error('Failed to upload image: ' + (err.message || 'Please try again.'));
     } finally {
       setIsUploading(false);
     }
@@ -161,7 +162,7 @@ const EmployeeDialog: React.FC<EmployeeDialogProps> = ({
                 value={formState.full_name || ''}
                 onChange={(e) => setFormField('full_name', e.target.value)}
                 disabled={isDetailMode}
-                className="w-full px-4 py-2 bg-white border border-border rounded-xl text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all disabled:opacity-70"
+                className="w-full px-4 py-2 bg-white border border-border rounded-xl text-[13px] font-bold focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all disabled:opacity-70"
               />
             </div>
 
@@ -178,7 +179,7 @@ const EmployeeDialog: React.FC<EmployeeDialogProps> = ({
                   value={formState.department || ''}
                   onChange={(e) => setFormField('department', e.target.value)}
                   disabled={isDetailMode}
-                  className="w-full px-4 py-2 bg-white border border-border rounded-xl text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all disabled:opacity-70"
+                  className="w-full px-4 py-2 bg-white border border-border rounded-xl text-[13px] font-bold focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all disabled:opacity-70"
                 />
               </div>
 
@@ -194,7 +195,7 @@ const EmployeeDialog: React.FC<EmployeeDialogProps> = ({
                   value={formState.position || ''}
                   onChange={(e) => setFormField('position', e.target.value)}
                   disabled={isDetailMode}
-                  className="w-full px-4 py-2 bg-white border border-border rounded-xl text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all disabled:opacity-70"
+                  className="w-full px-4 py-2 bg-white border border-border rounded-xl text-[13px] font-bold focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all disabled:opacity-70"
                 />
               </div>
             </div>
@@ -212,7 +213,7 @@ const EmployeeDialog: React.FC<EmployeeDialogProps> = ({
                   value={formState.email || ''}
                   onChange={(e) => setFormField('email', e.target.value)}
                   disabled={isDetailMode}
-                  className="w-full px-4 py-2 bg-white border border-border rounded-xl text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all disabled:opacity-70"
+                  className="w-full px-4 py-2 bg-white border border-border rounded-xl text-[13px] font-bold focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all disabled:opacity-70"
                 />
               </div>
 
@@ -228,7 +229,7 @@ const EmployeeDialog: React.FC<EmployeeDialogProps> = ({
                   value={formState.phone || ''}
                   onChange={(e) => setFormField('phone', e.target.value)}
                   disabled={isDetailMode}
-                  className="w-full px-4 py-2 bg-white border border-border rounded-xl text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all disabled:opacity-70"
+                  className="w-full px-4 py-2 bg-white border border-border rounded-xl text-[13px] font-bold focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all disabled:opacity-70"
                 />
               </div>
             </div>
