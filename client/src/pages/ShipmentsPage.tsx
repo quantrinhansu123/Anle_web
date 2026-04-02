@@ -482,6 +482,8 @@ const ShipmentsPage: React.FC = () => {
     }
   };
 
+
+
   const filteredShipments = shipments.filter(s => {
     if (searchText) {
       const search = searchText.toLowerCase();
