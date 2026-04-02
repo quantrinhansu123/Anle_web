@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-export const CreateSalesItemSchema = z.object({
-  shipment_id: z.string().uuid(),
+export const SalesItemSchema = z.object({
+  id: z.string().uuid().optional(),
   description: z.string().min(1),
   rate: z.number().min(0),
   quantity: z.number().min(0),
@@ -11,4 +11,9 @@ export const CreateSalesItemSchema = z.object({
   tax_percent: z.number().min(0).max(100),
 });
 
-export const UpdateSalesItemSchema = CreateSalesItemSchema.partial();
+export const CreateSalesSchema = z.object({
+  shipment_id: z.string().uuid(),
+  items: z.array(SalesItemSchema).min(1),
+});
+
+export const UpdateSalesSchema = CreateSalesSchema.partial();

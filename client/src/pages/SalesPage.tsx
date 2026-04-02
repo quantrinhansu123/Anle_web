@@ -14,63 +14,57 @@ import { supplierService } from '../services/supplierService';
 import type { Supplier } from '../services/supplierService';
 import { FilterDropdown } from '../components/ui/FilterDropdown';
 import { ColumnSettings } from '../components/ui/ColumnSettings';
-import type { SalesItem, SalesFormState } from './sales/types';
+import type { Sales, SalesFormState } from './sales/types';
 import type { Shipment } from './shipments/types';
 import SalesDialog from './sales/dialogs/SalesDialog';
+import { exchangeRateService, type ExchangeRate } from '../services/exchangeRateService';
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
 import { useToastContext } from '../contexts/ToastContext';
 
-// --- CONFIGURATION ---
 const INITIAL_FORM_STATE: SalesFormState = {
   shipment_id: '',
-  description: '',
-  rate: 0,
-  quantity: 0,
-  unit: '',
-  currency: 'VND',
-  exchange_rate: 1,
-  tax_percent: 0,
+  items: [],
 };
 
-type ColDef = { label: string; thClass: string; tdClass: string; renderContent: (s: SalesItem) => React.ReactNode };
+type ColDef = { label: string; thClass: string; tdClass: string; renderContent: (s: Sales) => React.ReactNode };
 const COLUMN_DEFS: Record<string, ColDef> = {
   shipment: {
-    label: 'Shipment ID',
-    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-32 border-r border-border/40',
+    label: 'Quotation',
+    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-40 border-r border-border/40',
     tdClass: 'px-4 py-4 border-r border-border/40 font-mono text-[12px] font-bold text-primary',
-    renderContent: (s) => <span>{s.shipments?.code || `#${s.shipment_id?.slice(0, 8) || '—'}`}</span>
-  },
-  description: {
-    label: 'Description',
-    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight border-r border-border/40',
-    tdClass: 'px-4 py-4 border-r border-border/40',
     renderContent: (s) => (
-      <div className="flex flex-col max-w-xs xl:max-w-md">
-        <span className="text-[13px] font-bold text-foreground line-clamp-1">{s.description || '—'}</span>
-        <span className="text-[11px] text-muted-foreground opacity-70 italic">{s.unit} x {s.quantity}</span>
+      <div className="flex flex-col">
+        <span>{s.no_doc || `Q-${s.id.slice(0,8)}`}</span>
+        <span className="text-[10px] text-muted-foreground">{s.shipments?.code || '—'}</span>
       </div>
     )
   },
-  price: {
-    label: 'Price (Rate)',
-    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-40 border-r border-border/40 text-right',
-    tdClass: 'px-4 py-4 border-r border-border/40 text-right font-medium text-[13px] tabular-nums',
-    renderContent: (s) => <span>{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(s.rate)} {s.currency}</span>
-  },
-  tax: {
-    label: 'Tax',
-    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-32 border-r border-border/40 text-right',
-    tdClass: 'px-4 py-4 border-r border-border/40 text-right',
-    renderContent: (s) => <span className="text-[12px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100">{s.tax_percent}%</span>
+  description: {
+    label: 'Overview',
+    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight border-r border-border/40',
+    tdClass: 'px-4 py-4 border-r border-border/40',
+    renderContent: (s) => {
+      const items = s.sales_items || [];
+      const desc = items.length > 0 ? items[0].description : '—';
+      return (
+        <div className="flex flex-col max-w-xs xl:max-w-md">
+          <span className="text-[13px] font-bold text-foreground line-clamp-1">{desc}</span>
+          <span className="text-[11px] text-muted-foreground opacity-70 italic">{items.length} product(s)</span>
+        </div>
+      );
+    }
   },
   total: {
     label: 'Total',
     thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-64 text-right',
     tdClass: 'px-4 py-4 text-right font-black text-[14px] text-primary tabular-nums',
-    renderContent: (s) => <span>{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(s.total)} {s.currency}</span>
+    renderContent: (s) => {
+      const sum = (s.sales_items || []).reduce((acc, i) => acc + (i.total || 0), 0);
+      return <span>{new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(sum)} VND</span>;
+    }
   }
 };
 const DEFAULT_COL_ORDER = Object.keys(COLUMN_DEFS);
@@ -79,9 +73,10 @@ const SalesPage: React.FC = () => {
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToastContext();
   const [activeTab, setActiveTab] = useState<'list' | 'stats'>('list');
-  const [salesItems, setSalesItems] = useState<SalesItem[]>([]);
+  const [salesItems, setSalesItems] = useState<Sales[]>([]);
   const [selectedSalesItems, setSelectedSalesItems] = useState<string[]>([]);
   const [shipments, setShipments] = useState<(Shipment & { value: string, label: string })[]>([]);
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -122,6 +117,7 @@ const SalesPage: React.FC = () => {
     fetchData();
     fetchShipmentOptions();
     fetchSuppliers();
+    fetchExchangeRates();
   }, []);
 
   const fetchData = async () => {
@@ -130,11 +126,20 @@ const SalesPage: React.FC = () => {
       const data: any = await salesService.getSalesItems(1, 100);
       setSalesItems(Array.isArray(data) ? data : []);
       setError(null);
-    } catch (err) {
-      setError('Failed to fetch sales items');
+    } catch (err: any) {
+      setError(err instanceof Error ? err.message : (err?.message || 'Failed to fetch sales items'));
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchExchangeRates = async () => {
+    try {
+      const rates = await exchangeRateService.getAll();
+      setExchangeRates(rates || []);
+    } catch (err: any) {
+      console.error('Failed to fetch exchange rates:', err);
     }
   };
 
@@ -169,28 +174,31 @@ const SalesPage: React.FC = () => {
     setIsDialogOpen(true);
   };
 
-  const setFormStateFromItem = (item: SalesItem) => {
+  const setFormStateFromItem = (item: Sales) => {
     setFormState({
       id: item.id,
       shipment_id: item.shipment_id,
-      description: item.description,
-      rate: item.rate,
-      quantity: item.quantity,
-      unit: item.unit,
-      currency: item.currency,
-      exchange_rate: item.exchange_rate,
-      tax_percent: item.tax_percent,
+      items: item.sales_items?.map(si => ({
+        id: si.id,
+        description: si.description,
+        rate: si.rate,
+        quantity: si.quantity,
+        unit: si.unit,
+        currency: si.currency,
+        exchange_rate: si.exchange_rate,
+        tax_percent: si.tax_percent,
+      })) || [],
       relatedShipment: item.shipments,
     });
   };
 
-  const handleOpenEdit = (item: SalesItem) => {
+  const handleOpenEdit = (item: Sales) => {
     setFormStateFromItem(item);
     setMode('edit');
     setIsDialogOpen(true);
   };
 
-  const handleOpenDetail = (item: SalesItem) => {
+  const handleOpenDetail = (item: Sales) => {
     setFormStateFromItem(item);
     setMode('detail');
     setIsDialogOpen(true);
@@ -218,9 +226,9 @@ const SalesPage: React.FC = () => {
       handleCloseDialog();
       fetchData();
       toastSuccess(mode === 'edit' ? 'Sales item updated successfully' : 'Sales item created successfully');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save sales item:', err);
-      toastError('Failed to save sales item. Please check your data.');
+      toastError(err instanceof Error ? err.message : (err?.message || 'Failed to save sales item. Please check your data.'));
     }
   };
 
@@ -251,9 +259,9 @@ const SalesPage: React.FC = () => {
       }
       setIsConfirmOpen(false);
       fetchData();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to delete:', err);
-      toastError('Failed to delete sales item(s)');
+      toastError(err instanceof Error ? err.message : (err?.message || 'Failed to delete sales item(s)'));
     } finally {
       setIsDeleting(false);
     }
@@ -264,15 +272,16 @@ const SalesPage: React.FC = () => {
     if (searchText) {
       const search = searchText.toLowerCase();
       const matchesText =
-        item.description?.toLowerCase().includes(search) ||
+        item.sales_items?.some(i => i.description?.toLowerCase().includes(search)) ||
         item.shipment_id?.toLowerCase().includes(search) ||
-        item.unit?.toLowerCase().includes(search);
+        item.no_doc?.toLowerCase().includes(search);
       if (!matchesText) return false;
     }
 
     // Currency filter
-    if (selectedCurrencies.length > 0 && !selectedCurrencies.includes(item.currency)) {
-      return false;
+    if (selectedCurrencies.length > 0) {
+      const hasCurrency = item.sales_items?.some(i => selectedCurrencies.includes(i.currency));
+      if (!hasCurrency) return false;
     }
 
     // Supplier filter
@@ -341,20 +350,23 @@ const SalesPage: React.FC = () => {
   };
 
   const stats = React.useMemo(() => {
-    const totalVND = filteredItems.reduce((acc, item) => acc + (item.currency === 'VND' ? item.total : item.total * item.exchange_rate), 0);
-    const totalUSD = filteredItems.reduce((acc, item) => acc + (item.currency === 'USD' ? item.total : item.total / (item.exchange_rate || 1)), 0);
-    const avgTax = filteredItems.length > 0 ? (filteredItems.reduce((acc, item) => acc + item.tax_percent, 0) / filteredItems.length) : 0;
+    const totalVND = filteredItems.reduce((acc, item) => acc + (item.sales_items?.reduce((sum, i) => sum + (i.total || 0), 0) || 0), 0);
+    const activeUsdRate = exchangeRates.find(r => r.currency_code === 'USD')?.rate || 25450;
+    const totalUSD = totalVND / activeUsdRate;
+    
+    const allItems = filteredItems.flatMap(i => i.sales_items || []);
+    const avgTax = allItems.length > 0 ? (allItems.reduce((acc, item) => acc + (item.tax_percent || 0), 0) / allItems.length) : 0;
 
     // Currency Distribution (Count of items)
     const currencyValueData = [
-      { name: 'VND', val: filteredItems.filter(i => i.currency === 'VND').length },
-      { name: 'USD', val: filteredItems.filter(i => i.currency === 'USD').length },
+      { name: 'VND', val: allItems.filter(i => i.currency === 'VND').length },
+      { name: 'USD', val: allItems.filter(i => i.currency === 'USD').length },
     ];
 
     // Sales by Shipment (Top 5)
     const shipmentMap = new Map<string, { code: string, val: number }>();
     filteredItems.forEach(item => {
-      const val = item.currency === 'VND' ? item.total : item.total * item.exchange_rate;
+      const val = item.sales_items?.reduce((sum, i) => sum + (i.total || 0), 0) || 0;
       const code = item.shipments?.code || `#${item.shipment_id?.slice(0, 8)}`;
       const current = shipmentMap.get(item.shipment_id) || { code, val: 0 };
       current.val += val;
@@ -373,7 +385,7 @@ const SalesPage: React.FC = () => {
     const supplierMap = new Map<string, { name: string, totalVND: number, count: number }>();
     filteredItems.forEach(item => {
       const supplierName = item.shipments?.suppliers?.company_name || 'Individual / Regular';
-      const val = item.currency === 'VND' ? item.total : item.total * item.exchange_rate;
+      const val = item.sales_items?.reduce((sum, i) => sum + (i.total || 0), 0) || 0;
       const current = supplierMap.get(supplierName) || { name: supplierName, totalVND: 0, count: 0 };
       supplierMap.set(supplierName, {
         name: supplierName,
@@ -476,7 +488,13 @@ const SalesPage: React.FC = () => {
                 No items found
               </div>
             ) : (
-              filteredItems.map(item => (
+              filteredItems.map(item => {
+                const quoteItems = item.sales_items || [];
+                const total = quoteItems.reduce((acc, i) => acc + (i.total || 0), 0);
+                const desc = quoteItems.length > 0 ? quoteItems[0].description : 'No Products';
+                const countText = quoteItems.length > 1 ? `+${quoteItems.length - 1} more items` : (quoteItems[0]?.unit ? `${quoteItems[0].quantity} x ${quoteItems[0].unit}` : '');
+
+                return (
                 <div 
                   key={item.id} 
                   onClick={() => handleOpenDetail(item)}
@@ -485,12 +503,12 @@ const SalesPage: React.FC = () => {
                   <div className="flex items-start justify-between relative z-10">
                     <div className="flex flex-col gap-1 pr-12 min-w-0">
                       <span className="text-[10px] font-mono font-black text-primary uppercase tracking-tighter opacity-70">{item.shipments?.code || `#${item.shipment_id?.slice(0, 8)}`}</span>
-                      <span className="text-[14px] font-bold text-slate-900 leading-tight line-clamp-2">{item.description || 'No Description'}</span>
-                      <span className="text-[11px] text-muted-foreground font-medium underline mt-1">{item.unit} x {item.quantity}</span>
+                      <span className="text-[14px] font-bold text-slate-900 leading-tight line-clamp-2">{desc}</span>
+                      <span className="text-[11px] text-muted-foreground font-medium underline mt-1">{countText}</span>
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100">{item.tax_percent}% TAX</span>
-                      <span className="text-[15px] font-black text-primary tabular-nums">{new Intl.NumberFormat('en-US').format(item.total)} {item.currency}</span>
+                      <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100">{quoteItems.length} Products</span>
+                      <span className="text-[15px] font-black text-primary tabular-nums">{new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(total)} VND</span>
                     </div>
                   </div>
                   <div className="mt-4 flex items-center justify-end gap-2 pt-3 border-t border-slate-50">
@@ -508,7 +526,7 @@ const SalesPage: React.FC = () => {
                     </button>
                   </div>
                 </div>
-              ))
+              )})
             )}
           </div>
 
@@ -591,7 +609,7 @@ const SalesPage: React.FC = () => {
                 </button>
                 <FilterDropdown
                   isOpen={activeDropdown === 'currency'}
-                  options={['VND', 'USD'].map(curr => ({ id: curr, label: curr === 'VND' ? 'Vietnamese Dong (VND)' : 'US Dollar (USD)', count: salesItems.filter(i => i.currency === curr).length }))}
+                  options={['VND', 'USD'].map(curr => ({ id: curr, label: curr === 'VND' ? 'Vietnamese Dong (VND)' : 'US Dollar (USD)', count: salesItems.filter(i => i.sales_items?.some(si => si.currency === curr)).length }))}
                   selected={selectedCurrencies}
                   onToggle={toggleCurrency}
                   searchValue={filterSearch}
@@ -791,7 +809,7 @@ const SalesPage: React.FC = () => {
                   options={['VND', 'USD'].map(curr => ({ 
                     id: curr, 
                     label: curr === 'VND' ? 'Vietnamese Dong (VND)' : 'US Dollar (USD)', 
-                    count: salesItems.filter(i => i.currency === curr).length 
+                    count: salesItems.filter(i => i.sales_items?.some(si => si.currency === curr)).length 
                   }))}
                   selected={selectedCurrencies}
                   onToggle={toggleCurrency}
@@ -1072,6 +1090,7 @@ const SalesPage: React.FC = () => {
         formState={formState}
         setFormField={setFormField}
         shipmentOptions={shipments}
+        exchangeRates={exchangeRates}
         onSave={handleSave}
         onEdit={() => setMode('edit')}
       />

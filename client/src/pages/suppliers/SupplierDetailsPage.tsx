@@ -22,6 +22,7 @@ import type { PaymentRequestFormState } from '../payment-requests/types';
 import PaymentRequestDialog from '../payment-requests/dialogs/PaymentRequestDialog';
 import { debitNoteService } from '../../services/debitNoteService';
 import { paymentRequestService } from '../../services/paymentRequestService';
+import { exchangeRateService, type ExchangeRate } from '../../services/exchangeRateService';
 import AddEditSupplierDialog from './dialogs/AddEditSupplierDialog';
 import { useToastContext } from '../../contexts/ToastContext';
 
@@ -103,6 +104,7 @@ const SupplierDetailsPage: React.FC = () => {
 
   // Shipment Options for Dialogs
   const [shipmentOptions, setShipmentOptions] = useState<(Shipment & { value: string, label: string })[]>([]);
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
 
   // Supplier Edit Dialog State
   const [isSupplierDialogOpen, setIsSupplierDialogOpen] = useState(false);
@@ -124,15 +126,17 @@ const SupplierDetailsPage: React.FC = () => {
 
   const fetchOptions = async () => {
     try {
-      const [customers, suppliers, shipments] = await Promise.all([
+      const [customers, suppliers, shipments, rates] = await Promise.all([
         customerService.getCustomers(),
         supplierService.getSuppliers(),
-        shipmentService.getShipments(1, 1000)
+        shipmentService.getShipments(1, 1000),
+        exchangeRateService.getAll()
       ]);
       setCustomerOptions(customers.map(c => ({ ...c, value: c.id, label: c.company_name })));
       setSupplierOptions(suppliers.map(s => ({ ...s, value: s.id, label: s.company_name })));
       setShipmentOptions(shipments.map(s => ({ ...s, value: s.id, label: `Shipment ${s.code || '#' + s.id.slice(0, 8)} - ${s.customers?.company_name || 'N/A'}` })));
-    } catch (err) {
+      setExchangeRates(rates);
+    } catch (err: any) {
       console.error('Failed to fetch options', err);
     }
   };
@@ -251,9 +255,9 @@ const SupplierDetailsPage: React.FC = () => {
       handleCloseSupplierDialog();
       fetchDetails(); // Refresh page data
       toastSuccess('Supplier saved successfully');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save supplier:', err);
-      toastError('Failed to save supplier');
+      toastError(err instanceof Error ? err.message : (err?.message || 'Failed to save supplier'));
     }
   };
 
@@ -330,9 +334,9 @@ const SupplierDetailsPage: React.FC = () => {
       handleShipmentClose();
       fetchDetails(); // Refresh list
       toastSuccess(isShipmentEdit ? 'Shipment updated successfully' : 'Shipment created successfully');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toastError('Failed to save shipment');
+      toastError(err instanceof Error ? err.message : (err?.message || 'Failed to save shipment'));
     }
   };
 
@@ -711,6 +715,7 @@ const SupplierDetailsPage: React.FC = () => {
           setIsDebitDetail(false);
         }}
         shipmentOptions={shipmentOptions}
+        exchangeRates={exchangeRates}
         onSave={async () => {
           try {
             if (!debitForm.id) return;
@@ -718,9 +723,9 @@ const SupplierDetailsPage: React.FC = () => {
             setIsDebitOpen(false);
             fetchDetails();
             toastSuccess('Debit note updated successfully');
-          } catch (err) {
+          } catch (err: any) {
             console.error(err);
-            toastError('Failed to save debit note');
+            toastError(err instanceof Error ? err.message : (err?.message || 'Failed to save debit note'));
           }
         }}
       />
@@ -748,9 +753,9 @@ const SupplierDetailsPage: React.FC = () => {
             setIsPaymentOpen(false);
             fetchDetails();
             toastSuccess('Payment request updated successfully');
-          } catch (err) {
+          } catch (err: any) {
             console.error(err);
-            toastError('Failed to save payment request');
+            toastError(err instanceof Error ? err.message : (err?.message || 'Failed to save payment request'));
           }
         }}
       />

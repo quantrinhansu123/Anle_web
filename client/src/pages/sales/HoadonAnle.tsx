@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Printer, ArrowLeft, Loader2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
-// import html2pdf from 'html2pdf.js';
 import { salesService } from '../../services/salesService';
+import { exchangeRateService, type ExchangeRate } from '../../services/exchangeRateService';
 import { formatDate } from '../../lib/utils';
 
 interface QuotationData {
@@ -24,6 +24,7 @@ interface QuotationData {
     quantity: number | string;
     unit: string;
     total: number;
+    exchange_rate: number;
   }>;
   currency: string;
 }
@@ -33,6 +34,8 @@ const HoadonAnle: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [data, setData] = useState<QuotationData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [viewCurrency, setViewCurrency] = useState<string>('');
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -41,35 +44,39 @@ const HoadonAnle: React.FC = () => {
         return;
       }
       try {
-        const item = await salesService.getSalesItemById(id);
+        const [item, rates] = await Promise.all([
+          salesService.getSalesItemById(id),
+          exchangeRateService.getAll()
+        ]);
+        setExchangeRates(rates);
+
         if (item) {
-          // Map SalesItem (from DB) to QuotationData (for UI)
+          // Map Sales (from DB) to QuotationData (for UI)
           const mapped: QuotationData = {
-            referenceNo: item.id.slice(0, 10).toUpperCase(),
+            referenceNo: item.no_doc || item.id.slice(0, 10).toUpperCase(),
             customer: item.shipments?.customers?.company_name || 'Individual / Regular',
             service: 'Logistics Service',
-            commodities: item.description,
-            volume: `${item.quantity} ${item.unit}`,
+            commodities: item.sales_items?.[0]?.description || 'Multiple Items',
+            volume: item.sales_items?.[0] ? `${item.sales_items[0].quantity} ${item.sales_items[0].unit}` : 'N/A',
             term: 'N/A',
             pol: item.shipments?.pol || 'N/A',
             pod: item.shipments?.pod || 'N/A',
             etd: formatDate(item.shipments?.etd),
             eta: formatDate(item.shipments?.eta),
             vessel: 'N/A',
-            date: `Ngày ${formatDate(new Date())}`,
-            currency: item.currency,
-            items: [
-              {
-                description: item.description,
-                rate: item.rate,
-                quantity: item.quantity,
-                unit: item.unit,
-                total: item.total
-              }
-              // We could potentially fetch all items for the SAME shipment here if needed
-            ]
+            date: `Ngày ${formatDate(item.quote_date || new Date())}`,
+            currency: item.sales_items?.[0]?.currency || 'VND',
+            items: (item.sales_items || []).map(si => ({
+                description: si.description,
+                rate: si.rate,
+                quantity: si.quantity,
+                unit: si.unit,
+                total: si.total || 0,
+                exchange_rate: si.exchange_rate || 1
+            }))
           };
           setData(mapped);
+          setViewCurrency(item.sales_items?.[0]?.currency || 'VND');
         }
       } catch (err) {
         console.error('Failed to fetch quotation:', err);
@@ -106,7 +113,9 @@ const HoadonAnle: React.FC = () => {
     );
   }
 
-  const totalAmount = data.items.reduce((sum, item) => sum + item.total, 0);
+  const targetRateObj = viewCurrency === 'VND' ? { rate: 1 } : exchangeRates.find(r => r.currency_code === viewCurrency);
+  const currentTargetRate = targetRateObj?.rate || 1;
+  const totalAmount = data.items.reduce((sum, item) => sum + (item.total / currentTargetRate), 0);
 
   const handlePrint = () => {
     window.print();
@@ -123,7 +132,21 @@ const HoadonAnle: React.FC = () => {
           <ArrowLeft size={16} />
           Trở về
         </button>
-        <div className="flex gap-3">
+        <div className="flex items-center gap-3">
+          <select
+            value={viewCurrency}
+            onChange={(e) => setViewCurrency(e.target.value)}
+            className="px-4 py-2 border border-border rounded-lg bg-white text-[13px] font-bold text-slate-700 outline-none cursor-pointer focus:ring-2 focus:ring-primary/20 appearance-none min-w-[100px]"
+          >
+            {/* Nếu data.currency không có trong exchangeRates (vd VND), thì vẫn hiển thị */}
+            <option value="VND">VND</option>
+            {exchangeRates.map(r => (
+              <option key={r.id} value={r.currency_code}>{r.currency_code}</option>
+            ))}
+            {!exchangeRates.find(r => r.currency_code === data.currency) && data.currency !== 'VND' && (
+              <option value={data.currency}>{data.currency}</option>
+            )}
+          </select>
           <button
             onClick={handlePrint}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg shadow-md hover:bg-primary/90 transition-all font-bold text-[13px]"
@@ -135,12 +158,13 @@ const HoadonAnle: React.FC = () => {
       </div>
 
       {/* Document Container */}
-      <div 
+      <div
         className="bg-white w-[800px] mx-auto shadow-lg px-12 py-10 min-h-[1131px] relative print:shadow-none print:w-full print:px-8 print:py-6 overflow-hidden"
       >
-        
+
         {/* Custom Styles for Print */}
-        <style dangerouslySetInnerHTML={{ __html: `
+        <style dangerouslySetInnerHTML={{
+          __html: `
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
           body {
             font-family: 'Inter', sans-serif;
@@ -170,9 +194,9 @@ const HoadonAnle: React.FC = () => {
         <header className="flex justify-between items-start mb-6">
           {/* Logo Section */}
           <div className="w-48 pt-2">
-            <img 
-              src="https://www.appsheet.com/template/gettablefileurl?appName=Appsheet-325045268&tableName=Kho%20%E1%BA%A3nh&fileName=Kho%20%E1%BA%A3nh_Images%2Fe6a56fae.%E1%BA%A2nh.064359.png" 
-              alt="ANLE-SCM Logo" 
+            <img
+              src="https://www.appsheet.com/template/gettablefileurl?appName=Appsheet-325045268&tableName=Kho%20%E1%BA%A3nh&fileName=Kho%20%E1%BA%A3nh_Images%2Fe6a56fae.%E1%BA%A2nh.064359.png"
+              alt="ANLE-SCM Logo"
               className="w-full h-auto object-contain"
             />
           </div>
@@ -209,7 +233,7 @@ const HoadonAnle: React.FC = () => {
         {/* Section 1: Thông tin chung */}
         <div className="mb-8 print-no-break">
           <h2 className="text-theme-red uppercase font-bold text-sm mb-2">Thông tin chung</h2>
-          
+
           {/* Information Grid */}
           <div className="border-t border-b border-theme-red grid grid-cols-2 relative py-2">
             {/* Vertical Divider */}
@@ -235,44 +259,56 @@ const HoadonAnle: React.FC = () => {
               <p>Tên tàu/ Số chuyến <span className="font-bold">{data.vessel}</span></p>
             </div>
           </div>
-          
-          <p className="text-theme-red font-bold text-sm mt-2 italic">Đơn vị tiền tệ: {data.currency}</p>
+
+          <p className="text-theme-red font-bold text-sm mt-2 italic">Đơn vị tiền tệ: {viewCurrency}</p>
         </div>
 
         {/* Section 2: Chi tiết báo giá */}
         <div className="print-no-break">
           <h2 className="text-theme-red uppercase font-bold text-sm mb-2">Tiến độ xử lý</h2>
-          
+
           <table className="w-full text-black text-[13px]">
             <thead>
               <tr className="border-t border-b border-theme-red">
                 <th className="py-2 px-3 text-left w-2/5 font-normal align-top"></th>
-                <th className="py-2 px-3 text-right border-l border-[#f24b43]/30 w-[15%] font-normal align-top">Đơn Giá<br/><i className="text-gray-500">(Rate)</i></th>
-                <th className="py-2 px-3 text-right border-l border-[#f24b43]/30 w-[15%] font-normal align-top">Số lượng<br/><i className="text-gray-500">(Quantity)</i></th>
-                <th className="py-2 px-3 text-center border-l border-[#f24b43]/30 w-[15%] font-normal align-top">Đơn vị tính<br/><i className="text-gray-500">(Units)</i></th>
-                <th className="py-2 px-3 text-right border-l border-[#f24b43]/30 w-[15%] font-normal align-top">Tổng<br/><i className="text-gray-500">(Total)</i></th>
+                <th className="py-2 px-3 text-right border-l border-[#f24b43]/30 w-[15%] font-normal align-top">Đơn Giá<br /><i className="text-gray-500">(Rate)</i></th>
+                <th className="py-2 px-3 text-right border-l border-[#f24b43]/30 w-[15%] font-normal align-top">Số lượng<br /><i className="text-gray-500">(Quantity)</i></th>
+                <th className="py-2 px-3 text-center border-l border-[#f24b43]/30 w-[15%] font-normal align-top">Đơn vị tính<br /><i className="text-gray-500">(Units)</i></th>
+                <th className="py-2 px-3 text-right border-l border-[#f24b43]/30 w-[15%] font-normal align-top">Tổng<br /><i className="text-gray-500">(Total)</i></th>
               </tr>
             </thead>
             <tbody className="font-medium">
-              {data.items.map((item, index) => (
-                <tr key={index} className={index === data.items.length - 1 ? 'pb-6' : ''}>
-                  <td className="py-1.5 px-3">{item.description}</td>
-                  <td className="py-1.5 px-3 text-right border-l border-[#f24b43]/30 align-top">{item.rate.toLocaleString()}</td>
-                  <td className="py-1.5 px-3 text-right border-l border-[#f24b43]/30 align-top">{item.quantity}</td>
-                  <td className="py-1.5 px-3 text-center border-l border-[#f24b43]/30 align-top">{item.unit}</td>
-                  <td className="py-1.5 px-3 text-right border-l border-[#f24b43]/30 align-top">{item.total.toLocaleString()}</td>
-                </tr>
-              ))}
+              {data.items.map((item, index) => {
+                const targetObj = viewCurrency === 'VND' ? { rate: 1 } : exchangeRates.find(r => r.currency_code === viewCurrency);
+                const trRate = targetObj?.rate || 1;
+
+                const rowRate = (item.rate * item.exchange_rate) / trRate;
+                const rowTotal = item.total / trRate;
+
+                return (
+                  <tr key={index} className={index === data.items.length - 1 ? 'pb-6' : ''}>
+                    <td className="py-1.5 px-3">{item.description}</td>
+                    <td className="py-1.5 px-3 text-right border-l border-[#f24b43]/30 align-top">
+                      {new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(rowRate)}
+                    </td>
+                    <td className="py-1.5 px-3 text-right border-l border-[#f24b43]/30 align-top">{item.quantity}</td>
+                    <td className="py-1.5 px-3 text-center border-l border-[#f24b43]/30 align-top">{item.unit}</td>
+                    <td className="py-1.5 px-3 text-right border-l border-[#f24b43]/30 align-top">
+                      {new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(rowTotal)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 
           {/* Total Amount */}
           <div className="flex justify-end pr-3 mt-4 text-black border-t border-[#f24b43]/30 pt-4">
-            <p className="font-bold text-[16px]">Tổng : {totalAmount.toLocaleString()} {data.currency}</p>
+            <p className="font-bold text-[16px]">Tổng : {new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(totalAmount)} {viewCurrency}</p>
           </div>
         </div>
 
-    
+
       </div>
     </div>
   );

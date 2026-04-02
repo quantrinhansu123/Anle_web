@@ -8,6 +8,7 @@ import { SearchableSelect } from '../../../components/ui/SearchableSelect';
 import { DateInput } from '../../../components/ui/DateInput';
 import type { DebitNoteFormState, DebitNoteInvoiceItem, DebitNoteChiHoItem } from '../types';
 import type { Shipment } from '../../shipments/types';
+import type { ExchangeRate } from '../../../services/exchangeRateService';
 import { Package, MapPin } from 'lucide-react';
 
 interface Props {
@@ -20,6 +21,7 @@ interface Props {
   formState: DebitNoteFormState;
   setFormField: <K extends keyof DebitNoteFormState>(key: K, value: DebitNoteFormState[K]) => void;
   shipmentOptions: (Shipment & { value: string; label: string })[];
+  exchangeRates: ExchangeRate[];
   onSave: () => void;
 }
 
@@ -33,6 +35,7 @@ const DebitNoteDialog: React.FC<Props> = ({
   formState,
   setFormField,
   shipmentOptions,
+  exchangeRates,
   onSave,
 }) => {
   if (!isOpen && !isClosing) return null;
@@ -47,6 +50,8 @@ const DebitNoteDialog: React.FC<Props> = ({
     const newItem: DebitNoteInvoiceItem = {
       description: '',
       unit: '',
+      currency_code: 'VND',
+      exchange_rate: 1,
       rate: 0,
       quantity: 0,
       amount: 0,
@@ -58,15 +63,32 @@ const DebitNoteDialog: React.FC<Props> = ({
 
   const updateInvoiceItem = (index: number, field: keyof DebitNoteInvoiceItem, value: any) => {
     const newItems = [...invoice_items];
-    newItems[index] = { ...newItems[index], [field]: value };
+    const oldItem = newItems[index];
+    newItems[index] = { ...oldItem, [field]: value };
+
+    if (field === 'currency_code') {
+      const oldExchangeRate = oldItem.exchange_rate || 1;
+      let newExchangeRate = 1;
+
+      if (value !== 'VND') {
+        const rateObj = exchangeRates.find(r => r.currency_code === value);
+        if (rateObj) newExchangeRate = rateObj.rate;
+      }
+
+      if (oldItem.rate > 0) {
+        newItems[index].rate = parseFloat(((oldItem.rate * oldExchangeRate) / newExchangeRate).toFixed(4));
+      }
+      newItems[index].exchange_rate = newExchangeRate;
+    }
 
     // Recalculate amounts
-    const rate = field === 'rate' ? Number(value) : (newItems[index].rate || 0);
+    const rate = newItems[index].rate || 0;
     const qty = field === 'quantity' ? Number(value) : (newItems[index].quantity || 0);
     const tax = field === 'tax_percent' ? Number(value) : (newItems[index].tax_percent || 0);
+    const exchange = newItems[index].exchange_rate || 1;
 
     const amount = rate * qty;
-    const total = amount * (1 + tax / 100);
+    const total = amount * exchange * (1 + tax / 100);
 
     newItems[index].amount = amount;
     newItems[index].total = total;
@@ -82,6 +104,8 @@ const DebitNoteDialog: React.FC<Props> = ({
     const newItem: DebitNoteChiHoItem = {
       description: '',
       unit: '',
+      currency_code: 'VND',
+      exchange_rate: 1,
       rate: 0,
       quantity: 0,
       amount: 0,
@@ -92,15 +116,33 @@ const DebitNoteDialog: React.FC<Props> = ({
 
   const updateChiHoItem = (index: number, field: keyof DebitNoteChiHoItem, value: any) => {
     const newItems = [...chi_ho_items];
-    newItems[index] = { ...newItems[index], [field]: value };
+    const oldItem = newItems[index];
+    newItems[index] = { ...oldItem, [field]: value };
+
+    if (field === 'currency_code') {
+      const oldExchangeRate = oldItem.exchange_rate || 1;
+      let newExchangeRate = 1;
+
+      if (value !== 'VND') {
+        const rateObj = exchangeRates.find(r => r.currency_code === value);
+        if (rateObj) newExchangeRate = rateObj.rate;
+      }
+
+      if (oldItem.rate > 0) {
+        newItems[index].rate = parseFloat(((oldItem.rate * oldExchangeRate) / newExchangeRate).toFixed(4));
+      }
+      newItems[index].exchange_rate = newExchangeRate;
+    }
 
     // Recalculate amounts
-    const rate = field === 'rate' ? Number(value) : (newItems[index].rate || 0);
+    const rate = newItems[index].rate || 0;
     const qty = field === 'quantity' ? Number(value) : (newItems[index].quantity || 0);
+    const exchange = newItems[index].exchange_rate || 1;
 
     const amount = rate * qty;
+    const total = amount * exchange;
     newItems[index].amount = amount;
-    newItems[index].total = amount;
+    newItems[index].total = total;
 
     setFormField('chi_ho_items', newItems);
   };
@@ -110,12 +152,12 @@ const DebitNoteDialog: React.FC<Props> = ({
   };
 
   const totalInvoice = invoice_items.reduce((sum, it) => {
-    const itemTotal = it.total || (it.rate * it.quantity * (1 + (it.tax_percent || 0) / 100));
+    const itemTotal = it.total || (it.rate * it.quantity * (it.exchange_rate || 1) * (1 + (it.tax_percent || 0) / 100));
     return sum + itemTotal;
   }, 0);
 
   const totalChiHo = chi_ho_items.reduce((sum, it) => {
-    const itemTotal = it.total || (it.rate * it.quantity);
+    const itemTotal = it.total || (it.rate * it.quantity * (it.exchange_rate || 1));
     return sum + itemTotal;
   }, 0);
 
@@ -135,7 +177,7 @@ const DebitNoteDialog: React.FC<Props> = ({
       {/* Panel */}
       <div
         className={clsx(
-          'relative w-full max-w-[1000px] bg-[#f8fafc] shadow-2xl flex flex-col h-screen border-l border-border transition-transform duration-350 ease-out',
+          'relative w-full max-w-[1050px] bg-[#f8fafc] shadow-2xl flex flex-col h-screen border-l border-border transition-transform duration-350 ease-out',
           isClosing ? 'translate-x-full' : 'translate-x-0 animate-in slide-in-from-right duration-350',
         )}
       >
@@ -255,14 +297,16 @@ const DebitNoteDialog: React.FC<Props> = ({
               <table className="w-full text-left border-collapse">
                 <thead className="bg-slate-50/50 text-[10px] text-muted-foreground border-b border-border/60">
                   <tr>
-                    <th className="px-4 py-2 font-bold uppercase w-[25%]">Description</th>
-                    <th className="px-4 py-2 font-bold uppercase w-[10%] text-center">Unit</th>
-                    <th className="px-4 py-2 font-bold uppercase w-[12%] text-right">Rate</th>
-                    <th className="px-4 py-2 font-bold uppercase w-[10%] text-right">Qty</th>
-                    <th className="px-4 py-2 font-bold uppercase w-[12%] text-right text-primary">Amount</th>
-                    <th className="px-4 py-2 font-bold uppercase w-[8%] text-right">Tax %</th>
-                    <th className="px-4 py-2 font-bold uppercase w-[15%] text-right text-primary">Total</th>
-                    {!isDetailMode && <th className="px-4 py-2 w-[5%]"></th>}
+                    <th className="px-2 py-2 font-bold uppercase w-[18%]">Description</th>
+                    <th className="px-2 py-2 font-bold uppercase w-[10%] text-center">Unit</th>
+                    <th className="px-2 py-2 font-bold uppercase w-[9%] text-center">Curr</th>
+                    <th className="px-2 py-2 font-bold uppercase w-[10%] text-right">Exc Rate</th>
+                    <th className="px-2 py-2 font-bold uppercase w-[10%] text-right">Rate</th>
+                    <th className="px-2 py-2 font-bold uppercase w-[8%] text-right">Qty</th>
+                    <th className="px-2 py-2 font-bold uppercase w-[9%] text-right text-primary">Amount</th>
+                    <th className="px-2 py-2 font-bold uppercase w-[8%] text-center">Tax %</th>
+                    <th className="px-2 py-2 font-bold uppercase w-[14%] text-right text-primary">Total (VNĐ)</th>
+                    {!isDetailMode && <th className="px-2 py-2 w-[4%]"></th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -293,6 +337,29 @@ const DebitNoteDialog: React.FC<Props> = ({
                         />
                       </td>
                       <td className="px-3 py-2">
+                        <select
+                          value={item.currency_code || 'VND'}
+                          onChange={e => updateInvoiceItem(idx, 'currency_code', e.target.value)}
+                          disabled={isDetailMode}
+                          className="w-full px-1 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-primary/40 focus:bg-white border rounded-lg text-[12px] font-bold text-center focus:outline-none transition-all disabled:hover:border-transparent text-slate-700"
+                        >
+                          <option value="VND">VND</option>
+                          {exchangeRates.map(r => (
+                            <option key={r.id} value={r.currency_code}>{r.currency_code}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
+                          value={item.exchange_rate || ''}
+                          onChange={e => updateInvoiceItem(idx, 'exchange_rate', e.target.value)}
+                          placeholder="1"
+                          disabled={isDetailMode || item.currency_code === 'VND'}
+                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-primary/40 focus:bg-white border rounded-lg text-[12px] font-bold text-right focus:outline-none transition-all tabular-nums disabled:hover:border-transparent"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
                         <input
                           type="number"
                           value={item.rate || ''}
@@ -317,19 +384,19 @@ const DebitNoteDialog: React.FC<Props> = ({
                           {new Intl.NumberFormat('en-US').format(item.amount || (item.rate * item.quantity))}
                         </span>
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-1 py-2">
                         <input
                           type="number"
                           value={item.tax_percent || ''}
                           onChange={e => updateInvoiceItem(idx, 'tax_percent', e.target.value)}
                           placeholder="0"
                           disabled={isDetailMode}
-                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-primary/40 focus:bg-white border rounded-lg text-[12px] font-bold text-right focus:outline-none transition-all tabular-nums disabled:hover:border-transparent"
+                          className="w-full px-1 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-primary/40 focus:bg-white border rounded-lg text-[12px] font-bold text-center focus:outline-none transition-all tabular-nums disabled:hover:border-transparent text-slate-700"
                         />
                       </td>
                       <td className="px-4 py-2 text-right">
                         <span className="text-[12px] font-black text-primary tabular-nums">
-                          {new Intl.NumberFormat('en-US').format(item.total || (item.rate * item.quantity * (1 + (item.tax_percent || 0) / 100)))}
+                          {new Intl.NumberFormat('en-US').format(item.total || (item.rate * item.quantity * (item.exchange_rate || 1) * (1 + (item.tax_percent || 0) / 100)))}
                         </span>
                       </td>
                       {!isDetailMode && (
@@ -377,12 +444,14 @@ const DebitNoteDialog: React.FC<Props> = ({
               <table className="w-full text-left border-collapse">
                 <thead className="bg-slate-50/50 text-[10px] text-muted-foreground border-b border-border/60">
                   <tr>
-                    <th className="px-4 py-2 font-bold uppercase w-[35%]">Description</th>
-                    <th className="px-4 py-2 font-bold uppercase w-[12%] text-center">Unit</th>
-                    <th className="px-4 py-2 font-bold uppercase w-[15%] text-right">Rate</th>
-                    <th className="px-4 py-2 font-bold uppercase w-[12%] text-right">Qty</th>
-                    <th className="px-4 py-2 font-bold uppercase w-[18%] text-right text-orange-600 font-bold">Total</th>
-                    {!isDetailMode && <th className="px-4 py-2 w-[8%]"></th>}
+                    <th className="px-4 py-2 font-bold uppercase w-[22%]">Description</th>
+                    <th className="px-4 py-2 font-bold uppercase w-[11%] text-center">Unit</th>
+                    <th className="px-4 py-2 font-bold uppercase w-[10%] text-center">Curr</th>
+                    <th className="px-4 py-2 font-bold uppercase w-[10%] text-right">Exc Rate</th>
+                    <th className="px-4 py-2 font-bold uppercase w-[12%] text-right">Rate</th>
+                    <th className="px-4 py-2 font-bold uppercase w-[8%] text-right">Qty</th>
+                    <th className="px-4 py-2 font-bold uppercase w-[20%] text-right text-orange-600 font-bold">Total (VNĐ)</th>
+                    {!isDetailMode && <th className="px-4 py-2 w-[7%]"></th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -413,6 +482,29 @@ const DebitNoteDialog: React.FC<Props> = ({
                         />
                       </td>
                       <td className="px-3 py-2">
+                        <select
+                          value={item.currency_code || 'VND'}
+                          onChange={e => updateChiHoItem(idx, 'currency_code', e.target.value)}
+                          disabled={isDetailMode}
+                          className="w-full px-1 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-orange-400/40 focus:bg-white border rounded-lg text-[12px] font-bold text-center focus:outline-none transition-all disabled:hover:border-transparent text-slate-700"
+                        >
+                          <option value="VND">VND</option>
+                          {exchangeRates.map(r => (
+                            <option key={r.id} value={r.currency_code}>{r.currency_code}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
+                          value={item.exchange_rate || ''}
+                          onChange={e => updateChiHoItem(idx, 'exchange_rate', e.target.value)}
+                          placeholder="1"
+                          disabled={isDetailMode || item.currency_code === 'VND'}
+                          className="w-full px-2 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-orange-400/40 focus:bg-white border rounded-lg text-[12px] font-bold text-right focus:outline-none transition-all tabular-nums disabled:hover:border-transparent"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
                         <input
                           type="number"
                           value={item.rate || ''}
@@ -434,7 +526,7 @@ const DebitNoteDialog: React.FC<Props> = ({
                       </td>
                       <td className="px-4 py-2 text-right">
                         <span className="text-[12px] font-black text-orange-600 tabular-nums">
-                          {new Intl.NumberFormat('en-US').format(item.total || (item.rate * item.quantity))}
+                          {new Intl.NumberFormat('en-US').format(item.total || (item.rate * item.quantity * (item.exchange_rate || 1)))}
                         </span>
                       </td>
                       {!isDetailMode && (

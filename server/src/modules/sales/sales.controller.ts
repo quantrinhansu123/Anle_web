@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { salesService } from './sales.service';
 import { successResponse, paginatedResponse } from '../../utils/response';
-import { CreateSalesItemSchema, UpdateSalesItemSchema } from './sales.schema';
+import { CreateSalesSchema, UpdateSalesSchema } from './sales.schema';
 
 export const salesController = {
   async getAll(req: Request, res: Response, next: NextFunction) {
@@ -26,7 +26,7 @@ export const salesController = {
 
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const validatedData = CreateSalesItemSchema.parse(req.body);
+      const validatedData = CreateSalesSchema.parse(req.body);
       const data = await salesService.create(validatedData);
       res.status(201).json(successResponse(data, 'Sales item created successfully'));
     } catch (err) {
@@ -36,7 +36,7 @@ export const salesController = {
 
   async update(req: Request, res: Response, next: NextFunction) {
     try {
-      const validatedData = UpdateSalesItemSchema.parse(req.body);
+      const validatedData = UpdateSalesSchema.parse(req.body);
       const data = await salesService.update(req.params.id, validatedData);
       res.json(successResponse(data, 'Sales item updated successfully'));
     } catch (err) {

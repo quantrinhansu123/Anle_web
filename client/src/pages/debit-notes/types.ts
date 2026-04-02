@@ -4,6 +4,8 @@ export interface DebitNoteInvoiceItem {
   id?: string;
   description: string;
   unit: string;
+  currency_code?: string;
+  exchange_rate?: number;
   rate: number;
   quantity: number;
   amount: number;
@@ -15,6 +17,8 @@ export interface DebitNoteChiHoItem {
   id?: string;
   description: string;
   unit: string;
+  currency_code?: string;
+  exchange_rate?: number;
   rate: number;
   quantity: number;
   amount: number;

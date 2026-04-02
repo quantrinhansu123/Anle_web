@@ -1,6 +1,6 @@
 export interface SalesItem {
-  id: string;
-  shipment_id: string;
+  id?: string;
+  sales_id?: string;
   description: string;
   rate: number;
   quantity: number;
@@ -13,5 +13,18 @@ export interface SalesItem {
   created_at?: string;
 }
 
-export type CreateSalesItemDto = Omit<SalesItem, 'id' | 'tax_value' | 'total' | 'created_at'>;
-export type UpdateSalesItemDto = Partial<CreateSalesItemDto>;
+export interface Sales {
+  id: string;
+  shipment_id: string;
+  quote_date?: string;
+  no_doc?: string;
+  created_at?: string;
+  sales_items?: SalesItem[];
+}
+
+export interface CreateSalesDto {
+  shipment_id: string;
+  items: Omit<SalesItem, 'sales_id' | 'tax_value' | 'total' | 'created_at'>[];
+}
+
+export type UpdateSalesDto = Partial<CreateSalesDto>;

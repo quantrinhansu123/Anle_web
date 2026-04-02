@@ -142,7 +142,7 @@ const PaymentRequestsPage: React.FC = () => {
       setLoading(true);
       const data = await paymentRequestService.getPaymentRequests();
       setRequests(Array.isArray(data) ? data : []);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch payment requests:', err);
     } finally {
       setLoading(false);
@@ -255,9 +255,9 @@ const PaymentRequestsPage: React.FC = () => {
       handleCloseDialog();
       fetchData();
       success(isEditMode ? 'Payment request updated successfully' : 'Payment request created successfully');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save payment request:', err);
-      error('Failed to save payment request');
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to save payment request'));
     }
   };
 
@@ -288,9 +288,9 @@ const PaymentRequestsPage: React.FC = () => {
       }
       setIsConfirmOpen(false);
       fetchData();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to delete:', err);
-      error('Failed to delete payment request(s)');
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to delete payment request(s)'));
     } finally {
       setIsDeleting(false);
     }

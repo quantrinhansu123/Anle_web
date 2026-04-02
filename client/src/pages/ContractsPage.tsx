@@ -164,7 +164,7 @@ const ContractsPage: React.FC = () => {
       setLoading(true);
       const data = await contractService.getContracts(1, 100);
       setContracts(Array.isArray(data) ? data : []);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
     } finally {
       setLoading(false);
@@ -251,9 +251,9 @@ const ContractsPage: React.FC = () => {
       }
 
       fetchData();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save contract:', err);
-      error('Failed to save contract');
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to save contract'));
     }
   };
 
@@ -284,9 +284,9 @@ const ContractsPage: React.FC = () => {
       }
       setIsConfirmOpen(false);
       fetchData();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to delete:', err);
-      error('Failed to delete contract(s)');
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to delete contract(s)'));
     } finally {
       setIsDeleting(false);
     }

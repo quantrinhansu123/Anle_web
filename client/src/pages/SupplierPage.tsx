@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Search, Plus, RefreshCcw, Edit, Trash2, 
-  List, BarChart2, Mail, Phone, MapPin, 
-  ChevronLeft, Building2, TrendingUp, Users, 
+  Search, Plus, RefreshCcw, Edit, Trash2,
+  List, BarChart2, Mail, Phone, MapPin,
+  ChevronLeft, Building2, TrendingUp, Users,
   Globe, Truck, AlertCircle, X, Eye
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -95,7 +95,7 @@ const SupplierPage: React.FC = () => {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ type: 'single' | 'bulk'; id?: string }>({ type: 'single' });
   const [isDeleting, setIsDeleting] = useState(false);
-  
+
   // Column Settings State
   const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_COL_ORDER);
   const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_COL_ORDER);
@@ -115,7 +115,7 @@ const SupplierPage: React.FC = () => {
       setLoading(true);
       const data = await supplierService.getSuppliers();
       setSuppliers(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch suppliers:', err);
     } finally {
       setLoading(false);
@@ -163,9 +163,9 @@ const SupplierPage: React.FC = () => {
       handleCloseDialog();
       fetchData();
       success(isEditMode ? 'Supplier updated successfully' : 'Supplier created successfully');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save supplier:', err);
-      error('Failed to save supplier');
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to save supplier'));
     }
   };
 
@@ -196,9 +196,9 @@ const SupplierPage: React.FC = () => {
       }
       setIsConfirmOpen(false);
       fetchData();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to delete:', err);
-      error('Failed to delete supplier(s)');
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to delete supplier(s)'));
     } finally {
       setIsDeleting(false);
     }
@@ -217,7 +217,7 @@ const SupplierPage: React.FC = () => {
     setSelectedSuppliers(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
-  const filteredSuppliers = suppliers.filter(s => 
+  const filteredSuppliers = suppliers.filter(s =>
     s.company_name.toLowerCase().includes(searchText.toLowerCase()) ||
     s.id.toLowerCase().includes(searchText.toLowerCase()) ||
     s.tax_code?.toLowerCase().includes(searchText.toLowerCase())
@@ -278,14 +278,14 @@ const SupplierPage: React.FC = () => {
                     </button>
                   </>
                 )}
-                <button 
+                <button
                   onClick={fetchData}
                   className="px-3 py-1.5 rounded-xl border border-border bg-white text-muted-foreground hover:bg-muted transition-all"
                 >
                   <RefreshCcw size={16} className={loading ? 'animate-spin' : ''} />
                 </button>
-                
-                <ColumnSettings 
+
+                <ColumnSettings
                   columns={COLUMN_DEFS}
                   visibleColumns={visibleColumns}
                   columnOrder={columnOrder}
@@ -294,7 +294,7 @@ const SupplierPage: React.FC = () => {
                   defaultOrder={DEFAULT_COL_ORDER}
                 />
 
-                <button 
+                <button
                   onClick={handleOpenAdd}
                   className="flex items-center gap-2 px-4 py-1.5 bg-primary text-white rounded-xl text-[13px] font-bold shadow-md shadow-primary/20 hover:bg-primary/90 transition-all font-inter"
                 >
@@ -310,11 +310,11 @@ const SupplierPage: React.FC = () => {
               <thead className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm shadow-[0_1px_0_rgba(0,0,0,0.05)]">
                 <tr>
                   <th className="px-4 py-3 border-r border-b border-border/40 w-10 text-center">
-                    <input 
-                      type="checkbox" 
-                      checked={selectedSuppliers.length === filteredSuppliers.length && filteredSuppliers.length > 0} 
-                      onChange={toggleSelectAll} 
-                      className="rounded border-border" 
+                    <input
+                      type="checkbox"
+                      checked={selectedSuppliers.length === filteredSuppliers.length && filteredSuppliers.length > 0}
+                      onChange={toggleSelectAll}
+                      className="rounded border-border"
                     />
                   </th>
                   {columnOrder.filter(id => visibleColumns.includes(id)).map(key => (
@@ -329,17 +329,17 @@ const SupplierPage: React.FC = () => {
                 )) : filteredSuppliers.length === 0 ? (
                   <tr><td colSpan={visibleColumns.length + 1} className="px-4 py-20 text-center italic text-muted-foreground opacity-60">No suppliers found.</td></tr>
                 ) : filteredSuppliers.map(s => (
-                  <tr 
-                    key={s.id} 
+                  <tr
+                    key={s.id}
                     onClick={() => navigate(`/suppliers/directory/${s.id}`)}
                     className={clsx("hover:bg-slate-50/60 transition-colors group cursor-pointer", selectedSuppliers.includes(s.id) && "bg-primary/[0.02]")}
                   >
                     <td className="px-4 py-4 text-center border-r border-border/40" onClick={(e) => toggleSelect(s.id, e)}>
-                      <input 
-                        type="checkbox" 
-                        checked={selectedSuppliers.includes(s.id)} 
-                        onChange={() => {}} 
-                        className="rounded border-border" 
+                      <input
+                        type="checkbox"
+                        checked={selectedSuppliers.includes(s.id)}
+                        onChange={() => { }}
+                        className="rounded border-border"
                       />
                     </td>
                     {columnOrder.filter(id => visibleColumns.includes(id)).map(key => (
@@ -347,21 +347,21 @@ const SupplierPage: React.FC = () => {
                     ))}
                     <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-1">
-                        <button 
+                        <button
                           onClick={() => navigate(`/suppliers/directory/${s.id}`)}
                           className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all"
                           title="View Details"
                         >
                           <Eye size={14} />
                         </button>
-                        <button 
+                        <button
                           onClick={() => handleOpenEdit(s)}
                           className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-all font-bold"
                           title="Edit"
                         >
                           <Edit size={14} />
                         </button>
-                        <button 
+                        <button
                           onClick={(e) => handleDeleteClick(s.id, e)}
                           className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-all font-bold"
                           title="Delete"
@@ -375,7 +375,7 @@ const SupplierPage: React.FC = () => {
               </tbody>
             </table>
           </div>
-          
+
           <div className="px-6 py-3 border-t border-border bg-slate-50/50 flex items-center justify-between shrink-0">
             <span className="text-[12px] font-medium text-slate-500">Total: <b>{filteredSuppliers.length}</b> supplier(s)</span>
           </div>
@@ -406,8 +406,8 @@ const SupplierPage: React.FC = () => {
               <div className="flex-1 min-h-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie 
-                      data={suppliers.slice(0, 5).map((s) => ({ name: s.company_name, val: 1 }))} 
+                    <Pie
+                      data={suppliers.slice(0, 5).map((s) => ({ name: s.company_name, val: 1 }))}
                       cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={4} dataKey="val"
                     >
                       {suppliers.slice(0, 5).map((_, i) => (
@@ -464,7 +464,7 @@ const SupplierPage: React.FC = () => {
                 </div>
               </div>
               <p className="text-[14px] text-slate-600 font-medium leading-relaxed">
-                Are you sure you want to delete {confirmAction.type === 'bulk' ? `these ${selectedSuppliers.length} suppliers` : 'this supplier'}? 
+                Are you sure you want to delete {confirmAction.type === 'bulk' ? `these ${selectedSuppliers.length} suppliers` : 'this supplier'}?
                 All associated data will be permanently removed.
               </p>
             </div>

@@ -16,6 +16,7 @@ import {
 import { formatDate } from '../lib/utils';
 import { debitNoteService } from '../services/debitNoteService';
 import { shipmentService } from '../services/shipmentService';
+import { exchangeRateService, type ExchangeRate } from '../services/exchangeRateService';
 import { ColumnSettings } from '../components/ui/ColumnSettings';
 import DebitNoteDialog from './debit-notes/dialogs/DebitNoteDialog';
 import type { DebitNote, DebitNoteFormState } from './debit-notes/types';
@@ -82,6 +83,7 @@ const DebitNotesPage: React.FC = () => {
   const [isDetailMode, setIsDetailMode] = useState(false);
   const [formState, setFormState] = useState<DebitNoteFormState>(INITIAL_FORM_STATE);
   const [shipmentOptions, setShipmentOptions] = useState<(Shipment & { value: string, label: string })[]>([]);
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -102,12 +104,16 @@ const DebitNotesPage: React.FC = () => {
 
   const fetchOptions = async () => {
     try {
-      const shipments = await shipmentService.getShipments(1, 500);
+      const [shipments, rates] = await Promise.all([
+        shipmentService.getShipments(1, 500),
+        exchangeRateService.getAll()
+      ]);
       setShipmentOptions(shipments.map(s => ({
         ...s,
         value: s.id,
         label: `${s.code || '#' + s.id.slice(0, 8)} - ${s.customers?.company_name || 'No Customer'}`
       })));
+      setExchangeRates(rates);
     } catch (err) {
       console.error(err);
     }
@@ -182,9 +188,9 @@ const DebitNotesPage: React.FC = () => {
       handleCloseDialog();
       fetchData();
       success(isEditMode ? 'Debit note updated successfully' : 'Debit note created successfully');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      error('Failed to save');
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to save'));
     }
   };
 
@@ -251,8 +257,8 @@ const DebitNotesPage: React.FC = () => {
 
     // Total Amount calculations
     debitNotes.forEach(note => {
-      const invTotal = note.invoice_items?.reduce((acc, it) => acc + (it.total || (it.rate * it.quantity * (1 + (it.tax_percent || 0) / 100))), 0) || 0;
-      const chiHoTotal = note.chi_ho_items?.reduce((acc, it) => acc + (it.total || (it.rate * it.quantity)), 0) || 0;
+      const invTotal = note.invoice_items?.reduce((acc, it) => acc + (it.total || (it.rate * it.quantity * (1 + (it.tax_percent || 0) / 100) * (it.exchange_rate || 1))), 0) || 0;
+      const chiHoTotal = note.chi_ho_items?.reduce((acc, it) => acc + (it.total || (it.rate * it.quantity * (it.exchange_rate || 1))), 0) || 0;
       totalInvoice += invTotal;
       totalChiHo += chiHoTotal;
     });
@@ -264,8 +270,8 @@ const DebitNotesPage: React.FC = () => {
     debitNotes.forEach(note => {
       const month = note.note_date.slice(0, 7); // YYYY-MM
       const current = monthlyMap.get(month) || { name: month, inv: 0, chiho: 0 };
-      const invTotal = note.invoice_items?.reduce((acc, it) => acc + (it.total || (it.rate * it.quantity * (1 + (it.tax_percent || 0) / 100))), 0) || 0;
-      const chiHoTotal = note.chi_ho_items?.reduce((acc, it) => acc + (it.total || (it.rate * it.quantity)), 0) || 0;
+      const invTotal = note.invoice_items?.reduce((acc, it) => acc + (it.total || (it.rate * it.quantity * (1 + (it.tax_percent || 0) / 100) * (it.exchange_rate || 1))), 0) || 0;
+      const chiHoTotal = note.chi_ho_items?.reduce((acc, it) => acc + (it.total || (it.rate * it.quantity * (it.exchange_rate || 1))), 0) || 0;
 
       monthlyMap.set(month, {
         name: month,
@@ -288,8 +294,8 @@ const DebitNotesPage: React.FC = () => {
     const customerMap = new Map<string, { name: string, total: number }>();
     debitNotes.forEach(note => {
       const customerName = note.shipments?.customers?.company_name || 'Individual';
-      const invTotal = note.invoice_items?.reduce((acc, it) => acc + (it.total || (it.rate * it.quantity * (1 + (it.tax_percent || 0) / 100))), 0) || 0;
-      const chiHoTotal = note.chi_ho_items?.reduce((acc, it) => acc + (it.total || (it.rate * it.quantity)), 0) || 0;
+      const invTotal = note.invoice_items?.reduce((acc, it) => acc + (it.total || (it.rate * it.quantity * (1 + (it.tax_percent || 0) / 100) * (it.exchange_rate || 1))), 0) || 0;
+      const chiHoTotal = note.chi_ho_items?.reduce((acc, it) => acc + (it.total || (it.rate * it.quantity * (it.exchange_rate || 1))), 0) || 0;
       const current = customerMap.get(customerName) || { name: customerName, total: 0 };
 
       customerMap.set(customerName, {
@@ -612,6 +618,7 @@ const DebitNotesPage: React.FC = () => {
         formState={formState}
         setFormField={setFormField}
         shipmentOptions={shipmentOptions}
+        exchangeRates={exchangeRates}
         onSave={handleSave}
       />
 

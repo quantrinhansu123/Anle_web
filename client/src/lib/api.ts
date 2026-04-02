@@ -37,7 +37,42 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
       url,
       ...result
     });
-    throw new Error(result.error?.message || result.message || 'API request failed');
+    let errorMessage = result.error?.message || result.message || 'API request failed';
+    
+    if (result.errors && typeof result.errors === 'object') {
+      const fieldErrors = Object.entries(result.errors)
+        .map(([field, msgs]) => {
+          // Format field name: "shipment_id" -> "Shipment"
+          let fieldName = field.replace(/_/g, ' ');
+          fieldName = fieldName.charAt(0).toUpperCase() + fieldName.slice(1);
+          if (fieldName.toLowerCase().endsWith(' id')) {
+            fieldName = fieldName.slice(0, -3).trim();
+          }
+
+          let msgStr = Array.isArray(msgs) ? msgs.join(', ') : String(msgs);
+          const msgLower = msgStr.toLowerCase();
+          
+          // Map common Zod errors to user-friendly messages
+          if (msgLower.includes('invalid uuid') || msgLower.includes('required')) {
+            return `${fieldName} is missing or required`;
+          }
+          if (msgLower.includes('expected number, received nan')) {
+            return `${fieldName} must be a valid number`;
+          }
+          if (msgLower.includes('string must contain at least 1 character')) {
+            return `${fieldName} cannot be empty`;
+          }
+          
+          return `${fieldName}: ${msgStr}`;
+        })
+        .join(' • ');
+        
+      if (fieldErrors) {
+        errorMessage = `Validation failed: ${fieldErrors}`;
+      }
+    }
+    
+    throw new Error(errorMessage);
   }
 
   // Debug: log the result to find why .data might be missing

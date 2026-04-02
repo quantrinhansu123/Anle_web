@@ -203,7 +203,7 @@ const ShipmentsPage: React.FC = () => {
       setLoading(true);
       const data = await shipmentService.getShipments(1, 100);
       setShipments(Array.isArray(data) ? data : []);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
     } finally {
       setLoading(false);
@@ -307,9 +307,9 @@ const ShipmentsPage: React.FC = () => {
         isEditingCustomer: false,
         newCustomer: { company_name: '' }
       }));
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save customer:', err);
-      error('Failed to save customer info');
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to save customer info'));
     } finally {
       setIsSavingCustomer(false);
     }
@@ -359,9 +359,9 @@ const ShipmentsPage: React.FC = () => {
         isEditingSupplier: false,
         newSupplier: { id: '', company_name: '' }
       }));
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save supplier:', err);
-      error('Failed to save supplier info');
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to save supplier info'));
     } finally {
       setIsSavingSupplier(false);
     }
@@ -441,9 +441,9 @@ const ShipmentsPage: React.FC = () => {
       fetchData();
       fetchOptions(); // Refresh lists in case new ones were added
       success(isEditMode ? 'Shipment updated successfully' : 'Shipment created successfully');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save shipment:', err);
-      error('Failed to save shipment. Please try again.');
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to save shipment. Please try again.'));
     }
   };
 
@@ -474,9 +474,9 @@ const ShipmentsPage: React.FC = () => {
       }
       setIsConfirmOpen(false);
       fetchData();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to delete:', err);
-      error('Failed to delete shipment(s)');
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to delete shipment(s)'));
     } finally {
       setIsDeleting(false);
     }

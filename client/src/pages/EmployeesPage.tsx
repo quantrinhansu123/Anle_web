@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { 
-  ChevronLeft, Search, Plus, Filter, 
+import {
+  ChevronLeft, Search, Plus, Filter,
   Edit, Trash2, X, BarChart2, List,
-  ChevronRight, Users, 
+  ChevronRight, Users,
   Briefcase, MapPin, RefreshCcw,
   TrendingUp, CheckCircle2, Clock, Phone, AlertCircle
 } from 'lucide-react';
@@ -157,7 +157,7 @@ const EmployeesPage: React.FC = () => {
       setLoading(true);
       const data = await employeeService.getEmployees();
       setEmployees(Array.isArray(data) ? data : []);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
     } finally {
       setLoading(false);
@@ -204,9 +204,9 @@ const EmployeesPage: React.FC = () => {
       handleCloseDialog();
       fetchData();
       success(isEditMode ? 'Employee updated successfully' : 'Employee created successfully');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save employee:', err);
-      error('Failed to save employee. Please try again.');
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to save employee. Please try again.'));
     }
   };
 
@@ -237,9 +237,9 @@ const EmployeesPage: React.FC = () => {
       }
       setIsConfirmOpen(false);
       fetchData();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to delete:', err);
-      error('Failed to delete employee(s)');
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to delete employee(s)'));
     } finally {
       setIsDeleting(false);
     }
@@ -248,8 +248,8 @@ const EmployeesPage: React.FC = () => {
   const filteredEmployees = employees.filter(e => {
     if (searchText) {
       const search = searchText.toLowerCase();
-      const matchesText = 
-        e.full_name.toLowerCase().includes(search) || 
+      const matchesText =
+        e.full_name.toLowerCase().includes(search) ||
         e.email.toLowerCase().includes(search) ||
         (e.department && e.department.toLowerCase().includes(search)) ||
         (e.position && e.position.toLowerCase().includes(search));
@@ -277,7 +277,7 @@ const EmployeesPage: React.FC = () => {
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full flex-1 flex flex-col -mt-2 min-h-0">
       {/* Sidebar Style Tabs */}
       <div className="flex items-center gap-1 mb-4">
-        <button 
+        <button
           onClick={() => setActiveTab('list')}
           className={clsx(
             "flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold transition-all",
@@ -287,7 +287,7 @@ const EmployeesPage: React.FC = () => {
           <List size={14} />
           Employee List
         </button>
-        <button 
+        <button
           onClick={() => setActiveTab('stats')}
           className={clsx(
             "flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold transition-all",
@@ -312,30 +312,30 @@ const EmployeesPage: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button 
-                  onClick={fetchData} 
+                <button
+                  onClick={fetchData}
                   className="px-3 py-1.5 rounded-xl border border-border bg-white text-muted-foreground hover:bg-muted transition-all"
                 >
                   <RefreshCcw size={16} className={loading ? 'animate-spin' : ''} />
                 </button>
-                <ColumnSettings 
-                  columns={COLUMN_DEFS} 
-                  visibleColumns={visibleColumns} 
-                  columnOrder={columnOrder} 
-                  onVisibleColumnsChange={setVisibleColumns} 
+                <ColumnSettings
+                  columns={COLUMN_DEFS}
+                  visibleColumns={visibleColumns}
+                  columnOrder={columnOrder}
+                  onVisibleColumnsChange={setVisibleColumns}
                   onColumnOrderChange={setColumnOrder}
                   defaultOrder={DEFAULT_COL_ORDER}
                 />
                 {selectedEmployees.length > 0 && (
                   <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2">
-                    <button 
+                    <button
                       onClick={handleBulkDeleteClick}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 transition-all active:scale-95"
                     >
                       <Trash2 size={13} />
                       Delete ({selectedEmployees.length})
                     </button>
-                    <button 
+                    <button
                       onClick={() => setSelectedEmployees([])}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold text-slate-600 bg-white border border-border hover:bg-slate-50 transition-all active:scale-95"
                     >
@@ -345,7 +345,7 @@ const EmployeesPage: React.FC = () => {
                     <div className="h-4 w-px bg-border mx-1" />
                   </div>
                 )}
-                <button 
+                <button
                   onClick={handleOpenAdd}
                   className="flex items-center gap-2 px-4 py-1.5 bg-primary text-white rounded-xl text-[13px] font-bold shadow-md shadow-primary/20 hover:bg-primary/90 transition-all font-inter"
                 >
@@ -358,15 +358,15 @@ const EmployeesPage: React.FC = () => {
             {/* Secondary Filters */}
             <div className="hidden md:flex flex-wrap items-center gap-2" ref={dropdownRef}>
               <div className="relative">
-                <button 
+                <button
                   onClick={() => {
                     setActiveDropdown(activeDropdown === 'department' ? null : 'department');
                     setFilterSearch('');
                   }}
                   className={clsx(
                     "flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-[12px] font-bold shadow-sm",
-                    activeDropdown === 'department' || selectedDepartments.length > 0 
-                      ? "bg-primary/5 border-primary text-primary" 
+                    activeDropdown === 'department' || selectedDepartments.length > 0
+                      ? "bg-primary/5 border-primary text-primary"
                       : "bg-white border-border hover:bg-muted text-muted-foreground"
                   )}
                 >
@@ -379,10 +379,10 @@ const EmployeesPage: React.FC = () => {
                   )}
                   <ChevronRight size={14} className={clsx("transition-transform ml-1 opacity-40", activeDropdown === 'department' ? "-rotate-90" : "rotate-90")} />
                 </button>
-                <FilterDropdown 
+                <FilterDropdown
                   isOpen={activeDropdown === 'department'}
-                  options={departments.map(d => ({ 
-                    id: d, 
+                  options={departments.map(d => ({
+                    id: d,
                     label: d,
                     count: employees.filter(e => e.department === d).length
                   }))}
@@ -394,15 +394,15 @@ const EmployeesPage: React.FC = () => {
               </div>
 
               <div className="relative">
-                <button 
+                <button
                   onClick={() => {
                     setActiveDropdown(activeDropdown === 'position' ? null : 'position');
                     setFilterSearch('');
                   }}
                   className={clsx(
                     "flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-[12px] font-bold shadow-sm",
-                    activeDropdown === 'position' || selectedPositions.length > 0 
-                      ? "bg-primary/5 border-primary text-primary" 
+                    activeDropdown === 'position' || selectedPositions.length > 0
+                      ? "bg-primary/5 border-primary text-primary"
                       : "bg-white border-border hover:bg-muted text-muted-foreground"
                   )}
                 >
@@ -415,10 +415,10 @@ const EmployeesPage: React.FC = () => {
                   )}
                   <ChevronRight size={14} className={clsx("transition-transform ml-1 opacity-40", activeDropdown === 'position' ? "-rotate-90" : "rotate-90")} />
                 </button>
-                <FilterDropdown 
+                <FilterDropdown
                   isOpen={activeDropdown === 'position'}
-                  options={positions.map(p => ({ 
-                    id: p, 
+                  options={positions.map(p => ({
+                    id: p,
                     label: p,
                     count: employees.filter(e => e.position === p).length
                   }))}
@@ -450,8 +450,8 @@ const EmployeesPage: React.FC = () => {
                   )) : filteredEmployees.length === 0 ? (
                     <tr><td colSpan={visibleColumns.length + 2} className="px-4 py-20 text-center italic text-muted-foreground opacity-60">No employees found.</td></tr>
                   ) : filteredEmployees.map(e => (
-                    <tr 
-                      key={e.id} 
+                    <tr
+                      key={e.id}
                       onClick={() => navigate(`/employees/directory/${e.id}`)}
                       className={clsx('hover:bg-slate-50/60 transition-colors group cursor-pointer', selectedEmployees.includes(e.id) && 'bg-primary/[0.02]')}
                     >
@@ -463,7 +463,7 @@ const EmployeesPage: React.FC = () => {
                       ))}
                       <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
-                          <button 
+                          <button
                             onClick={(ev) => {
                               ev.stopPropagation();
                               handleOpenEdit(e);
@@ -472,7 +472,7 @@ const EmployeesPage: React.FC = () => {
                           >
                             <Edit size={14} />
                           </button>
-                          <button 
+                          <button
                             onClick={(ev) => handleDeleteClick(e.id, ev)}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-100 transition-all"
                             title="Delete"
@@ -547,17 +547,17 @@ const EmployeesPage: React.FC = () => {
       {/* MOBILE FILTER BOTTOM SHEET (Mockup) */}
       {showMobileFilter && (
         <div className="md:hidden fixed inset-0 z-[9999] flex flex-col justify-end bg-black/40">
-           <div className="bg-white p-5 rounded-t-3xl h-[60vh] overflow-y-auto">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="font-bold text-lg">Filters</h3>
-                <button onClick={() => setShowMobileFilter(false)}><X /></button>
-              </div>
-              {/* Filter contents... */}
-           </div>
+          <div className="bg-white p-5 rounded-t-3xl h-[60vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="font-bold text-lg">Filters</h3>
+              <button onClick={() => setShowMobileFilter(false)}><X /></button>
+            </div>
+            {/* Filter contents... */}
+          </div>
         </div>
       )}
 
-      <EmployeeDialog 
+      <EmployeeDialog
         isOpen={isDialogOpen}
         isClosing={isClosing}
         isEditMode={isEditMode}
@@ -583,7 +583,7 @@ const EmployeesPage: React.FC = () => {
                 </div>
               </div>
               <p className="text-[14px] text-slate-600 font-medium leading-relaxed">
-                Are you sure you want to delete {confirmAction.type === 'bulk' ? `these ${selectedEmployees.length} employees` : 'this employee'}? 
+                Are you sure you want to delete {confirmAction.type === 'bulk' ? `these ${selectedEmployees.length} employees` : 'this employee'}?
                 All associated data will be permanently removed.
               </p>
             </div>

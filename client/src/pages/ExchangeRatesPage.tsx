@@ -42,7 +42,7 @@ const ExchangeRatesPage: React.FC = () => {
       setLoading(true);
       const data = await exchangeRateService.getAll();
       setRates(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch exchange rates:', err);
     } finally {
       setLoading(false);
@@ -64,8 +64,8 @@ const ExchangeRatesPage: React.FC = () => {
       setEditingId(null);
       fetchData();
       success('Exchange rate updated successfully');
-    } catch (err) {
-      error('Failed to update rate');
+    } catch (err: any) {
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to update rate'));
     }
   };
 
@@ -81,8 +81,8 @@ const ExchangeRatesPage: React.FC = () => {
       setNewRate(0);
       fetchData();
       success('Exchange rate added successfully');
-    } catch (err) {
-      error('Failed to add rate');
+    } catch (err: any) {
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to add rate'));
     }
   };
 
@@ -92,8 +92,8 @@ const ExchangeRatesPage: React.FC = () => {
       await exchangeRateService.delete(id);
       fetchData();
       success('Exchange rate deleted successfully');
-    } catch (err) {
-      error('Failed to delete rate');
+    } catch (err: any) {
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to delete rate'));
     }
   };
 

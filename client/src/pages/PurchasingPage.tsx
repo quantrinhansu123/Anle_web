@@ -188,7 +188,7 @@ const PurchasingPage: React.FC = () => {
       setLoading(true);
       const data = await purchasingService.getPurchasingItems(1, 100);
       setPurchasingItems(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch purchasing items:', err);
     } finally {
       setLoading(false);
@@ -265,18 +265,20 @@ const PurchasingPage: React.FC = () => {
         };
         await purchasingService.createPurchasingItem(createPayload as any);
       }
-      
+
       if (pushToSales && dialogMode === 'add') {
         try {
           await salesService.createSalesItem({
             shipment_id: formState.shipment_id!,
-            description: formState.description || '',
-            rate: formState.rate || 0,
-            quantity: formState.quantity || 0,
-            unit: formState.unit || '',
-            currency: formState.currency || 'VND',
-            exchange_rate: formState.exchange_rate || 1,
-            tax_percent: formState.tax_percent || 0
+            items: [{
+              description: formState.description || '',
+              rate: formState.rate || 0,
+              quantity: formState.quantity || 0,
+              unit: formState.unit || '',
+              currency: formState.currency || 'VND',
+              exchange_rate: formState.exchange_rate || 1,
+              tax_percent: formState.tax_percent || 0
+            }]
           });
           toastSuccess('Purchasing and Sales Quote created successfully');
         } catch (salesErr) {
@@ -289,9 +291,9 @@ const PurchasingPage: React.FC = () => {
 
       handleCloseDialog();
       fetchData();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save:', err);
-      toastError('Failed to save purchasing item');
+      toastError(err instanceof Error ? err.message : (err?.message || 'Failed to save purchasing item'));
     }
   };
 
@@ -299,26 +301,28 @@ const PurchasingPage: React.FC = () => {
     try {
       const selected = purchasingItems.filter(i => selectedItems.includes(i.id));
       if (selected.length === 0) return;
-      
+
       let successCount = 0;
       await Promise.all(selected.map(async (item) => {
         try {
           await salesService.createSalesItem({
             shipment_id: item.shipment_id,
-            description: item.description,
-            rate: item.rate,
-            quantity: item.quantity,
-            unit: item.unit,
-            currency: item.currency,
-            exchange_rate: item.exchange_rate,
-            tax_percent: item.tax_percent
+            items: [{
+              description: item.description,
+              rate: item.rate,
+              quantity: item.quantity,
+              unit: item.unit,
+              currency: item.currency,
+              exchange_rate: item.exchange_rate,
+              tax_percent: item.tax_percent
+            }]
           });
           successCount++;
-        } catch (e) {
+        } catch (e: any) {
           console.error('Failed to push item to sales:', e);
         }
       }));
-      
+
       if (successCount === selected.length) {
         toastSuccess(`Successfully pushed ${successCount} items to Sales Quotation`);
       } else {
@@ -358,9 +362,9 @@ const PurchasingPage: React.FC = () => {
       }
       setIsConfirmOpen(false);
       fetchData();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to delete:', err);
-      toastError('Failed to delete item(s)');
+      toastError(err instanceof Error ? err.message : (err?.message || 'Failed to delete item(s)'));
     } finally {
       setIsDeleting(false);
     }

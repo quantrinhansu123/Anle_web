@@ -43,7 +43,7 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       {children}
 
       {/* Toast Portal/Container */}
-      <div className="fixed top-6 right-6 z-[9999] pointer-events-none flex flex-col gap-4">
+      <div className="fixed top-6 right-6 z-[99999] pointer-events-none flex flex-col gap-4">
         <AnimatePresence mode="popLayout">
           {toasts.map((toast) => (
             <Toast
