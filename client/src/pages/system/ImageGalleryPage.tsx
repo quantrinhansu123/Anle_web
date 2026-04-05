@@ -24,6 +24,7 @@ const ImageGalleryPage: React.FC = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     fetchFiles();
@@ -90,6 +91,7 @@ const ImageGalleryPage: React.FC = () => {
 
   const confirmDelete = async () => {
     if (!deletingId) return;
+    setIsDeleting(true);
     try {
       await apiFetch(`/upload/uploads/${deletingId}`, {
         method: 'DELETE'
@@ -101,6 +103,7 @@ const ImageGalleryPage: React.FC = () => {
       console.error(err);
       error(err.message || 'Failed to delete image');
     } finally {
+      setIsDeleting(false);
       setIsConfirmOpen(false);
       setDeletingId(null);
     }
@@ -256,6 +259,7 @@ const ImageGalleryPage: React.FC = () => {
         onClose={() => { setIsConfirmOpen(false); setDeletingId(null); }}
         onConfirm={confirmDelete}
         message="Are you sure you want to delete this image? This action cannot be undone."
+        isProcessing={isDeleting}
       />
     </div>
   );
