@@ -109,5 +109,26 @@ export const uploadController = {
     } catch (err: any) {
       return res.status(404).send('File not found');
     }
+  },
+
+  async deleteFile(req: Request, res: Response) {
+    try {
+      const { bucket, path } = req.params;
+      
+      // Default to uploads if bucket is not provided in a multi-use route
+      const actualBucket = bucket || 'uploads';
+      
+      await uploadService.deleteFile(actualBucket, path);
+
+      return res.status(200).json({
+        success: true,
+        message: 'File deleted successfully'
+      });
+    } catch (err: any) {
+      return res.status(500).json({
+        success: false,
+        message: err.message
+      });
+    }
   }
 };

@@ -58,5 +58,15 @@ export const uploadService = {
       size: file.metadata?.size || 0,
       mimetype: file.metadata?.mimetype || 'image/jpeg'
     }));
+  },
+
+  async deleteFile(bucket: string, path: string) {
+    const { error } = await supabase.storage.from(bucket).remove([path]);
+    
+    if (error) {
+      throw new Error(`Failed to delete file: ${error.message}`);
+    }
+    
+    return true;
   }
 };

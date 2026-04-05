@@ -8,5 +8,6 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.get('/', uploadController.listFiles);
 router.post('/', upload.single('file'), uploadController.uploadGenericFile);
 router.post('/avatar', upload.single('file'), uploadController.uploadAvatar);
+router.delete('/:bucket/:path', uploadController.deleteFile);
 
 export default router;

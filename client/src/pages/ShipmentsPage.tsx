@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { createPortal } from 'react-dom';
 import {
   ChevronLeft, Search, Plus, Filter,
@@ -6,7 +7,7 @@ import {
   ChevronRight, Ship, Plane, Truck,
   MapPin, RefreshCcw,
   TrendingUp, Users, CheckCircle2,
-  User as UserIcon, Eye, AlertCircle
+  User as UserIcon, Eye
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
@@ -1375,45 +1376,18 @@ const ShipmentsPage: React.FC = () => {
         </div>
         , document.body)}
       {/* CONFIRMATION DIALOG */}
-      {isConfirmOpen && createPortal(
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => !isDeleting && setIsConfirmOpen(false)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl border border-border w-full max-w-sm overflow-hidden animate-in zoom-in-95 fade-in duration-200">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 shrink-0">
-                  <AlertCircle size={20} />
-                </div>
-                <div>
-                  <h3 className="text-[16px] font-bold text-slate-900">Confirm Deletion</h3>
-                  <p className="text-[13px] text-muted-foreground">This action cannot be undone.</p>
-                </div>
-              </div>
-              <p className="text-[14px] text-slate-600 font-medium leading-relaxed">
-                Are you sure you want to delete {confirmAction.type === 'bulk' ? `these ${selectedShipments.length} shipments` : 'this shipment'}?
-                All associated data will be permanently removed.
-              </p>
-            </div>
-            <div className="p-4 bg-slate-50 border-t border-border flex items-center gap-3">
-              <button
-                disabled={isDeleting}
-                onClick={() => setIsConfirmOpen(false)}
-                className="flex-1 py-2 rounded-xl border border-border bg-white text-[13px] font-bold text-slate-600 hover:bg-white/80 transition-all disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                disabled={isDeleting}
-                onClick={handleConfirmDelete}
-                className="flex-1 py-2 rounded-xl bg-red-600 text-white text-[13px] font-bold shadow-md shadow-red-200 hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {isDeleting ? <RefreshCcw size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-        , document.body)}
+      <ConfirmDialog
+        isOpen={isConfirmOpen}
+        onClose={() => setIsConfirmOpen(false)}
+        onConfirm={handleConfirmDelete}
+        isProcessing={isDeleting}
+        message={
+          <>
+            Are you sure you want to delete {confirmAction.type === 'bulk' ? `these ${selectedShipments.length} shipments` : 'this shipment'}?
+            All associated data will be permanently removed.
+          </>
+        }
+      />
 
       {/* SHIPMENT DIALOG */}
       <ShipmentDialog

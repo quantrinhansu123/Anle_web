@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
-  ImageIcon, Upload, Copy, Check, Loader2, ImagePlus
+  ImageIcon, Upload, Copy, Check, Loader2, ImagePlus, Trash2, X
 } from 'lucide-react';
 import { apiFetch } from '../../lib/api';
 import { useToastContext } from '../../contexts/ToastContext';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 
 interface UploadedFile {
   name: string;
@@ -19,6 +21,9 @@ const ImageGalleryPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   useEffect(() => {
     fetchFiles();
@@ -77,6 +82,28 @@ const ImageGalleryPage: React.FC = () => {
     setTimeout(() => {
       setCopiedUrl(null);
     }, 2000);
+  };
+
+  const handleDelete = () => {
+    setIsConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingId) return;
+    try {
+      await apiFetch(`/upload/uploads/${deletingId}`, {
+        method: 'DELETE'
+      });
+      success('Image deleted successfully');
+      fetchFiles(); // Refresh
+      if (selectedImage?.endsWith(deletingId)) setSelectedImage(null);
+    } catch (err: any) {
+      console.error(err);
+      error(err.message || 'Failed to delete image');
+    } finally {
+      setIsConfirmOpen(false);
+      setDeletingId(null);
+    }
   };
 
   const formatSize = (bytes: number) => {
@@ -145,7 +172,11 @@ const ImageGalleryPage: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
           {files.map((file, index) => (
             <div key={index} className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden group hover:shadow-md transition-all hover:border-primary/30 flex flex-col">
-              <div className="w-full h-40 bg-muted/30 relative flex items-center justify-center p-2 overflow-hidden border-b border-border">
+              <div 
+                className="w-full h-40 bg-muted/30 relative flex items-center justify-center p-2 overflow-hidden border-b border-border cursor-pointer group-hover:bg-muted/50 transition-colors"
+                onClick={() => setSelectedImage(file.url)}
+                title="Click to view full image"
+              >
                 {/* Checkered background for transparent images */}
                 <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '10px 10px' }}></div>
                 <img 
@@ -167,29 +198,65 @@ const ImageGalleryPage: React.FC = () => {
                    {new Date(file.created_at).toLocaleDateString()}
                   </div>
                 </div>
-                <button 
-                  onClick={() => handleCopyUrl(file.url)}
-                  className={`mt-2 w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] font-bold transition-all border ${
-                    copiedUrl === file.url 
-                    ? 'bg-green-500/10 text-green-600 border-green-500/20' 
-                    : 'bg-muted/50 text-foreground hover:bg-primary/10 hover:text-primary border-transparent'
-                  }`}
-                >
-                  {copiedUrl === file.url ? (
-                    <>
-                      <Check size={14} /> Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={14} /> Copy URL
-                    </>
-                  )}
-                </button>
+                <div className="flex items-center gap-2 mt-2 w-full">
+                  <button 
+                    onClick={() => handleCopyUrl(file.url)}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] font-bold transition-all border ${
+                      copiedUrl === file.url 
+                      ? 'bg-green-500/10 text-green-600 border-green-500/20' 
+                      : 'bg-muted/50 text-foreground hover:bg-primary/10 hover:text-primary border-transparent'
+                    }`}
+                  >
+                    {copiedUrl === file.url ? (
+                      <>
+                        <Check size={14} /> Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={14} /> Copy URL
+                      </>
+                    )}
+                  </button>
+                  <button 
+                    onClick={() => { setDeletingId(file.name); handleDelete(); }}
+                    className="flex flex-shrink-0 items-center justify-center w-[38px] h-[38px] rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all disabled:opacity-50 border border-transparent"
+                    title="Delete image"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {/* Fullscreen Image Dialog */}
+      {selectedImage && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setSelectedImage(null)}>
+          <button 
+            className="absolute top-4 right-4 sm:top-6 sm:right-6 w-12 h-12 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-all z-[10001]"
+            onClick={() => setSelectedImage(null)}
+          >
+            <X size={24} />
+          </button>
+          <img 
+            src={selectedImage} 
+            alt="Preview full screen" 
+            className="max-w-full max-h-[90vh] object-contain drop-shadow-2xl rounded-xl border border-white/10 relative z-[10000]"
+            onClick={(e) => e.stopPropagation()} 
+          />
+        </div>,
+        document.body
+      )}
+
+      {/* CONFIRMATION DIALOG */}
+      <ConfirmDialog
+        isOpen={isConfirmOpen}
+        onClose={() => { setIsConfirmOpen(false); setDeletingId(null); }}
+        onConfirm={confirmDelete}
+        message="Are you sure you want to delete this image? This action cannot be undone."
+      />
     </div>
   );
 };
