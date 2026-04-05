@@ -7,9 +7,7 @@ export class SystemSettingsController {
    */
   static async getSettings(_req: Request, res: Response): Promise<void> {
     try {
-      console.log('[DEBUG] SystemSettingsController.getSettings hit');
       const settings = await SystemSettingsService.getSettings();
-      console.log('[DEBUG] Settings found:', settings ? 'yes' : 'no');
       res.status(200).json({
         success: true,
         data: settings

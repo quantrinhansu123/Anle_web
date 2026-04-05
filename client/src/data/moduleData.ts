@@ -2,7 +2,7 @@ import {
   FileText, FileSignature,
   Users,
   BadgeDollarSign, CreditCard,
-  Settings, Truck, Handshake, Package, ShoppingCart, Palette, Building2
+  Settings, Truck, Handshake, Package, ShoppingCart, Palette, Building2, ImageIcon
 } from 'lucide-react';
 import type { ModuleCardProps } from '../components/ui/ModuleCard';
 
@@ -45,6 +45,7 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
       items: [
         { icon: Palette, title: 'Appearance', description: 'Customize UI theme, colors, and fonts.', colorScheme: 'blue', path: '/settings' },
         { icon: Building2, title: 'Company Information', description: 'Manage company profile, logos, and contacts.', colorScheme: 'orange', path: '/system/company-info' },
+        { icon: ImageIcon, title: 'Image Gallery', description: 'Upload images to host and get URLs.', colorScheme: 'teal', path: '/system/image-gallery' },
       ]
     }
   ]

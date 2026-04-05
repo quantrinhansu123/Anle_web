@@ -17,6 +17,7 @@ import debitNoteRoutes from './modules/debit-notes/debit-note.routes';
 import exchangeRateRoutes from './modules/exchange-rates/exchange-rate.routes';
 import systemSettingsRoutes from './modules/system-settings/system-settings.routes';
 import uploadRoutes from './modules/upload/upload.routes';
+import { uploadController } from './modules/upload/upload.controller';
 import authRoutes from './modules/auth/auth.routes';
 import { authMiddleware } from './middlewares/auth.middleware';
 
@@ -34,6 +35,7 @@ app.get(`${v1}/health`, (req, res) => {
 });
 app.use(`${v1}/auth`, authRoutes); // Auth routes handles its own protection internally for /me
 app.use(`${v1}/system-settings`, systemSettingsRoutes);
+app.get(`${v1}/f/:bucket/:path`, uploadController.serveFile);
 
 // Protected routes
 app.use(authMiddleware);

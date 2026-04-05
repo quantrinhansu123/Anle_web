@@ -22,16 +22,41 @@ export const uploadService = {
       throw new Error(`Upload failed: ${error.message}`);
     }
 
-    const { data: result } = supabase.storage
-      .from(bucket)
-      .getPublicUrl(path);
+    return path;
+  },
 
-    console.log('getPublicUrl result:', result);
+  async getFileBuffer(bucket: string, path: string) {
+    const { data, error } = await supabase.storage.from(bucket).download(path);
+    if (error) throw new Error(error.message);
+    if (!data) throw new Error('File not found');
 
-    if (!result?.publicUrl) {
-      throw new Error('Failed to get public URL for the uploaded file');
+    const buffer = Buffer.from(await data.arrayBuffer());
+    return {
+      buffer,
+      mimetype: data.type
+    };
+  },
+
+  async listFiles(bucket: string) {
+    const { data: files, error } = await supabase.storage.from(bucket).list('', {
+      limit: 100,
+      sortBy: { column: 'created_at', order: 'desc' }
+    });
+
+    if (error) {
+      throw new Error(`Failed to list files: ${error.message}`);
     }
 
-    return result.publicUrl;
-  },
+    if (!files) return [];
+
+    // Filter out potential system/hidden files like .emptyFolderPlaceholder
+    const validFiles = files.filter(f => f.name !== '.emptyFolderPlaceholder');
+
+    return validFiles.map(file => ({
+      name: file.name,
+      created_at: file.created_at,
+      size: file.metadata?.size || 0,
+      mimetype: file.metadata?.mimetype || 'image/jpeg'
+    }));
+  }
 };

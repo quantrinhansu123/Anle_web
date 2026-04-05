@@ -75,8 +75,5 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
     throw new Error(errorMessage);
   }
 
-  // Debug: log the result to find why .data might be missing
-  console.log('API Success:', { url, result });
-
   return result.data;
 }

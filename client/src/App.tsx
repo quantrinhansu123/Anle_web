@@ -21,6 +21,7 @@ import EmployeesPage from './pages/EmployeesPage';
 import EmployeeDetailsPage from './pages/employees/EmployeeDetailsPage';
 import SupplierDetailsPage from './pages/suppliers/SupplierDetailsPage';
 import CompanyInfoPage from './pages/system/CompanyInfoPage';
+import ImageGalleryPage from './pages/system/ImageGalleryPage';
 import HoadonAnle from './pages/sales/HoadonAnle';
 import LoginPage from './pages/auth/LoginPage';
 import { AuthProvider } from './contexts/AuthContext';
@@ -64,6 +65,7 @@ function App() {
             <Route path="/system" element={<ModulePage />} />
             <Route path="/system/exchange-rates" element={<ExchangeRatesPage />} />
             <Route path="/system/company-info" element={<CompanyInfoPage />} />
+            <Route path="/system/image-gallery" element={<ImageGalleryPage />} />
             
             <Route path="/ai-assistant" element={<AIPage />} />
             <Route path="/copyright" element={<CopyrightPage />} />
