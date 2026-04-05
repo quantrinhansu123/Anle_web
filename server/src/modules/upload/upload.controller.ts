@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { uploadService } from './upload.service';
+import sharp from 'sharp';
+import { env } from '../../config/env';
 
 export const uploadController = {
   async uploadAvatar(req: Request, res: Response) {
@@ -9,15 +11,28 @@ export const uploadController = {
       }
 
       const file = req.file;
-      const fileName = `${Date.now()}-${file.originalname}`;
+      let buffer = file.buffer;
+      let mimetype = file.mimetype;
+      let fileName = `${Date.now()}-${file.originalname}`;
+
+      if (mimetype.startsWith('image/')) {
+        buffer = await sharp(file.buffer)
+          .resize({ width: 1000, height: 1000, fit: 'inside', withoutEnlargement: true })
+          .webp({ quality: 80 })
+          .toBuffer();
+        mimetype = 'image/webp';
+        const lastDot = fileName.lastIndexOf('.');
+        fileName = (lastDot !== -1 ? fileName.substring(0, lastDot) : fileName) + '.webp';
+      }
+
       const bucket = 'avatars';
       const path = fileName;
 
       const uploadedPath = await uploadService.uploadFile(
         bucket,
         path,
-        file.buffer,
-        file.mimetype
+        buffer,
+        mimetype
       );
 
       const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
@@ -43,7 +58,20 @@ export const uploadController = {
       }
 
       const file = req.file;
-      const fileName = `${Date.now()}-${file.originalname}`;
+      let buffer = file.buffer;
+      let mimetype = file.mimetype;
+      let fileName = `${Date.now()}-${file.originalname}`;
+
+      if (mimetype.startsWith('image/')) {
+        buffer = await sharp(file.buffer)
+          .resize({ width: 1920, height: 1920, fit: 'inside', withoutEnlargement: true })
+          .webp({ quality: 80 })
+          .toBuffer();
+        mimetype = 'image/webp';
+        const lastDot = fileName.lastIndexOf('.');
+        fileName = (lastDot !== -1 ? fileName.substring(0, lastDot) : fileName) + '.webp';
+      }
+
       // Use 'uploads' as the default bucket for generic files
       const bucket = 'uploads';
       const path = fileName;
@@ -51,8 +79,8 @@ export const uploadController = {
       const uploadedPath = await uploadService.uploadFile(
         bucket,
         path,
-        file.buffer,
-        file.mimetype
+        buffer,
+        mimetype
       );
 
       const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
@@ -99,13 +127,12 @@ export const uploadController = {
   async serveFile(req: Request, res: Response) {
     try {
       const { bucket, path } = req.params;
-      const fileData = await uploadService.getFileBuffer(bucket, path);
       
-      // Cache the file for 1 year in public caches
-      res.setHeader('Cache-Control', 'public, max-age=31536000');
-      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-      res.setHeader('Content-Type', fileData.mimetype);
-      res.send(fileData.buffer);
+      const fileUrl = `${env.SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
+      
+      // Cache the redirect globally for 1 year to skip Vercel checks entirely for repeat visits
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.redirect(302, fileUrl);
     } catch (err: any) {
       return res.status(404).send('File not found');
     }
