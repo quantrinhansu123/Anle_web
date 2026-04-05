@@ -52,6 +52,11 @@ app.use(`${v1}/debit-notes`, debitNoteRoutes);
 app.use(`${v1}/exchange-rates`, exchangeRateRoutes);
 app.use(`${v1}/upload`, uploadRoutes);
 
+// Catch-all 404 handler
+app.use((req, res, next) => {
+  res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.originalUrl}` });
+});
+
 app.use(errorMiddleware);
 
 export default app;
