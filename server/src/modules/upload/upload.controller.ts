@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { uploadService } from './upload.service';
-import sharp from 'sharp';
 import { env } from '../../config/env';
 
 export const uploadController = {
@@ -11,28 +10,15 @@ export const uploadController = {
       }
 
       const file = req.file;
-      let buffer = file.buffer;
-      let mimetype = file.mimetype;
-      let fileName = `${Date.now()}-${file.originalname}`;
-
-      if (mimetype.startsWith('image/')) {
-        buffer = await sharp(file.buffer)
-          .resize({ width: 1000, height: 1000, fit: 'inside', withoutEnlargement: true })
-          .webp({ quality: 80 })
-          .toBuffer();
-        mimetype = 'image/webp';
-        const lastDot = fileName.lastIndexOf('.');
-        fileName = (lastDot !== -1 ? fileName.substring(0, lastDot) : fileName) + '.webp';
-      }
-
+      const fileName = `${Date.now()}-${file.originalname}`;
       const bucket = 'avatars';
       const path = fileName;
 
       const uploadedPath = await uploadService.uploadFile(
         bucket,
         path,
-        buffer,
-        mimetype
+        file.buffer,
+        file.mimetype
       );
 
       const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
@@ -58,20 +44,7 @@ export const uploadController = {
       }
 
       const file = req.file;
-      let buffer = file.buffer;
-      let mimetype = file.mimetype;
-      let fileName = `${Date.now()}-${file.originalname}`;
-
-      if (mimetype.startsWith('image/')) {
-        buffer = await sharp(file.buffer)
-          .resize({ width: 1920, height: 1920, fit: 'inside', withoutEnlargement: true })
-          .webp({ quality: 80 })
-          .toBuffer();
-        mimetype = 'image/webp';
-        const lastDot = fileName.lastIndexOf('.');
-        fileName = (lastDot !== -1 ? fileName.substring(0, lastDot) : fileName) + '.webp';
-      }
-
+      const fileName = `${Date.now()}-${file.originalname}`;
       // Use 'uploads' as the default bucket for generic files
       const bucket = 'uploads';
       const path = fileName;
@@ -79,8 +52,8 @@ export const uploadController = {
       const uploadedPath = await uploadService.uploadFile(
         bucket,
         path,
-        buffer,
-        mimetype
+        file.buffer,
+        file.mimetype
       );
 
       const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
