@@ -3,11 +3,11 @@
   "rewrites": [
     {
       "source": "/uploads/(.*)",
-      "destination": "https://anle-server.vercel.app/api/v1/f/uploads/$1"
+      "destination": "https://anle-web-server.vercel.app/api/v1/f/uploads/$1"
     },
     {
       "source": "/avatars/(.*)",
-      "destination": "https://anle-server.vercel.app/api/v1/f/avatars/$1"
+      "destination": "https://anle-web-server.vercel.app/api/v1/f/avatars/$1"
     },
     {
       "source": "/(.*)",
