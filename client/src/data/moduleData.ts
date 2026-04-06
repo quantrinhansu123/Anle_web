@@ -2,50 +2,114 @@ import {
   FileText, FileSignature,
   Users,
   BadgeDollarSign, CreditCard,
-  Settings, Truck, Handshake, Package, ShoppingCart, Palette, Building2, ImageIcon
+  Truck, Handshake, Package, ShoppingCart, Palette, Building2, ImageIcon,
+  Calendar, Activity, LayoutDashboard, Database, Zap, Mail, Link as LinkIcon, Briefcase, GraduationCap, Grid,
+  MessageSquare, Banknote, Coins, AppWindow
 } from 'lucide-react';
 import type { ModuleCardProps } from '../components/ui/ModuleCard';
 
 export const moduleData: Record<string, { section: string; items: ModuleCardProps[] }[]> = {
-  '/order': [
+  '/operations': [
     {
-      section: 'Order',
+      section: 'Logistics & Supply Chain',
       items: [
         { icon: Package, title: 'Shipments', description: 'General shipment data and specifications.', colorScheme: 'slate', path: '/shipments/information' },
+        { icon: Database, title: 'Inventory', description: 'Manage stock, warehouses, and product tracking.', colorScheme: 'emerald', path: '/inventory' },
+        { icon: Truck, title: 'Fleet', description: 'Manage vehicles, contracts, and costs.', colorScheme: 'slate', path: '/fleet' },
+      ]
+    },
+    {
+      section: 'Trading',
+      items: [
         { icon: BadgeDollarSign, title: 'Sales', description: 'Quotation items and service rates.', colorScheme: 'amber', path: '/financials/sales' },
-        { icon: ShoppingCart, title: 'Purchasing Department', description: 'Manage purchasing items and costs.', colorScheme: 'orange', path: '/financials/purchasing' },
+        { icon: ShoppingCart, title: 'Purchasing', description: 'Manage purchasing items and costs.', colorScheme: 'orange', path: '/financials/purchasing' },
         { icon: FileSignature, title: 'Contracts', description: 'Comprehensive list of all shipping contracts.', colorScheme: 'slate', path: '/contracts/directory' },
         { icon: FileText, title: 'Pending Approvals', description: 'Review and approve pending purchase orders.', colorScheme: 'teal', path: '/financials/po-approvals' },
       ]
     }
   ],
-  '/internal': [
+  '/marketing': [
     {
-      section: 'Internal',
+      section: 'Customer Relations',
       items: [
-        { icon: Users, title: 'Employees', description: 'Company staff and roles.', colorScheme: 'orange', path: '/employees/directory' },
-        { icon: Truck, title: 'Suppliers', description: 'Carriers, agents, and service providers.', colorScheme: 'orange', path: '/suppliers/directory' },
-        { icon: Handshake, title: 'Customers', description: 'Comprehensive list of all clients.', colorScheme: 'blue', path: '/customers/directory' },
+        { icon: Handshake, title: 'CRM', description: 'Manage leads, opportunities, and interactions.', colorScheme: 'blue', path: '/crm' },
+        { icon: Users, title: 'Contacts', description: 'Unified directory for customers and suppliers.', colorScheme: 'teal', path: '/contacts/directory' },
       ]
     },
+    {
+      section: 'Digital Presence',
+      items: [
+        { icon: AppWindow, title: 'Website', description: 'Design and manage corporate websites.', colorScheme: 'slate', path: '/website' },
+        { icon: Mail, title: 'Email Marketing', description: 'Manage email campaigns and subscribers.', colorScheme: 'amber', path: '/email-marketing' },
+        { icon: LinkIcon, title: 'Link Tracker', description: 'Track URL clicks and marketing performance.', colorScheme: 'cyan', path: '/link-tracker' },
+      ]
+    }
   ],
-  '/accountant': [
+  '/hr': [
     {
-      section: 'Accountant',
+      section: 'Human Resources',
       items: [
-        { icon: CreditCard, title: 'Debits', description: 'Customer debit note management.', colorScheme: 'blue', path: '/financials/debit-notes' },
-        { icon: FileText, title: 'Payment Requests', description: 'Internal requests for supplier payments.', colorScheme: 'teal', path: '/financials/payment-requests' },
-        { icon: Settings, title: 'Settings', description: 'General application configuration for currency and exchange rates.', colorScheme: 'amber', path: '/system/exchange-rates' },
+        { icon: Users, title: 'Employees', description: 'Company staff directory and roles.', colorScheme: 'orange', path: '/employees/directory' },
+        { icon: Briefcase, title: 'Recruitment', description: 'Manage candidates and interview sessions.', colorScheme: 'blue', path: '/employees/candidates' },
       ]
     },
+    {
+      section: 'Work & Development',
+      items: [
+        { icon: LayoutDashboard, title: 'Projects', description: 'Manage tasks, sprints, and project scopes.', colorScheme: 'emerald', path: '/projects' },
+        { icon: GraduationCap, title: 'eLearning', description: 'Internal courses and employee training.', colorScheme: 'purple', path: '/elearning' },
+      ]
+    }
+  ],
+  '/finance': [
+    {
+      section: 'Accounting',
+      items: [
+        { icon: FileText, title: 'Invoicing', description: 'Create and manage customer invoices.', colorScheme: 'teal', path: '/financials/invoicing' },
+        { icon: CreditCard, title: 'Debit Notes', description: 'Customer debit note management.', colorScheme: 'blue', path: '/financials/debit-notes' },
+        { icon: FileText, title: 'Payment Requests', description: 'Internal requests for supplier payments.', colorScheme: 'teal', path: '/financials/payment-requests' },
+      ]
+    },
+    {
+      section: 'Expense Management',
+      items: [
+        { icon: Banknote, title: 'Expenses', description: 'Record and track company expenses.', colorScheme: 'orange', path: '/financials/expenses' },
+        { icon: Coins, title: 'Advances', description: 'Manage employee cash advances and claims.', colorScheme: 'cyan', path: '/financials/advances' },
+      ]
+    }
+  ],
+  '/productivity': [
+    {
+      section: 'Collaboration',
+      items: [
+        { icon: MessageSquare, title: 'Discuss', description: 'Internal team chat and discussion channels.', colorScheme: 'blue', path: '/discuss' },
+        { icon: Calendar, title: 'Calendar', description: 'Schedule meetings and company events.', colorScheme: 'amber', path: '/calendar' },
+      ]
+    },
+    {
+      section: 'Dashboards',
+      items: [
+        { icon: Activity, title: 'Activity Dashboard', description: 'Overview of recent activities and notifications.', colorScheme: 'emerald', path: '/activity-dashboard' },
+        { icon: LayoutDashboard, title: 'My Dashboard', description: 'Personalized widgets and quick links.', colorScheme: 'slate', path: '/my-dashboard' },
+      ]
+    }
   ],
   '/system': [
     {
-      section: 'System',
+      section: 'Configuration',
       items: [
         { icon: Palette, title: 'Appearance', description: 'Customize UI theme, colors, and fonts.', colorScheme: 'blue', path: '/settings' },
-        { icon: Building2, title: 'Company Information', description: 'Manage company profile, logos, and contacts.', colorScheme: 'orange', path: '/system/company-info' },
+        { icon: Building2, title: 'Company Info', description: 'Manage company profile, logos, and contacts.', colorScheme: 'orange', path: '/system/company-info' },
+        { icon: Zap, title: 'Exchange Rates', description: 'General application configuration for currency.', colorScheme: 'amber', path: '/system/exchange-rates' },
         { icon: ImageIcon, title: 'Image Gallery', description: 'Upload images to host and get URLs.', colorScheme: 'teal', path: '/system/image-gallery' },
+      ]
+    },
+    {
+      section: 'System Administration',
+      items: [
+        { icon: Grid, title: 'Apps', description: 'App store, manage modules and integrations.', colorScheme: 'emerald', path: '/apps' },
+        { icon: LayoutDashboard, title: 'Job Queue', description: 'Monitor background jobs and system tasks.', colorScheme: 'slate', path: '/system/job-queue' },
+        { icon: Activity, title: 'Mass Activities', description: 'Configure dynamic actions for bulk data.', colorScheme: 'purple', path: '/system/mass-activities' },
       ]
     }
   ]

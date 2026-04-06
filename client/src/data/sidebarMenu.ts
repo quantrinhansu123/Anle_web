@@ -4,7 +4,9 @@ import {
   Users,
   BadgeDollarSign,
   Copyright,
-  Settings
+  Settings,
+  Handshake,
+  Clock
 } from 'lucide-react';
 import React from 'react';
 
@@ -16,10 +18,12 @@ export type SidebarItem = {
 
 export const sidebarMenu: SidebarItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-  { icon: Package, label: 'Order', path: '/order' },
-  { icon: Users, label: 'Internal', path: '/internal' },
-  { icon: BadgeDollarSign, label: 'Accountant', path: '/accountant' },
-  { icon: Settings, label: 'System', path: '/system' }
+  { icon: Package, label: 'Operations', path: '/operations' },
+  { icon: Handshake, label: 'CRM & Marketing', path: '/marketing' },
+  { icon: Users, label: 'HR & Projects', path: '/hr' },
+  { icon: BadgeDollarSign, label: 'Finance', path: '/finance' },
+  { icon: Clock, label: 'Productivity', path: '/productivity' },
+  { icon: Settings, label: 'System & Apps', path: '/system' }
 ];
 
 // Additional items seen on the dashboard
