@@ -250,6 +250,7 @@ const PurchasingDialog: React.FC<Props> = ({
                   value={formState.currency || 'VND'}
                   onValueChange={v => handleCurrencyChange(v || 'VND')}
                   hideSearch
+                  hideClearIcon
                   placeholder="Select currency..."
                   disabled={isDetailMode}
                 />

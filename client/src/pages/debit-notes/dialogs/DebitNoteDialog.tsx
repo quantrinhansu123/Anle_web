@@ -44,6 +44,11 @@ const DebitNoteDialog: React.FC<Props> = ({
     shipment_id, note_date, invoice_items, chi_ho_items
   } = formState;
 
+  const currencyOptions = React.useMemo(() => [
+    { value: 'VND', label: 'VND' },
+    ...exchangeRates.map(r => ({ value: r.currency_code, label: r.currency_code }))
+  ], [exchangeRates]);
+
   const selectedShipment = formState.relatedShipment || shipmentOptions.find(s => s.value === shipment_id);
 
   const addInvoiceItem = () => {
@@ -337,17 +342,15 @@ const DebitNoteDialog: React.FC<Props> = ({
                         />
                       </td>
                       <td className="px-3 py-2">
-                        <select
+                        <SearchableSelect
                           value={item.currency_code || 'VND'}
-                          onChange={e => updateInvoiceItem(idx, 'currency_code', e.target.value)}
+                          onValueChange={v => updateInvoiceItem(idx, 'currency_code', v || 'VND')}
+                          options={currencyOptions}
                           disabled={isDetailMode}
-                          className="w-full px-1 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-primary/40 focus:bg-white border rounded-lg text-[12px] font-bold text-center focus:outline-none transition-all disabled:hover:border-transparent text-slate-700"
-                        >
-                          <option value="VND">VND</option>
-                          {exchangeRates.map(r => (
-                            <option key={r.id} value={r.currency_code}>{r.currency_code}</option>
-                          ))}
-                        </select>
+                          hideSearch
+                          hideClearIcon
+                          className="h-[30px] px-2 py-1 bg-transparent border-transparent hover:border-border/60 hover:bg-transparent shadow-none rounded-lg text-[12px] font-bold text-slate-700 focus:ring-0 focus:border-primary/40 data-[state=open]:bg-white"
+                        />
                       </td>
                       <td className="px-3 py-2">
                         <input
@@ -482,17 +485,15 @@ const DebitNoteDialog: React.FC<Props> = ({
                         />
                       </td>
                       <td className="px-3 py-2">
-                        <select
+                        <SearchableSelect
                           value={item.currency_code || 'VND'}
-                          onChange={e => updateChiHoItem(idx, 'currency_code', e.target.value)}
+                          onValueChange={v => updateChiHoItem(idx, 'currency_code', v || 'VND')}
+                          options={currencyOptions}
                           disabled={isDetailMode}
-                          className="w-full px-1 py-1.5 bg-transparent border-transparent hover:border-border/60 focus:border-orange-400/40 focus:bg-white border rounded-lg text-[12px] font-bold text-center focus:outline-none transition-all disabled:hover:border-transparent text-slate-700"
-                        >
-                          <option value="VND">VND</option>
-                          {exchangeRates.map(r => (
-                            <option key={r.id} value={r.currency_code}>{r.currency_code}</option>
-                          ))}
-                        </select>
+                          hideSearch
+                          hideClearIcon
+                          className="h-[30px] px-2 py-1 bg-transparent border-transparent hover:border-border/60 hover:bg-transparent shadow-none rounded-lg text-[12px] font-bold text-slate-700 focus:ring-0 focus:border-orange-400/40 data-[state=open]:bg-white"
+                        />
                       </td>
                       <td className="px-3 py-2">
                         <input

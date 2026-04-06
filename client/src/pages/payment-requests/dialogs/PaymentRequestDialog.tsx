@@ -235,7 +235,7 @@ const PaymentRequestDialog: React.FC<Props> = ({
                           className="w-full px-3 py-2 bg-white border border-border rounded-lg text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-slate-50 disabled:border-transparent disabled:text-slate-900"
                         />
                       </div>
-                      <div className="space-y-1.5 md:col-span-5">
+                      <div className="space-y-1.5 md:col-span-4">
                         <label className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Description</label>
                         <input
                           type="text"
@@ -246,7 +246,7 @@ const PaymentRequestDialog: React.FC<Props> = ({
                           className="w-full px-3 py-2 bg-white border border-border rounded-lg text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium disabled:bg-slate-50 disabled:border-transparent disabled:text-slate-900"
                         />
                       </div>
-                      <div className="space-y-1.5 md:col-span-2">
+                      <div className="space-y-1.5 md:col-span-3">
                         <label className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Date Issue</label>
                         <DateInput
                           value={inv.date_issue || ''}

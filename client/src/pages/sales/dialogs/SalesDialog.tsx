@@ -281,17 +281,18 @@ const SalesDialog: React.FC<Props> = ({
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[12px] font-bold text-foreground">Currency <span className="text-red-500">*</span></label>
-                      <select
-                        value={item.currency}
-                        onChange={e => updateItem(idx, 'currency', e.target.value)}
+                      <SearchableSelect
+                        options={[
+                          { value: 'VND', label: 'VND' },
+                          ...exchangeRates.map(r => ({ value: r.currency_code, label: r.currency_code }))
+                        ]}
+                        value={item.currency || 'VND'}
+                        onValueChange={v => updateItem(idx, 'currency', v)}
+                        hideSearch
+                        hideClearIcon
+                        placeholder="Select currency..."
                         disabled={isReadOnly}
-                        className="w-full px-3 py-2 bg-muted/10 border border-border rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium appearance-none disabled:opacity-70 disabled:cursor-not-allowed"
-                      >
-                        <option value="VND">VND</option>
-                        {exchangeRates.map(r => (
-                          <option key={r.id} value={r.currency_code}>{r.currency_code}</option>
-                        ))}
-                      </select>
+                      />
                     </div>
                   </div>
 

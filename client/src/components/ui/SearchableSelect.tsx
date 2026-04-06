@@ -31,6 +31,7 @@ interface SearchableSelectProps {
   className?: string
   disabled?: boolean
   hideSearch?: boolean
+  hideClearIcon?: boolean
 }
 
 export function SearchableSelect({
@@ -43,6 +44,7 @@ export function SearchableSelect({
   className,
   disabled = false,
   hideSearch = false,
+  hideClearIcon = false,
 }: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false)
 
@@ -64,10 +66,10 @@ export function SearchableSelect({
             {selectedOption ? selectedOption.label : placeholder}
           </span>
           <div className="flex items-center gap-1.5 ml-2">
-            {value && !disabled && (
+            {value && !disabled && !hideClearIcon && (
               <X
                 size={14}
-                className="text-muted-foreground/40 hover:text-red-500 transition-colors cursor-pointer"
+                className="text-muted-foreground/40 hover:text-red-500 transition-colors cursor-pointer shrink-0"
                 onClick={(e) => {
                   e.stopPropagation()
                   onValueChange("")
