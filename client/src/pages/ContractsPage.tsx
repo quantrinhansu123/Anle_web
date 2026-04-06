@@ -36,7 +36,7 @@ const COLUMN_DEFS: Record<string, ColDef> = {
   id: {
     label: 'ID',
     thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-24 border-r border-border/40',
-    tdClass: 'px-4 py-4 border-r border-border/40 font-mono text-[12px] font-bold text-primary',
+    tdClass: 'px-4 py-4 border-r border-border/40 text-[12px] font-bold text-primary',
     renderContent: (c) => <span>#{c.id.slice(0, 8)}</span>
   },
   name: {

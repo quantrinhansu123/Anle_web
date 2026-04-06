@@ -15,6 +15,7 @@ import { purchasingService, type PurchasingItem, type CreatePurchasingItemDto } 
 import { shipmentService } from '../services/shipmentService';
 import { supplierService } from '../services/supplierService';
 import { employeeService } from '../services/employeeService';
+import { exchangeRateService, type ExchangeRate } from '../services/exchangeRateService';
 import { salesService } from '../services/salesService';
 import { FilterDropdown } from '../components/ui/FilterDropdown';
 import { ColumnSettings } from '../components/ui/ColumnSettings';
@@ -38,13 +39,13 @@ const COLUMN_DEFS: Record<string, ColDef> = {
   supplier_id: {
     label: 'Supplier ID',
     thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-tight text-left border-b border-r border-border/40 w-32',
-    tdClass: 'px-4 py-4 border-r border-border/40 font-mono text-[12px] font-bold text-primary',
+    tdClass: 'px-4 py-4 border-r border-border/40 text-[12px] font-bold text-primary',
     renderContent: (item) => <span>{item.supplier_id}</span>
   },
   shipment_id: {
     label: 'Shipment ID',
     thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-tight text-left border-b border-r border-border/40 w-32',
-    tdClass: 'px-4 py-4 border-r border-border/40 font-mono text-[12px] text-slate-500',
+    tdClass: 'px-4 py-4 border-r border-border/40 text-[12px] text-slate-500',
     renderContent: (item) => <span>{item.shipments?.code || `#${item.shipment_id.slice(0, 8)}`}</span>
   },
   supplier_name: {
@@ -169,6 +170,7 @@ const PurchasingPage: React.FC = () => {
   const [fullShipments, setFullShipments] = useState<any[]>([]);
   const [supplierOptions, setSupplierOptions] = useState<{ value: string, label: string }[]>([]);
   const [employeeOptions, setEmployeeOptions] = useState<{ value: string, label: string }[]>([]);
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -198,15 +200,17 @@ const PurchasingPage: React.FC = () => {
 
   const fetchOptions = async () => {
     try {
-      const [shipments, suppliers, employees] = await Promise.all([
+      const [shipments, suppliers, employees, rates] = await Promise.all([
         shipmentService.getShipments(1, 1000),
         supplierService.getSuppliers(),
-        employeeService.getEmployees()
+        employeeService.getEmployees(),
+        exchangeRateService.getAll()
       ]);
-      setFullShipments(shipments);
-      setShipmentOptions(shipments.map(s => ({ value: s.id, label: `${s.code || '#' + s.id.slice(0, 8)} - ${s.commodity}` })));
-      setSupplierOptions(suppliers.map(s => ({ value: s.id, label: s.company_name })));
-      setEmployeeOptions(employees.map(e => ({ value: e.id, label: e.full_name })));
+      setFullShipments(shipments as any[]);
+      setShipmentOptions((shipments as any[]).map(s => ({ value: s.id, label: `${s.code || '#' + s.id.slice(0, 8)} - ${s.commodity}` })));
+      setSupplierOptions((suppliers as any[]).map(s => ({ value: s.id, label: s.company_name })));
+      setEmployeeOptions((employees as any[]).map(e => ({ value: e.id, label: e.full_name })));
+      setExchangeRates(rates as ExchangeRate[]);
     } catch (err) {
       console.error('Failed to fetch options:', err);
     }
@@ -226,12 +230,14 @@ const PurchasingPage: React.FC = () => {
   };
 
   const handleOpenAdd = () => {
-    setFormState(INITIAL_FORM_STATE);
+    fetchOptions();
+    setFormState({ ...INITIAL_FORM_STATE, created_by_id: user?.id });
     setDialogMode('add');
     setIsDialogOpen(true);
   };
 
   const handleOpenEdit = (item: PurchasingItem) => {
+    fetchOptions();
     setFormState(item);
     setDialogMode('edit');
     setIsDialogOpen(true);
@@ -505,7 +511,7 @@ const PurchasingPage: React.FC = () => {
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex flex-col gap-1">
-                      <span className="text-[11px] font-mono font-bold text-primary">{item.shipments?.code || `#${item.shipment_id.slice(0, 8)}`}</span>
+                      <span className="text-[11px] font-bold text-primary">{item.shipments?.code || `#${item.shipment_id.slice(0, 8)}`}</span>
                       <span className="text-[14px] font-bold text-slate-900 leading-tight line-clamp-1">{item.suppliers?.company_name || '—'}</span>
                     </div>
                     <div className="text-right flex flex-col items-end">
@@ -872,6 +878,7 @@ const PurchasingPage: React.FC = () => {
         shipmentOptions={shipmentOptions}
         supplierOptions={supplierOptions}
         employeeOptions={employeeOptions}
+        exchangeRates={exchangeRates}
         onSave={handleSave}
         onEdit={() => setDialogMode('edit')}
       />

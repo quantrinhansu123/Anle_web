@@ -159,7 +159,7 @@ const POApprovalsPage: React.FC = () => {
                   {/* Card Header */}
                   <div className="px-5 py-4 border-b border-border bg-slate-50/50 flex flex-col gap-1 relative">
                     <div className="flex justify-between items-start">
-                      <span className="text-[12px] font-mono font-bold text-primary bg-primary/5 px-2 py-0.5 rounded">
+                      <span className="text-[12px] font-bold text-primary bg-primary/5 px-2 py-0.5 rounded">
                         Shipment: {item.shipments?.code || `#${item.shipment_id.slice(0, 8)}`}
                       </span>
                       <span className="text-[11px] font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full uppercase tracking-widest">

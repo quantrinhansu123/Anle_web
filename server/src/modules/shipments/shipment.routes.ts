@@ -8,6 +8,7 @@ const router = Router();
 // router.use(authMiddleware);
 
 router.get('/',        ShipmentController.list);
+router.get('/next-code', ShipmentController.getNextCode);
 router.get('/:id',     ShipmentController.getById);
 router.post('/',       validate(createShipmentSchema), ShipmentController.create);
 router.patch('/:id',   validate(updateShipmentSchema), ShipmentController.update);

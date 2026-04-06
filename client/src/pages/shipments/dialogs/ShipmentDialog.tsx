@@ -53,7 +53,7 @@ const ShipmentDialog: React.FC<Props> = ({
   if (!isOpen && !isClosing) return null;
 
   const {
-    customer_id, supplier_id, commodity, hs_code, quantity,
+    customer_id, supplier_id, code, commodity, hs_code, quantity,
     packing, vessel_voyage, term, transport_air, transport_sea,
     load_fcl, load_lcl, pol, pod, etd, eta,
     isNewCustomer, isEditingCustomer, newCustomer, isNewSupplier, isEditingSupplier, newSupplier
@@ -163,6 +163,10 @@ const ShipmentDialog: React.FC<Props> = ({
                   {!isNewCustomer && selectedCustomer && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3 pt-4 border-t border-blue-50 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
                       <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5"><Barcode size={12} className="opacity-70" /> Customer Code</label>
+                        <input readOnly value={selectedCustomer.code || '—'} className="w-full bg-blue-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-blue-900 focus:ring-0 cursor-default" />
+                      </div>
+                      <div className="space-y-1">
                         <label className="text-[11px] font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5"><Mail size={12} className="opacity-70" /> Email</label>
                         <input readOnly value={selectedCustomer.email || '—'} className="w-full bg-blue-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-blue-900 focus:ring-0 cursor-default" />
                       </div>
@@ -174,7 +178,7 @@ const ShipmentDialog: React.FC<Props> = ({
                         <label className="text-[11px] font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5"><Hash size={12} className="opacity-70" /> Tax Code</label>
                         <input readOnly value={selectedCustomer.tax_code || '—'} className="w-full bg-blue-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-blue-900 focus:ring-0 cursor-default" />
                       </div>
-                      <div className="space-y-1">
+                      <div className="space-y-1 md:col-span-2">
                         <label className="text-[11px] font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5"><MapPin size={12} className="opacity-70" /> Address</label>
                         <input readOnly value={selectedCustomer.address || '—'} className="w-full bg-blue-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-blue-900 focus:ring-0 cursor-default" />
                       </div>
@@ -233,7 +237,7 @@ const ShipmentDialog: React.FC<Props> = ({
                         value={newCustomer?.code || ''}
                         onChange={e => handleSetNewCustomerField('code', e.target.value.toUpperCase())}
                         disabled={isDetailMode || isEditingCustomer}
-                        className="w-full px-4 py-2 bg-blue-50/30 border border-blue-100 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500/10 transition-all font-mono font-bold tracking-widest disabled:opacity-70 placeholder:text-blue-500/30"
+                        className="w-full px-4 py-2 bg-blue-50/30 border border-blue-100 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500/10 transition-all font-bold tracking-widest disabled:opacity-70 placeholder:text-blue-500/30"
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -389,6 +393,10 @@ const ShipmentDialog: React.FC<Props> = ({
                   {!isNewSupplier && selectedSupplier && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3 pt-4 border-t border-emerald-50 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
                       <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5"><Barcode size={12} className="opacity-70" /> Supplier Code</label>
+                        <input readOnly value={selectedSupplier.value || '—'} className="w-full bg-emerald-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-emerald-900 focus:ring-0 cursor-default" />
+                      </div>
+                      <div className="space-y-1">
                         <label className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5"><Mail size={12} className="opacity-70" /> Email</label>
                         <input readOnly value={selectedSupplier.email || '—'} className="w-full bg-emerald-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-emerald-900 focus:ring-0 cursor-default" />
                       </div>
@@ -400,7 +408,7 @@ const ShipmentDialog: React.FC<Props> = ({
                         <label className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5"><Hash size={12} className="opacity-70" /> Tax Code</label>
                         <input readOnly value={selectedSupplier.tax_code || '—'} className="w-full bg-emerald-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-emerald-900 focus:ring-0 cursor-default" />
                       </div>
-                      <div className="space-y-1">
+                      <div className="space-y-1 md:col-span-2">
                         <label className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5"><MapPin size={12} className="opacity-70" /> Address</label>
                         <input readOnly value={selectedSupplier.address || '—'} className="w-full bg-emerald-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-emerald-900 focus:ring-0 cursor-default" />
                       </div>
@@ -445,7 +453,7 @@ const ShipmentDialog: React.FC<Props> = ({
                         value={newSupplier?.id || ''}
                         onChange={e => handleSetNewSupplierField('id', e.target.value.toUpperCase())}
                         disabled={isDetailMode || isEditingSupplier}
-                        className="w-full px-4 py-2 bg-emerald-50/30 border border-emerald-100 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500/10 transition-all font-mono font-bold tracking-widest disabled:opacity-70 placeholder:text-emerald-500/30"
+                        className="w-full px-4 py-2 bg-emerald-50/30 border border-emerald-100 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500/10 transition-all font-bold tracking-widest disabled:opacity-70 placeholder:text-emerald-500/30"
                       />
                     </div>
                     <div className="space-y-1.5 md:col-span-1">
@@ -568,6 +576,21 @@ const ShipmentDialog: React.FC<Props> = ({
               <span className="text-[12px] font-bold text-indigo-600 uppercase tracking-wider">Shipment Details</span>
             </div>
             <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+
+              <div className="space-y-1.5 md:col-span-2">
+                <div className="flex items-center gap-2">
+                  <Barcode size={16} className="text-indigo-600/70" />
+                  <label className="text-[13px] font-bold text-foreground">Shipment Code</label>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Auto-generated if left empty"
+                  value={code || ''}
+                  onChange={e => setFormField('code', e.target.value)}
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-indigo-50/30 border border-indigo-100 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold disabled:opacity-70 placeholder:text-indigo-500/30"
+                />
+              </div>
 
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2">

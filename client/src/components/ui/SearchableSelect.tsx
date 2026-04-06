@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Check, ChevronDown, Search, X } from "lucide-react"
+import { Check, ChevronDown, X } from "lucide-react"
 
 import { cn } from "../../lib/utils"
 import {
@@ -30,6 +30,7 @@ interface SearchableSelectProps {
   emptyMessage?: string
   className?: string
   disabled?: boolean
+  hideSearch?: boolean
 }
 
 export function SearchableSelect({
@@ -41,6 +42,7 @@ export function SearchableSelect({
   emptyMessage = "No results found.",
   className,
   disabled = false,
+  hideSearch = false,
 }: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false)
 
@@ -84,13 +86,12 @@ export function SearchableSelect({
       </PopoverTrigger>
       <PopoverContent className="w-full min-w-[var(--radix-popover-trigger-width)] p-0 shadow-xl border-border/60">
         <Command className="rounded-xl overflow-hidden">
-          <div className="flex items-center border-b border-border/40 px-3 bg-muted/5">
-            <Search className="mr-2 h-4 w-4 shrink-0 opacity-40" />
-            <CommandInput 
-              placeholder={searchPlaceholder} 
-              className="h-10 border-none px-0 text-[13px] focus:ring-0"
+          {!hideSearch && (
+            <CommandInput
+              placeholder={searchPlaceholder}
+              className="h-9 text-[13px] focus:ring-0"
             />
-          </div>
+          )}
           <CommandList className="max-h-60 p-1">
             <CommandEmpty className="py-6 text-[12px] text-muted-foreground">
               {emptyMessage}

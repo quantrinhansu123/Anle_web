@@ -45,7 +45,7 @@ const COLUMN_DEFS: Record<string, ColDef> = {
   code: {
     label: 'Code',
     thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-24 border-r border-b border-border/40',
-    tdClass: 'px-4 py-4 border-r border-border/40 text-[12px] font-black font-mono text-primary/80',
+    tdClass: 'px-4 py-4 border-r border-border/40 text-[12px] font-black text-primary/80',
     renderContent: (c) => (
       <div className="flex items-center justify-center bg-primary/5 rounded-md py-1 border border-primary/10 uppercase">
         {c.code || '—'}

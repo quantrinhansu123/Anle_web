@@ -29,7 +29,7 @@ const COLUMN_DEFS: Record<string, ColDef> = {
   shipment_id: {
     label: 'ID Shipment',
     thClass: 'px-6 py-3 border-r border-b border-border/40 text-left text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-32',
-    tdClass: 'px-6 py-4 border-r border-border/40 font-mono text-[12px] font-bold text-primary',
+    tdClass: 'px-6 py-4 border-r border-border/40 text-[12px] font-bold text-primary',
     renderContent: (n) => <span>{n.shipments?.code || `#${n.shipment_id.slice(0, 8)}`}</span>
   },
   date: {
@@ -477,7 +477,7 @@ const DebitNotesPage: React.FC = () => {
               >
                 <div className="flex items-start justify-between">
                   <div className="flex flex-col gap-1">
-                    <span className="text-[11px] font-mono font-bold text-primary">{n.shipments?.code || `#${n.shipment_id.slice(0, 8)}`}</span>
+                    <span className="text-[11px] font-bold text-primary">{n.shipments?.code || `#${n.shipment_id.slice(0, 8)}`}</span>
                     <span className="text-[14px] font-bold text-slate-900 leading-tight">{n.no_doc}</span>
                   </div>
                   <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>

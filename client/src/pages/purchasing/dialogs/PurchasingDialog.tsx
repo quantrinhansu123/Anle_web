@@ -8,6 +8,7 @@ import {
 import { clsx } from 'clsx';
 import { SearchableSelect } from '../../../components/ui/SearchableSelect';
 import type { PurchasingItem, CreatePurchasingItemDto } from '../../../services/purchasingService';
+import type { ExchangeRate } from '../../../services/exchangeRateService';
 
 interface Props {
   isOpen: boolean;
@@ -19,6 +20,7 @@ interface Props {
   shipmentOptions: { value: string; label: string }[];
   supplierOptions: { value: string; label: string }[];
   employeeOptions: { value: string; label: string }[];
+  exchangeRates: ExchangeRate[];
   onSave: (pushToSales?: boolean) => void;
   onEdit?: () => void;
 }
@@ -33,12 +35,31 @@ const PurchasingDialog: React.FC<Props> = ({
   shipmentOptions,
   supplierOptions,
   employeeOptions,
+  exchangeRates,
   onSave,
   onEdit
 }) => {
   const [calculatedTaxValue, setCalculatedTaxValue] = useState(0);
   const [calculatedTotal, setCalculatedTotal] = useState(0);
   const [pushToSales, setPushToSales] = useState(false);
+
+  const handleCurrencyChange = (newCurrency: string) => {
+    const oldExchangeRate = Number(formState.exchange_rate) || 1;
+    let newExchangeRate = 1;
+    if (newCurrency !== 'VND') {
+      const rateObj = exchangeRates.find(r => r.currency_code === newCurrency);
+      if (rateObj) newExchangeRate = rateObj.rate;
+    }
+    
+    let newRate = Number(formState.rate) || 0;
+    if (newRate > 0) {
+      newRate = parseFloat(((newRate * oldExchangeRate) / newExchangeRate).toFixed(4));
+    }
+    
+    setFormField('currency', newCurrency);
+    setFormField('exchange_rate', newExchangeRate);
+    if (newRate > 0) setFormField('rate', newRate);
+  };
 
   useEffect(() => {
     if (!isOpen) {
@@ -221,15 +242,17 @@ const PurchasingDialog: React.FC<Props> = ({
                   <DollarSign size={16} className="text-muted-foreground/70" />
                   <label className="text-[13px] font-bold text-foreground">Currency <span className="text-red-500">*</span></label>
                 </div>
-                <select
-                  value={formState.currency || 'USD'}
-                  onChange={e => setFormField('currency', e.target.value)}
+                <SearchableSelect
+                  options={[
+                    { value: 'VND', label: 'VND' },
+                    ...exchangeRates.map(r => ({ value: r.currency_code, label: r.currency_code }))
+                  ]}
+                  value={formState.currency || 'VND'}
+                  onValueChange={v => handleCurrencyChange(v || 'VND')}
+                  hideSearch
+                  placeholder="Select currency..."
                   disabled={isDetailMode}
-                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
-                >
-                  <option value="USD">USD</option>
-                  <option value="VND">VND</option>
-                </select>
+                />
               </div>
             </div>
 
@@ -246,7 +269,7 @@ const PurchasingDialog: React.FC<Props> = ({
                   placeholder="1.00"
                   value={formState.exchange_rate || ''}
                   onChange={e => setFormField('exchange_rate', parseFloat(e.target.value) || 0)}
-                  disabled={isDetailMode}
+                  disabled={isDetailMode || formState.currency === 'VND'}
                   className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
                 />
               </div>
@@ -285,17 +308,47 @@ const PurchasingDialog: React.FC<Props> = ({
               </div>
             </div>
 
-            {/* Personnel Assignments - PIC */}
+            {/* Personnel Assignments */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <User size={16} className="text-muted-foreground/70" />
+                  <label className="text-[13px] font-bold text-foreground">PIC</label>
+                </div>
+                <SearchableSelect
+                  options={employeeOptions}
+                  value={formState.pic_id || ''}
+                  onValueChange={(v) => setFormField('pic_id', v)}
+                  placeholder="Select PIC..."
+                  disabled={isDetailMode}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <User size={16} className="text-muted-foreground/70" />
+                  <label className="text-[13px] font-bold text-foreground">Creator</label>
+                </div>
+                <SearchableSelect
+                  options={employeeOptions}
+                  value={formState.created_by_id || ''}
+                  onValueChange={(v) => setFormField('created_by_id', v)}
+                  placeholder="Select Creator..."
+                  disabled={isDetailMode}
+                />
+              </div>
+            </div>
+
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
                 <User size={16} className="text-muted-foreground/70" />
-                <label className="text-[13px] font-bold text-foreground">PIC</label>
+                <label className="text-[13px] font-bold text-foreground">Approver</label>
               </div>
               <SearchableSelect
                 options={employeeOptions}
-                value={formState.pic_id || ''}
-                onValueChange={(v) => setFormField('pic_id', v)}
-                placeholder="Select PIC..."
+                value={formState.approved_by_id || ''}
+                onValueChange={(v) => setFormField('approved_by_id', v)}
+                placeholder="Select Approver..."
                 disabled={isDetailMode}
               />
             </div>

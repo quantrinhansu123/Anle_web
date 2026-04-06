@@ -35,10 +35,10 @@ const COLUMN_DEFS: Record<string, ColDef> = {
   shipment: {
     label: 'Quotation',
     thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-40 border-r border-border/40',
-    tdClass: 'px-4 py-4 border-r border-border/40 font-mono text-[12px] font-bold text-primary',
+    tdClass: 'px-4 py-4 border-r border-border/40 text-[12px] font-bold text-primary',
     renderContent: (s) => (
       <div className="flex flex-col">
-        <span>{s.no_doc || `Q-${s.id.slice(0,8)}`}</span>
+        <span>{s.no_doc || `Q-${s.id.slice(0, 8)}`}</span>
         <span className="text-[10px] text-muted-foreground">{s.shipments?.code || '—'}</span>
       </div>
     )
@@ -354,7 +354,7 @@ const SalesPage: React.FC = () => {
     const totalVND = filteredItems.reduce((acc, item) => acc + (item.sales_items?.reduce((sum, i) => sum + (i.total || 0), 0) || 0), 0);
     const activeUsdRate = exchangeRates.find(r => r.currency_code === 'USD')?.rate || 25450;
     const totalUSD = totalVND / activeUsdRate;
-    
+
     const allItems = filteredItems.flatMap(i => i.sales_items || []);
     const avgTax = allItems.length > 0 ? (allItems.reduce((acc, item) => acc + (item.tax_percent || 0), 0) / allItems.length) : 0;
 
@@ -374,10 +374,10 @@ const SalesPage: React.FC = () => {
       shipmentMap.set(item.shipment_id, current);
     });
     const shipmentData = Array.from(shipmentMap.values())
-      .map(data => ({ 
-        name: data.code.length > 12 ? data.code.slice(0, 12) + '...' : data.code, 
+      .map(data => ({
+        name: data.code.length > 12 ? data.code.slice(0, 12) + '...' : data.code,
         fullName: data.code,
-        val: data.val 
+        val: data.val
       }))
       .sort((a, b) => b.val - a.val)
       .slice(0, 5);
@@ -496,38 +496,39 @@ const SalesPage: React.FC = () => {
                 const countText = quoteItems.length > 1 ? `+${quoteItems.length - 1} more items` : (quoteItems[0]?.unit ? `${quoteItems[0].quantity} x ${quoteItems[0].unit}` : '');
 
                 return (
-                <div 
-                  key={item.id} 
-                  onClick={() => handleOpenDetail(item)}
-                  className="bg-white rounded-2xl border border-border p-4 shadow-sm active:border-primary/40 transition-all group relative overflow-hidden cursor-pointer"
-                >
-                  <div className="flex items-start justify-between relative z-10">
-                    <div className="flex flex-col gap-1 pr-12 min-w-0">
-                      <span className="text-[10px] font-mono font-black text-primary uppercase tracking-tighter opacity-70">{item.shipments?.code || `#${item.shipment_id?.slice(0, 8)}`}</span>
-                      <span className="text-[14px] font-bold text-slate-900 leading-tight line-clamp-2">{desc}</span>
-                      <span className="text-[11px] text-muted-foreground font-medium underline mt-1">{countText}</span>
+                  <div
+                    key={item.id}
+                    onClick={() => handleOpenDetail(item)}
+                    className="bg-white rounded-2xl border border-border p-4 shadow-sm active:border-primary/40 transition-all group relative overflow-hidden cursor-pointer"
+                  >
+                    <div className="flex items-start justify-between relative z-10">
+                      <div className="flex flex-col gap-1 pr-12 min-w-0">
+                        <span className="text-[10px] font-black text-primary uppercase tracking-tighter opacity-70">{item.shipments?.code || `#${item.shipment_id?.slice(0, 8)}`}</span>
+                        <span className="text-[14px] font-bold text-slate-900 leading-tight line-clamp-2">{desc}</span>
+                        <span className="text-[11px] text-muted-foreground font-medium underline mt-1">{countText}</span>
+                      </div>
+                      <div className="flex flex-col items-end gap-1.5 shrink-0">
+                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100">{quoteItems.length} Products</span>
+                        <span className="text-[15px] font-black text-primary tabular-nums">{new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(total)} VND</span>
+                      </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100">{quoteItems.length} Products</span>
-                      <span className="text-[15px] font-black text-primary tabular-nums">{new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(total)} VND</span>
+                    <div className="mt-4 flex items-center justify-end gap-2 pt-3 border-t border-slate-50">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleOpenEdit(item); }}
+                        className="p-2 rounded-xl bg-slate-50 text-slate-600 active:bg-primary/10 active:text-primary transition-all"
+                      >
+                        <Edit size={14} />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteClick(item.id, e)}
+                        className="p-2 rounded-xl bg-red-50 text-red-400 active:bg-red-500 active:text-white transition-all"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   </div>
-                  <div className="mt-4 flex items-center justify-end gap-2 pt-3 border-t border-slate-50">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); handleOpenEdit(item); }} 
-                      className="p-2 rounded-xl bg-slate-50 text-slate-600 active:bg-primary/10 active:text-primary transition-all"
-                    >
-                      <Edit size={14} />
-                    </button>
-                    <button 
-                      onClick={(e) => handleDeleteClick(item.id, e)} 
-                      className="p-2 rounded-xl bg-red-50 text-red-400 active:bg-red-500 active:text-white transition-all"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              )})
+                )
+              })
             )}
           </div>
 
@@ -572,7 +573,7 @@ const SalesPage: React.FC = () => {
                 >
                   <RefreshCcw size={16} className={loading ? 'animate-spin' : ''} />
                 </button>
-                <ColumnSettings 
+                <ColumnSettings
                   columns={COLUMN_DEFS}
                   visibleColumns={visibleColumns}
                   columnOrder={columnOrder}
@@ -807,10 +808,10 @@ const SalesPage: React.FC = () => {
                 </button>
                 <FilterDropdown
                   isOpen={activeDropdown === 'currency'}
-                  options={['VND', 'USD'].map(curr => ({ 
-                    id: curr, 
-                    label: curr === 'VND' ? 'Vietnamese Dong (VND)' : 'US Dollar (USD)', 
-                    count: salesItems.filter(i => i.sales_items?.some(si => si.currency === curr)).length 
+                  options={['VND', 'USD'].map(curr => ({
+                    id: curr,
+                    label: curr === 'VND' ? 'Vietnamese Dong (VND)' : 'US Dollar (USD)',
+                    count: salesItems.filter(i => i.sales_items?.some(si => si.currency === curr)).length
                   }))}
                   selected={selectedCurrencies}
                   onToggle={toggleCurrency}
@@ -924,8 +925,8 @@ const SalesPage: React.FC = () => {
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 'bold', fill: '#94a3b8' }} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                      <Tooltip 
-                        cursor={{ fill: '#f8fafc' }} 
+                      <Tooltip
+                        cursor={{ fill: '#f8fafc' }}
                         contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: 11 }}
                         formatter={(v, _, props) => [new Intl.NumberFormat('vi-VN').format(v as number) + ' ₫', (props.payload as { fullName?: string })?.fullName ?? '']}
                       />
@@ -994,7 +995,7 @@ const SalesPage: React.FC = () => {
               <div className="divide-y divide-border/60">
                 {/* Currency Section */}
                 <div className="px-5 py-4">
-                  <button 
+                  <button
                     onClick={() => setMobileExpandedSection(mobileExpandedSection === 'currency' ? null : 'currency')}
                     className="w-full flex items-center justify-between mb-2"
                   >
@@ -1025,7 +1026,7 @@ const SalesPage: React.FC = () => {
 
                 {/* Supplier Section */}
                 <div className="px-5 py-4">
-                  <button 
+                  <button
                     onClick={() => setMobileExpandedSection(mobileExpandedSection === 'supplier' ? null : 'supplier')}
                     className="w-full flex items-center justify-between mb-2"
                   >
@@ -1062,17 +1063,17 @@ const SalesPage: React.FC = () => {
               </div>
             </div>
             <div className="p-4 border-t border-border bg-white flex flex-col gap-2">
-              <button 
-                onClick={() => { 
-                  setPendingCurrencies([]); 
-                  setPendingSuppliers([]); 
-                }} 
+              <button
+                onClick={() => {
+                  setPendingCurrencies([]);
+                  setPendingSuppliers([]);
+                }}
                 className="w-full py-3 rounded-2xl border border-red-200 text-red-500 text-[14px] font-bold hover:bg-red-50 transition-all active:scale-95"
               >
                 Clear All
               </button>
-              <button 
-                onClick={applyMobileFilter} 
+              <button
+                onClick={applyMobileFilter}
                 className="w-full py-4 rounded-2xl bg-primary text-white text-[15px] font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-[0.98]"
               >
                 Apply Filters
@@ -1104,7 +1105,7 @@ const SalesPage: React.FC = () => {
         isProcessing={isDeleting}
         message={
           <>
-            Are you sure you want to delete {confirmAction.type === 'bulk' ? `these ${selectedSalesItems.length} sales items` : 'this sales item'}? 
+            Are you sure you want to delete {confirmAction.type === 'bulk' ? `these ${selectedSalesItems.length} sales items` : 'this sales item'}?
             All associated data will be permanently removed.
           </>
         }

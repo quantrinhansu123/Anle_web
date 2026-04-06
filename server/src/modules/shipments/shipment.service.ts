@@ -25,12 +25,12 @@ export class ShipmentService {
     return data;
   }
 
-  async create(dto: CreateShipmentDto): Promise<Shipment> {
+  async generateNextCode(customer_id: string): Promise<string> {
     // 1. Get Customer Code
     const { data: customer, error: custError } = await supabase
       .from('customers')
       .select('code')
-      .eq('id', dto.customer_id)
+      .eq('id', customer_id)
       .single();
 
     if (custError) throw new Error('Customer not found');
@@ -63,7 +63,15 @@ export class ShipmentService {
     }
 
     const sn = String(sequence).padStart(2, '0');
-    const finalCode = `${prefix}${sn}`;
+    return `${prefix}${sn}`;
+  }
+
+  async create(dto: CreateShipmentDto): Promise<Shipment> {
+    let finalCode = dto.code;
+    
+    if (!finalCode) {
+      finalCode = await this.generateNextCode(dto.customer_id);
+    }
 
     // 4. Insert Shipment
     const { data, error } = await supabase

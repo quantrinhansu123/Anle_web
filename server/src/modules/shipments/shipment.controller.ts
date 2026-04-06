@@ -16,6 +16,17 @@ export const ShipmentController = {
     }
   },
 
+  async getNextCode(req: Request, res: Response, next: NextFunction) {
+    try {
+      const customerId = req.query.customerId as string;
+      if (!customerId) return res.status(400).json({ message: 'customerId is required' });
+      const nextCode = await service.generateNextCode(customerId);
+      res.json(successResponse({ code: nextCode }));
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async getById(req: Request, res: Response, next: NextFunction) {
     try {
       const item = await service.findById(req.params.id);

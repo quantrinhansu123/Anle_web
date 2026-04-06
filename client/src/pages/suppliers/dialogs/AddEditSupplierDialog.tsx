@@ -81,7 +81,7 @@ const AddEditSupplierDialog: React.FC<Props> = ({
                 value={id || ''}
                 onChange={e => setFormField('id', e.target.value.toUpperCase())}
                 className={clsx(
-                  "w-full px-4 py-2 border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-mono font-bold tracking-widest",
+                  "w-full px-4 py-2 border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold tracking-widest",
                   isEditMode ? "bg-slate-50 border-border text-slate-400" : "bg-muted/10 border-border"
                 )}
               />
@@ -167,7 +167,7 @@ const AddEditSupplierDialog: React.FC<Props> = ({
           >
             Cancel
           </button>
-          <button 
+          <button
             onClick={onSave}
             className="flex items-center gap-2 px-8 py-2 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all group active:scale-95"
           >

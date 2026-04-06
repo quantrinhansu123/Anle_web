@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { 
+import {
   ImageIcon, Upload, Copy, Check, Loader2, ImagePlus, Trash2, X
 } from 'lucide-react';
 import { apiFetch } from '../../lib/api';
@@ -45,7 +45,7 @@ const ImageGalleryPage: React.FC = () => {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
-    
+
     const file = e.target.files[0];
     // Check if it's an image
     if (!file.type.startsWith('image/')) {
@@ -57,12 +57,12 @@ const ImageGalleryPage: React.FC = () => {
       setUploading(true);
       const formData = new FormData();
       formData.append('file', file);
-      
+
       await apiFetch<{ url: string }>('/upload', {
         method: 'POST',
         body: formData
       });
-      
+
       success('Image uploaded successfully');
       // Refresh the list after upload
       fetchFiles();
@@ -134,11 +134,11 @@ const ImageGalleryPage: React.FC = () => {
           <label className={`flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-white text-[14px] font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 cursor-pointer ${uploading ? 'opacity-70 pointer-events-none' : ''}`}>
             {uploading ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
             {uploading ? 'Uploading...' : 'Upload Image'}
-            <input 
-              type="file" 
-              className="hidden" 
-              accept="image/*" 
-              onChange={handleFileUpload} 
+            <input
+              type="file"
+              className="hidden"
+              accept="image/*"
+              onChange={handleFileUpload}
               disabled={uploading}
             />
           </label>
@@ -162,11 +162,11 @@ const ImageGalleryPage: React.FC = () => {
           <label className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-white text-[14px] font-bold hover:bg-primary/90 transition-all shadow-md cursor-pointer">
             <Upload size={18} />
             Upload Your First Image
-            <input 
-              type="file" 
-              className="hidden" 
-              accept="image/*" 
-              onChange={handleFileUpload} 
+            <input
+              type="file"
+              className="hidden"
+              accept="image/*"
+              onChange={handleFileUpload}
               disabled={uploading}
             />
           </label>
@@ -175,16 +175,16 @@ const ImageGalleryPage: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
           {files.map((file, index) => (
             <div key={index} className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden group hover:shadow-md transition-all hover:border-primary/30 flex flex-col">
-              <div 
+              <div
                 className="w-full h-40 bg-muted/30 relative flex items-center justify-center p-2 overflow-hidden border-b border-border cursor-pointer group-hover:bg-muted/50 transition-colors"
                 onClick={() => setSelectedImage(file.url)}
                 title="Click to view full image"
               >
                 {/* Checkered background for transparent images */}
                 <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '10px 10px' }}></div>
-                <img 
-                  src={file.url} 
-                  alt={file.name} 
+                <img
+                  src={file.url}
+                  alt={file.name}
                   className="max-w-full max-h-full object-contain relative z-10 transition-transform group-hover:scale-105"
                   loading="lazy"
                 />
@@ -194,21 +194,20 @@ const ImageGalleryPage: React.FC = () => {
                   {file.name.split('-').slice(1).join('-') || file.name}
                 </div>
                 <div className="flex items-center justify-between mt-auto pt-3 pb-2">
-                   <div className="text-[11px] text-muted-foreground">
+                  <div className="text-[11px] text-muted-foreground">
                     {formatSize(file.size)}
                   </div>
                   <div className="text-[11px] text-muted-foreground">
-                   {new Date(file.created_at).toLocaleDateString()}
+                    {new Date(file.created_at).toLocaleDateString()}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 mt-2 w-full">
-                  <button 
+                  <button
                     onClick={() => handleCopyUrl(file.url)}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] font-bold transition-all border ${
-                      copiedUrl === file.url 
-                      ? 'bg-green-500/10 text-green-600 border-green-500/20' 
-                      : 'bg-muted/50 text-foreground hover:bg-primary/10 hover:text-primary border-transparent'
-                    }`}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] font-bold transition-all border ${copiedUrl === file.url
+                        ? 'bg-green-500/10 text-green-600 border-green-500/20'
+                        : 'bg-muted/50 text-foreground hover:bg-primary/10 hover:text-primary border-transparent'
+                      }`}
                   >
                     {copiedUrl === file.url ? (
                       <>
@@ -220,7 +219,7 @@ const ImageGalleryPage: React.FC = () => {
                       </>
                     )}
                   </button>
-                  <button 
+                  <button
                     onClick={() => { setDeletingId(file.name); handleDelete(); }}
                     className="flex flex-shrink-0 items-center justify-center w-[38px] h-[38px] rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all disabled:opacity-50 border border-transparent"
                     title="Delete image"
@@ -237,17 +236,17 @@ const ImageGalleryPage: React.FC = () => {
       {/* Fullscreen Image Dialog */}
       {selectedImage && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setSelectedImage(null)}>
-          <button 
+          <button
             className="absolute top-4 right-4 sm:top-6 sm:right-6 w-12 h-12 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-all z-[10001]"
             onClick={() => setSelectedImage(null)}
           >
             <X size={24} />
           </button>
-          <img 
-            src={selectedImage} 
-            alt="Preview full screen" 
+          <img
+            src={selectedImage}
+            alt="Preview full screen"
             className="max-w-full max-h-[90vh] object-contain drop-shadow-2xl rounded-xl border border-white/10 relative z-[10000]"
-            onClick={(e) => e.stopPropagation()} 
+            onClick={(e) => e.stopPropagation()}
           />
         </div>,
         document.body

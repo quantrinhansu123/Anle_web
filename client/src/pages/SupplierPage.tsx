@@ -32,7 +32,7 @@ const COLUMN_DEFS_BASE: Record<string, ColDef> = {
     label: 'Code',
     thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-24 border-r border-b border-border/40 text-center',
     tdClass: 'px-4 py-4 border-r border-border/40 text-center',
-    renderContent: (s) => <span className="text-[13px] font-mono font-black text-primary bg-primary/5 px-2 py-1 rounded border border-primary/10">{s.id}</span>
+    renderContent: (s) => <span className="text-[13px] font-black text-primary bg-primary/5 px-2 py-1 rounded border border-primary/10">{s.id}</span>
   },
   tax_code: {
     label: 'Tax Code',

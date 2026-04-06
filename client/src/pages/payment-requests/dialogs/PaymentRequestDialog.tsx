@@ -41,7 +41,7 @@ const PaymentRequestDialog: React.FC<Props> = ({
   if (!isOpen && !isClosing) return null;
 
   const {
-    shipment_id, request_date, account_name, account_number, 
+    shipment_id, request_date, account_name, account_number,
     bank_name, invoices
   } = formState;
 
@@ -106,7 +106,7 @@ const PaymentRequestDialog: React.FC<Props> = ({
 
         {/* Scrollable Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          
+
           {/* TOP SECTION: GENERAL INFO & SHIPMENT */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2 bg-white rounded-2xl border border-border shadow-sm overflow-hidden transition-all hover:shadow-md">
@@ -211,8 +211,8 @@ const PaymentRequestDialog: React.FC<Props> = ({
                 invoices.map((inv, index) => (
                   <div key={index} className={clsx(
                     "p-4 rounded-xl border transition-all duration-300 relative group",
-                    isDetailMode 
-                      ? "bg-white border-border/40 hover:border-border/80" 
+                    isDetailMode
+                      ? "bg-white border-border/40 hover:border-border/80"
                       : "bg-slate-50/50 border-border/60 hover:bg-white hover:border-primary/30 hover:shadow-md"
                   )}>
                     {invoices.length > 1 && !isDetailMode && (
@@ -264,14 +264,14 @@ const PaymentRequestDialog: React.FC<Props> = ({
                             value={isDetailMode ? formatCurrency(inv.payable_amount) : formatInputCurrency(inv.payable_amount || '')}
                             onChange={e => handleUpdateInvoice(index, 'payable_amount', parseCurrency(e.target.value))}
                             disabled={isDetailMode}
-                            className="w-full pl-8 pr-3 py-2 bg-white border border-border rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-mono font-bold text-primary disabled:bg-slate-50 disabled:border-transparent"
+                            className="w-full pl-8 pr-3 py-2 bg-white border border-border rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold text-primary disabled:bg-slate-50 disabled:border-transparent"
                           />
                         </div>
                       </div>
                     </div>
                   </div>
                 )
-              ))}
+                ))}
 
               <div className="pt-2 flex justify-end">
                 <div className="flex flex-col items-end gap-1">
@@ -362,7 +362,7 @@ const PaymentRequestDialog: React.FC<Props> = ({
             </button>
           )}
           {!isDetailMode && (
-            <button 
+            <button
               onClick={onSave}
               className="flex items-center gap-2 px-8 py-2 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all group active:scale-95"
             >

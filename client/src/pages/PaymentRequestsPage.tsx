@@ -45,7 +45,7 @@ const COLUMN_DEFS: Record<string, ColDef> = {
     renderContent: (r) => (
       <div className="flex items-center gap-2">
         <Hash size={14} className="text-muted-foreground/40" />
-        <span className="text-[12px] font-mono font-medium text-slate-600">{r.shipments?.code || `#${r.shipment_id.slice(0, 8)}`}</span>
+        <span className="text-[12px] font-medium text-slate-600">{r.shipments?.code || `#${r.shipment_id.slice(0, 8)}`}</span>
       </div>
     )
   },

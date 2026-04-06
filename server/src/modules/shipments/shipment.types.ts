@@ -24,6 +24,7 @@ export interface Shipment {
 export interface CreateShipmentDto {
   customer_id: string;
   supplier_id: string;
+  code?: string;
   commodity?: string;
   hs_code?: string;
   quantity?: number;

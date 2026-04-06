@@ -12,7 +12,7 @@ export const CreatePurchasingItemSchema = z.object({
   rate: z.number().min(0),
   quantity: z.number().min(0),
   unit: z.string().min(1),
-  currency: z.enum(['USD', 'VND']),
+  currency: z.string().length(3),
   exchange_rate: z.number().min(0),
   tax_percent: z.number().min(0).max(100),
   specification: z.string().optional().nullable(),

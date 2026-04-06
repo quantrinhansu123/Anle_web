@@ -28,6 +28,7 @@ import {
 
 // --- CONFIGURATION ---
 const INITIAL_FORM_STATE: ShipmentFormState = {
+  code: '',
   customer_id: '',
   supplier_id: '',
   commodity: '',
@@ -68,7 +69,7 @@ const COLUMN_DEFS: Record<string, ColDef> = {
   id: {
     label: 'Shipment ID',
     thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-32 border-r border-border/40',
-    tdClass: 'px-4 py-4 border-r border-border/40 font-mono text-[12px] font-bold text-primary',
+    tdClass: 'px-4 py-4 border-r border-border/40 text-[12px] font-bold text-primary',
     renderContent: (s) => <span className="flex flex-col">
       {s.code ? (
         <span className="text-primary font-bold">{s.code}</span>
@@ -198,6 +199,25 @@ const ShipmentsPage: React.FC = () => {
     fetchData();
     fetchOptions();
   }, []);
+
+  useEffect(() => {
+    if (isEditMode || isDetailMode) return;
+
+    if (!formState.isNewCustomer && formState.customer_id) {
+      shipmentService.getNextCode(formState.customer_id)
+        .then(res => setFormField('code', res.code))
+        .catch(console.error);
+    } else if (formState.isNewCustomer && formState.newCustomer?.code?.length === 3) {
+      const now = new Date();
+      const day = String(now.getDate()).padStart(2, '0');
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const year = String(now.getFullYear()).slice(-2);
+      const datePart = `${day}${month}${year}`;
+      setFormField('code', `SCM${formState.newCustomer.code.toUpperCase()}${datePart}01`);
+    } else {
+      setFormField('code', '');
+    }
+  }, [formState.customer_id, formState.isNewCustomer, formState.newCustomer?.code, isEditMode, isDetailMode]);
 
   const fetchData = async () => {
     try {
@@ -425,6 +445,11 @@ const ShipmentsPage: React.FC = () => {
         return;
       }
 
+      if (!formState.code || !formState.code.trim()) {
+        error('Shipment Code is required.');
+        return;
+      }
+
       const dto = {
         ...formState,
         customer_id: finalCustomerId,
@@ -605,7 +630,7 @@ const ShipmentsPage: React.FC = () => {
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex flex-col gap-1">
-                        <span className="text-[12px] font-mono font-bold text-primary">
+                        <span className="text-[12px] font-bold text-primary">
                           {s.code || `#${s.id.slice(0, 8)}`}
                         </span>
                         <span className="text-[14px] font-bold text-slate-900 leading-tight">{s.customers?.company_name || '—'}</span>
