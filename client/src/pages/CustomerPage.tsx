@@ -81,7 +81,7 @@ const COLUMN_DEFS: Record<string, ColDef> = {
     )
   },
   rank: {
-    label: 'Rank',
+    label: 'Rating',
     thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-24 border-r border-b border-border/40 text-center',
     tdClass: 'px-4 py-4 border-r border-border/40',
     renderContent: (c) => (
