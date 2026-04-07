@@ -26,6 +26,16 @@ export const CustomerController = {
     }
   },
 
+  async getDetails(req: Request, res: Response, next: NextFunction) {
+    try {
+      const item = await service.getDetails(req.params.id);
+      if (!item) return res.status(404).json({ message: 'Customer not found' });
+      res.json(successResponse(item));
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async create(req: Request, res: Response, next: NextFunction) {
     try {
       const item = await service.create(req.body);

@@ -4,7 +4,7 @@ import {
   Search, Plus, RefreshCcw, Edit, Trash2,
   List, BarChart2, Mail, Phone, MapPin,
   ChevronLeft, Building2, TrendingUp, Users,
-  CheckCircle2, Globe, X, Eye
+  CheckCircle2, Globe, X, Eye, Star
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
@@ -79,9 +79,33 @@ const COLUMN_DEFS: Record<string, ColDef> = {
         <span className="text-[12px] font-medium leading-relaxed italic opacity-80">{c.address || '—'}</span>
       </div>
     )
+  },
+  rank: {
+    label: 'Rank',
+    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-24 border-r border-b border-border/40 text-center',
+    tdClass: 'px-4 py-4 border-r border-border/40',
+    renderContent: (c) => (
+      <div className="flex items-center justify-center gap-0.5">
+        {[1, 2, 3].map((star) => {
+          const rank = c.rank || 0;
+          const isFull = rank >= star;
+          const isHalf = rank === star - 0.5;
+          return (
+            <div key={star} className="relative w-3.5 h-3.5 flex items-center justify-center">
+              <Star size={14} className="absolute inset-0 fill-slate-100 text-slate-200 transition-all" />
+              {(isFull || isHalf) && (
+                <div className={clsx("absolute inset-y-0 left-0 overflow-hidden transition-all text-left", isHalf ? "w-[50%]" : "w-full")}>
+                  <Star size={14} className="fill-amber-400 text-amber-400 min-w-[14px]" />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    )
   }
 };
-const DEFAULT_COL_ORDER = ['code', 'company', 'tax_code', 'contact', 'address'];
+const DEFAULT_COL_ORDER = ['code', 'company', 'tax_code', 'rank', 'contact', 'address'];
 
 const CustomerPage: React.FC = () => {
   const { success, error } = useToastContext();
@@ -130,12 +154,6 @@ const CustomerPage: React.FC = () => {
   const handleOpenEdit = (customer: Customer) => {
     setFormState(customer);
     setDialogMode('edit');
-    setIsDialogOpen(true);
-  };
-
-  const handleOpenDetail = (customer: Customer) => {
-    setFormState(customer);
-    setDialogMode('detail');
     setIsDialogOpen(true);
   };
 
@@ -335,7 +353,7 @@ const CustomerPage: React.FC = () => {
                 ) : filteredCustomers.map(c => (
                   <tr
                     key={c.id}
-                    onClick={() => handleOpenDetail(c)}
+                    onClick={() => navigate(`/customers/directory/${c.id}`)}
                     className={clsx(
                       "hover:bg-slate-50/60 transition-colors group cursor-pointer",
                       selectedCustomers.includes(c.id) && "bg-primary/[0.02]"
@@ -355,7 +373,7 @@ const CustomerPage: React.FC = () => {
                     <td className="px-4 py-4" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-1">
                         <button
-                          onClick={(e) => { e.stopPropagation(); handleOpenDetail(c); }}
+                          onClick={(e) => { e.stopPropagation(); navigate(`/customers/directory/${c.id}`); }}
                           className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all"
                           title="View Details"
                         >

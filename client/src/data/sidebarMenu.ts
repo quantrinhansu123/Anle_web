@@ -6,7 +6,7 @@ import {
   Copyright,
   Settings,
   Handshake,
-  Clock
+  Clock,
 } from 'lucide-react';
 import React from 'react';
 

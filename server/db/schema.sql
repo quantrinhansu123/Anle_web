@@ -10,6 +10,39 @@ create table customers (
   phone       text,
   address     text,
   tax_code    text,
+  rank        numeric(2,1) default 0,
+  credit_limit numeric(18,4) default 0,
+  credit_term_days int default 0,
+  sales_staff text,
+  sales_team text,
+  sales_department text,
+  company_id_number text,
+  industry text,
+  created_at  timestamptz default now()
+);
+
+-- ============================================================
+-- 1.1 CUSTOMER CONTACTS (PIC)
+-- ============================================================
+create table customer_contacts (
+  id          uuid primary key default gen_random_uuid(),
+  customer_id uuid references customers(id) on delete cascade,
+  full_name   text not null,
+  position    text,
+  email       text,
+  phone       text,
+  department  text,
+  created_at  timestamptz default now()
+);
+
+-- ============================================================
+-- 1.2 CUSTOMER NOTES
+-- ============================================================
+create table customer_notes (
+  id          uuid primary key default gen_random_uuid(),
+  customer_id uuid references customers(id) on delete cascade,
+  created_by  uuid references employees(id),
+  content     text not null,
   created_at  timestamptz default now()
 );
 

@@ -11,6 +11,7 @@ const router = Router();
 
 router.get('/',        CustomerController.list);
 router.get('/:id',     CustomerController.getById);
+router.get('/:id/details', CustomerController.getDetails);
 router.post('/',       validate(createCustomerSchema), CustomerController.create);
 router.patch('/:id',   validate(updateCustomerSchema), CustomerController.update);
 router.delete('/:id',  CustomerController.remove);

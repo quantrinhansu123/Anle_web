@@ -56,4 +56,58 @@ export class CustomerService {
 
     if (error) throw error;
   }
+
+  async getDetails(id: string): Promise<any> {
+    // 1. Fetch Customer
+    const { data: customer, error: customerError } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (customerError) throw customerError;
+    if (!customer) return null;
+
+    // 2. Fetch Contacts
+    const { data: contacts } = await supabase
+      .from('customer_contacts')
+      .select('*')
+      .eq('customer_id', id)
+      .order('created_at', { ascending: true });
+
+    // 3. Fetch Notes
+    const { data: notes } = await supabase
+      .from('customer_notes')
+      .select('*, author:employees(full_name)')
+      .eq('customer_id', id)
+      .order('created_at', { ascending: false });
+
+    // 4. Fetch Shipments
+    const { data: shipments } = await supabase
+      .from('shipments')
+      .select('*, suppliers(company_name), employees!shipments_pic_id_fkey(full_name)')
+      .eq('customer_id', id)
+      .order('created_at', { ascending: false });
+
+    const shipmentIds = (shipments || []).map((s: any) => s.id);
+
+    // 5. Fetch Sales/Quotations
+    let sales = [];
+    if (shipmentIds.length > 0) {
+      const { data: salesData } = await supabase
+        .from('sales')
+        .select('*, sales_items(total)')
+        .in('shipment_id', shipmentIds)
+        .order('created_at', { ascending: false });
+      sales = salesData || [];
+    }
+
+    return {
+      ...customer,
+      contacts: contacts || [],
+      notes: notes || [],
+      shipments: shipments || [],
+      sales: sales
+    };
+  }
 }

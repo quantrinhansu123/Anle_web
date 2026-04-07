@@ -6,6 +6,14 @@ export interface Customer {
   address?: string;
   tax_code?: string;
   code?: string;
+  rank?: number;
+  credit_limit?: number;
+  credit_term_days?: number;
+  sales_staff?: string;
+  sales_team?: string;
+  sales_department?: string;
+  company_id_number?: string;
+  industry?: string;
   created_at: string;
 }
 
@@ -16,6 +24,14 @@ export interface CreateCustomerDto {
   address?: string;
   tax_code?: string;
   code?: string;
+  rank?: number;
+  credit_limit?: number;
+  credit_term_days?: number;
+  sales_staff?: string;
+  sales_team?: string;
+  sales_department?: string;
+  company_id_number?: string;
+  industry?: string;
 }
 
 export interface UpdateCustomerDto extends Partial<CreateCustomerDto> {}

@@ -8,6 +8,7 @@ import SettingsPage from './pages/SettingsPage';
 import ProfilePage from './pages/ProfilePage';
 import ShipmentsPage from './pages/ShipmentsPage';
 import CustomerPage from './pages/CustomerPage';
+import CustomerDetailsPage from './pages/customers/CustomerDetailsPage';
 import SupplierPage from './pages/SupplierPage';
 import SalesPage from './pages/SalesPage';
 import PurchasingPage from './pages/PurchasingPage';
@@ -54,6 +55,7 @@ function App() {
               {/* Existing Routes */}
             <Route path="/shipments/information" element={<ShipmentsPage />} />
             <Route path="/customers/directory" element={<CustomerPage />} />
+            <Route path="/customers/directory/:id" element={<CustomerDetailsPage />} />
             <Route path="/suppliers/directory" element={<SupplierPage />} />
             <Route path="/suppliers/directory/:id" element={<SupplierDetailsPage />} />
             <Route path="/employees/candidates" element={<PlaceholderPage />} />

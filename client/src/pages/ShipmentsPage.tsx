@@ -817,7 +817,7 @@ const ShipmentsPage: React.FC = () => {
 
           {/* TABLE */}
           <div className="hidden md:flex flex-col flex-1 min-h-0 border-t border-border">
-            <div className="flex-1 overflow-auto bg-slate-50/20">
+            <div className="flex-1 overflow-auto bg-slate-50/20 max-h-[calc(100vh-320px)]">
               <table className="w-full border-separate border-spacing-0">
                 <thead className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm shadow-[0_1px_0_rgba(0,0,0,0.05)]">
                   <tr>

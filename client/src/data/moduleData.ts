@@ -4,7 +4,8 @@ import {
   BadgeDollarSign, CreditCard,
   Truck, Handshake, Package, ShoppingCart, Palette, Building2, ImageIcon,
   Calendar, Activity, LayoutDashboard, Database, Zap, Mail, Link as LinkIcon, Briefcase, GraduationCap, Grid,
-  MessageSquare, Banknote, Coins, AppWindow
+  MessageSquare, Banknote, Coins, AppWindow,
+  Bot, Shield, UserCircle
 } from 'lucide-react';
 import type { ModuleCardProps } from '../components/ui/ModuleCard';
 
@@ -33,7 +34,9 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
       section: 'Customer Relations',
       items: [
         { icon: Handshake, title: 'CRM', description: 'Manage leads, opportunities, and interactions.', colorScheme: 'blue', path: '/crm' },
-        { icon: Users, title: 'Contacts', description: 'Unified directory for customers and suppliers.', colorScheme: 'teal', path: '/contacts/directory' },
+        { icon: Building2, title: 'Customers', description: 'Manage customer accounts and details.', colorScheme: 'teal', path: '/customers/directory' },
+        { icon: Building2, title: 'Suppliers', description: 'Manage supplier accounts and details.', colorScheme: 'amber', path: '/suppliers/directory' },
+        { icon: Users, title: 'Contacts', description: 'Unified directory for customers and suppliers.', colorScheme: 'slate', path: '/contacts/directory' },
       ]
     },
     {
@@ -92,6 +95,12 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
         { icon: Activity, title: 'Activity Dashboard', description: 'Overview of recent activities and notifications.', colorScheme: 'emerald', path: '/activity-dashboard' },
         { icon: LayoutDashboard, title: 'My Dashboard', description: 'Personalized widgets and quick links.', colorScheme: 'slate', path: '/my-dashboard' },
       ]
+    },
+    {
+      section: 'AI & Tools',
+      items: [
+        { icon: Bot, title: 'AI Assistant', description: 'Intelligent assistant to help with system tasks.', colorScheme: 'purple', path: '/ai-assistant' }
+      ]
     }
   ],
   '/system': [
@@ -99,9 +108,11 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
       section: 'Configuration',
       items: [
         { icon: Palette, title: 'Appearance', description: 'Customize UI theme, colors, and fonts.', colorScheme: 'blue', path: '/settings' },
+        { icon: UserCircle, title: 'My Profile', description: 'Manage your personal account settings.', colorScheme: 'blue', path: '/profile' },
         { icon: Building2, title: 'Company Info', description: 'Manage company profile, logos, and contacts.', colorScheme: 'orange', path: '/system/company-info' },
         { icon: Zap, title: 'Exchange Rates', description: 'General application configuration for currency.', colorScheme: 'amber', path: '/system/exchange-rates' },
         { icon: ImageIcon, title: 'Image Gallery', description: 'Upload images to host and get URLs.', colorScheme: 'teal', path: '/system/image-gallery' },
+        { icon: Shield, title: 'Legal & Copyright', description: 'System license and terms of service.', colorScheme: 'slate', path: '/copyright' },
       ]
     },
     {

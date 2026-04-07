@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X, User, Mail, Phone, MapPin, Hash, Plus, ChevronRight, Building2, Edit
+  X, User, Mail, Phone, MapPin, Hash, Plus, ChevronRight, Building2, Edit, Star
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { Customer, CreateCustomerDto } from '../../../services/customerService';
@@ -27,6 +27,8 @@ const CustomerDialog: React.FC<Props> = ({
   onSave,
   onEdit
 }) => {
+  const [hoverRank, setHoverRank] = useState<number | null>(null);
+
   if (!isOpen && !isClosing) return null;
 
   const isDetailMode = mode === 'detail';
@@ -151,6 +153,53 @@ const CustomerDialog: React.FC<Props> = ({
               />
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Star size={16} className="text-muted-foreground/70" />
+                  <label className="text-[13px] font-bold text-foreground">Customer Rating</label>
+                </div>
+                <div
+                  className="flex items-center gap-2 h-[38px] px-3 bg-muted/5 border border-border rounded-xl w-max"
+                  onMouseLeave={() => setHoverRank(null)}
+                >
+                  {[1, 2, 3].map((star) => {
+                    const displayRank = hoverRank !== null ? hoverRank : (formState.rank || 0);
+                    const isFull = displayRank >= star;
+                    const isHalf = displayRank === star - 0.5;
+
+                    return (
+                      <button
+                        key={star}
+                        type="button"
+                        disabled={isDetailMode}
+                        onMouseMove={(e) => {
+                          if (isDetailMode) return;
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const mid = rect.left + rect.width / 2;
+                          setHoverRank(e.clientX < mid ? star - 0.5 : star);
+                        }}
+                        onClick={() => {
+                          if (isDetailMode) return;
+                          setFormField('rank', hoverRank !== null ? hoverRank : star);
+                        }}
+                        className="flex items-center justify-center focus:outline-none focus:scale-110 transition-transform disabled:hover:scale-100 disabled:opacity-70 p-1 rounded-md hover:bg-slate-100 relative w-7 h-7"
+                      >
+                        <div className="relative w-5 h-5">
+                          <Star size={20} className="absolute inset-0 fill-slate-200 text-slate-300" />
+                          {(isFull || isHalf) && (
+                            <div className={clsx("absolute inset-y-0 left-0 overflow-hidden text-left", isHalf ? "w-[50%]" : "w-full")}>
+                              <Star size={20} className="fill-amber-400 text-amber-400 drop-shadow-sm min-w-[20px]" />
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
                 <MapPin size={16} className="text-muted-foreground/70" />
@@ -175,9 +224,9 @@ const CustomerDialog: React.FC<Props> = ({
           >
             {isDetailMode ? 'Close' : 'Cancel'}
           </button>
-          
+
           {isDetailMode ? (
-            <button 
+            <button
               onClick={onEdit}
               className="flex items-center gap-2 px-8 py-2 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all group active:scale-95"
             >
@@ -186,7 +235,7 @@ const CustomerDialog: React.FC<Props> = ({
               <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
             </button>
           ) : (
-            <button 
+            <button
               onClick={onSave}
               className="flex items-center gap-2 px-8 py-2 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all group active:scale-95"
             >

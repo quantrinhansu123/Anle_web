@@ -7,6 +7,9 @@ export const createCustomerSchema = z.object({
   address: z.string().optional(),
   tax_code: z.string().optional(),
   code: z.string().length(3, { message: "Code must be exactly 3 characters long" }).optional().or(z.literal('')),
+  rank: z.number().min(0).max(3).optional(),
+  credit_limit: z.number().min(0).optional(),
+  credit_term_days: z.number().int().min(0).optional(),
 });
 
 export const updateCustomerSchema = createCustomerSchema.partial();
