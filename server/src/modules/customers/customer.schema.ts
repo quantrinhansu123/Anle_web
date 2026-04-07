@@ -10,6 +10,11 @@ export const createCustomerSchema = z.object({
   rank: z.number().min(0).max(3).optional(),
   credit_limit: z.number().min(0).optional(),
   credit_term_days: z.number().int().min(0).optional(),
+  sales_staff: z.string().optional(),
+  sales_team: z.string().optional(),
+  sales_department: z.string().optional(),
+  company_id_number: z.string().optional(),
+  industry: z.string().optional(),
 });
 
 export const updateCustomerSchema = createCustomerSchema.partial();

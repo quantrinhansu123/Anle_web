@@ -4,7 +4,7 @@ import {
   ChevronLeft, Building2, Mail, Phone, MapPin,
   Ship, Loader2, AlertCircle,
   Plus, Receipt, Shield, ExternalLink, Star,
-  Calendar
+  Calendar, Edit2, Check, X as XIcon
 } from 'lucide-react';
 import { customerService, type CustomerDetails } from '../../services/customerService';
 import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
@@ -28,6 +28,9 @@ const CustomerDetailsPage: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [formState, setFormState] = useState<any>({});
+
+  const [isEditingSales, setIsEditingSales] = useState(false);
+  const [salesForm, setSalesForm] = useState<any>({});
 
   useEffect(() => {
     if (customer) {
@@ -78,6 +81,29 @@ const CustomerDetailsPage: React.FC = () => {
       toastSuccess('Customer updated successfully');
     } catch (err: any) {
       toastError(err?.message || 'Failed to save customer');
+    }
+  };
+
+  const handleStartEditSales = () => {
+    if (!customer) return;
+    setSalesForm({
+      sales_staff: customer.sales_staff || '',
+      sales_team: customer.sales_team || '',
+      sales_department: customer.sales_department || '',
+      company_id_number: customer.company_id_number || '',
+      industry: customer.industry || ''
+    });
+    setIsEditingSales(true);
+  };
+
+  const handleSaveSalesPurch = async () => {
+    try {
+      await customerService.updateCustomer(customer!.id, salesForm);
+      setIsEditingSales(false);
+      fetchDetails();
+      toastSuccess('Sales information updated successfully');
+    } catch (err: any) {
+      toastError(err?.message || 'Failed to update sales info');
     }
   };
 
@@ -240,21 +266,45 @@ const CustomerDetailsPage: React.FC = () => {
               {activeLeftTab === 'sales_purchasing' && (
                 <div className="space-y-4 animate-in fade-in duration-300">
                   <div className="space-y-3">
-                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-border/60 pb-1">Sales Information</div>
+                    <div className="flex items-center justify-between border-b border-border/60 pb-1">
+                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sales Information</div>
+                      {isEditingSales ? (
+                        <div className="flex items-center gap-1">
+                          <button onClick={handleSaveSalesPurch} className="p-1 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors"><Check size={14} /></button>
+                          <button onClick={() => setIsEditingSales(false)} className="p-1 rounded bg-red-50 text-red-500 hover:bg-red-100 transition-colors"><XIcon size={14} /></button>
+                        </div>
+                      ) : (
+                        <button onClick={handleStartEditSales} className="flex items-center gap-1 text-[10px] font-bold text-primary hover:underline">
+                          <Edit2 size={12} /> Edit
+                        </button>
+                      )}
+                    </div>
                     
                     <div className="flex flex-col gap-1 text-[12px]">
                       <span className="font-bold text-slate-500 uppercase text-[9px] tracking-wider">Sales Executive</span>
-                      <span className="font-black text-slate-800">{customer.sales_staff || '—'}</span>
+                      {isEditingSales ? (
+                        <input type="text" value={salesForm.sales_staff} onChange={e => setSalesForm({...salesForm, sales_staff: e.target.value})} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50" />
+                      ) : (
+                        <span className="font-black text-slate-800">{customer.sales_staff || '—'}</span>
+                      )}
                     </div>
                     
                     <div className="flex flex-col gap-1 text-[12px]">
                       <span className="font-bold text-slate-500 uppercase text-[9px] tracking-wider">Sales Team</span>
-                      <span className="font-black text-slate-800">{customer.sales_team || '—'}</span>
+                      {isEditingSales ? (
+                        <input type="text" value={salesForm.sales_team} onChange={e => setSalesForm({...salesForm, sales_team: e.target.value})} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50" />
+                      ) : (
+                        <span className="font-black text-slate-800">{customer.sales_team || '—'}</span>
+                      )}
                     </div>
 
                     <div className="flex flex-col gap-1 text-[12px]">
                       <span className="font-bold text-slate-500 uppercase text-[9px] tracking-wider">Sales Department</span>
-                      <span className="font-black text-slate-800">{customer.sales_department || '—'}</span>
+                      {isEditingSales ? (
+                        <input type="text" value={salesForm.sales_department} onChange={e => setSalesForm({...salesForm, sales_department: e.target.value})} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50" />
+                      ) : (
+                        <span className="font-black text-slate-800">{customer.sales_department || '—'}</span>
+                      )}
                     </div>
                   </div>
 
@@ -263,12 +313,20 @@ const CustomerDetailsPage: React.FC = () => {
                     
                     <div className="flex flex-col gap-1 text-[12px]">
                       <span className="font-bold text-slate-500 uppercase text-[9px] tracking-wider">Company ID</span>
-                      <span className="font-black text-slate-800">{customer.company_id_number || '—'}</span>
+                      {isEditingSales ? (
+                        <input type="text" value={salesForm.company_id_number} onChange={e => setSalesForm({...salesForm, company_id_number: e.target.value})} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50" />
+                      ) : (
+                        <span className="font-black text-slate-800">{customer.company_id_number || '—'}</span>
+                      )}
                     </div>
                     
                     <div className="flex flex-col gap-1 text-[12px]">
                       <span className="font-bold text-slate-500 uppercase text-[9px] tracking-wider">Industry</span>
-                      <span className="font-black text-slate-800">{customer.industry || '—'}</span>
+                      {isEditingSales ? (
+                        <input type="text" value={salesForm.industry} onChange={e => setSalesForm({...salesForm, industry: e.target.value})} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50" />
+                      ) : (
+                        <span className="font-black text-slate-800">{customer.industry || '—'}</span>
+                      )}
                     </div>
                   </div>
                 </div>

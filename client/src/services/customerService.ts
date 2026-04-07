@@ -56,6 +56,11 @@ export interface CreateCustomerDto {
   rank?: number;
   credit_limit?: number;
   credit_term_days?: number;
+  sales_staff?: string;
+  sales_team?: string;
+  sales_department?: string;
+  company_id_number?: string;
+  industry?: string;
 }
 
 export const customerService = {
