@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { ActionCard } from '../components/ui/ActionCard';
 import type { ActionCardProps } from '../components/ui/ActionCard';
 import {
-  Package, Users, BadgeDollarSign, Settings,
-  Copyright, Search, Star
+  Package, Users, BadgeDollarSign, Settings, Handshake, Clock,
+  Search, Star
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { moduleData, getDirectPath } from '../data/moduleData';
@@ -13,38 +13,45 @@ import { useBookmarks } from '../hooks/useBookmarks';
 const dashboardModules: ActionCardProps[] = [
   {
     icon: Package,
-    title: 'Order',
-    description: 'Shipments, Sales, Purchasing, and Contracts.',
-    href: '/order',
+    title: 'Operations',
+    description: 'Logistics, Inventory, Fleet, and Trading.',
+    href: '/operations',
     colorScheme: 'blue'
   },
   {
-    icon: Users,
-    title: 'Internal',
-    description: 'Employees, Customers, and Suppliers.',
-    href: '/internal',
+    icon: Handshake,
+    title: 'CRM & Marketing',
+    description: 'Customer relations, Website, and Marketing.',
+    href: '/marketing',
     colorScheme: 'indigo'
   },
   {
-    icon: BadgeDollarSign,
-    title: 'Accountant',
-    description: 'Debit Notes, Payment Requests, and Settings.',
-    href: '/accountant',
+    icon: Users,
+    title: 'HR & Projects',
+    description: 'Employees, Recruitment, Projects, and eLearning.',
+    href: '/hr',
     colorScheme: 'emerald'
   },
   {
-    icon: Settings,
-    title: 'System',
-    description: 'System settings, security, and configuration.',
-    href: '/system',
-    colorScheme: 'slate' as any
+    icon: BadgeDollarSign,
+    title: 'Finance',
+    description: 'Invoicing, Expenses, and Accounting.',
+    href: '/finance',
+    colorScheme: 'amber'
   },
   {
-    icon: Copyright,
-    title: 'Copyright',
-    description: 'Intellectual property and developer info.',
-    href: '/copyright',
-    colorScheme: 'blue'
+    icon: Clock,
+    title: 'Productivity',
+    description: 'Discuss, Calendar, and Personal Dashboards.',
+    href: '/productivity',
+    colorScheme: 'teal'
+  },
+  {
+    icon: Settings,
+    title: 'System & Apps',
+    description: 'System settings, apps, and background jobs.',
+    href: '/system',
+    colorScheme: 'slate' as any
   }
 ];
 
@@ -170,8 +177,14 @@ const Dashboard: React.FC = () => {
                 sectionMap[section.section].push(...section.items);
               });
 
-              // Specific order: Accountant, Internal, Order, System
-              const orderedNames = ['Order', 'Internal', 'Accountant', 'System'];
+              const orderedNames = [
+                'Logistics & Supply Chain', 'Trading',
+                'Customer Relations', 'Digital Presence',
+                'Human Resources', 'Work & Development',
+                'Accounting', 'Expense Management',
+                'Collaboration', 'Dashboards',
+                'Configuration', 'System Administration'
+              ];
 
               const sortedNames = Object.keys(sectionMap).sort((a, b) => {
                 const idxA = orderedNames.indexOf(a);
