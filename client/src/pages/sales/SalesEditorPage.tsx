@@ -46,8 +46,17 @@ import { SalesUnitCatalogDialog } from './dialogs/SalesUnitCatalogDialog';
 import { customerService } from '../../services/customerService';
 import { jobService } from '../../services/jobService';
 import { buildJobCreatePayloadFromQuotation } from '../jobs/quotationToJobPayload';
-import { QUOTATION_STATUS_STEPS } from './quotationStatusStepper';
-import { QuotationStatusStepperView } from './QuotationStatusStepperView';
+import { Edit3, Send, CheckCircle2, FileCheck, CheckSquare } from 'lucide-react';
+import { WorkflowStepper, type WorkflowStep } from '../../components/ui/WorkflowStepper';
+
+export const QUOTATION_STATUS_STEPS: WorkflowStep<QuotationStatus>[] = [
+  { id: 'draft', label: 'Draft', icon: Edit3 },
+  { id: 'sent', label: 'Sent', icon: Send },
+  { id: 'converted', label: 'Converted', icon: CheckCircle2 },
+  { id: 'confirmed', label: 'Confirmed', icon: CheckSquare },
+  { id: 'final', label: 'Final', icon: FileCheck },
+];
+
 
 const INITIAL_FORM_STATE: SalesFormState = {
   shipment_id: '',
@@ -95,77 +104,35 @@ const normalizeQuotationStatus = (s?: string): QuotationStatus => {
   return 'draft';
 };
 
-/** Workflow actions + stepper (desktop: no outer card — parent provides chrome). */
+/** Workflow stepper + send email action. Status transitions are handled by clicking steps directly. */
 const QuotationWorkflowBar: React.FC<{
   variant: 'desktop' | 'mobile';
   currentStatus: QuotationStatus;
   statusSaving: boolean;
   onSendEmail: () => void;
-  onAdvanceStatus: () => void;
-  onSwitchToDraft: () => void;
+  onStepChange?: (status: QuotationStatus) => void;
 }> = ({
   variant,
   currentStatus,
   statusSaving,
   onSendEmail,
-  onAdvanceStatus,
-  onSwitchToDraft,
+  onStepChange,
 }) => {
-  const steps = QUOTATION_STATUS_STEPS;
-  const activeIndex = Math.max(
-    0,
-    steps.findIndex((s) => s.id === currentStatus),
-  );
-  const nextStep = steps[activeIndex + 1];
-  const isDraft = currentStatus === 'draft';
-
-  const workflowPrimary =
-    'inline-flex items-center justify-center min-h-9 px-4 py-2 rounded-lg bg-primary text-white text-[11px] font-bold uppercase tracking-wide shadow-sm shadow-primary/15 hover:bg-primary/90 transition-colors disabled:opacity-45 disabled:pointer-events-none';
-
-  const workflowOutline =
-    'inline-flex items-center justify-center min-h-9 px-4 py-2 rounded-lg border border-border bg-white text-slate-700 text-[11px] font-bold uppercase tracking-wide shadow-sm hover:bg-slate-50 transition-colors disabled:opacity-45 disabled:pointer-events-none';
-
-  const workflowLink =
-    'inline-flex items-center min-h-9 px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600 underline-offset-2 hover:text-primary hover:underline transition-colors disabled:opacity-35 disabled:pointer-events-none disabled:no-underline';
-
   const stepper = (
-    <QuotationStatusStepperView currentStatus={currentStatus} variant={variant} />
-  );
-
-  const actions = (
-    <div
-      className={clsx(
-        'flex shrink-0 flex-wrap items-center gap-2',
-        variant === 'mobile' && 'w-full',
-      )}
-    >
-      <button type="button" className={workflowPrimary} onClick={onSendEmail} disabled={statusSaving}>
-        Send email
-      </button>
-      <button
-        type="button"
-        className={workflowOutline}
-        onClick={onAdvanceStatus}
-        disabled={statusSaving || !nextStep}
-        title={nextStep ? `Move to ${nextStep.label}` : 'Already at final status'}
-      >
-        {nextStep ? nextStep.label : 'Final'}
-      </button>
-      <button
-        type="button"
-        className={workflowLink}
-        onClick={onSwitchToDraft}
-        disabled={statusSaving || isDraft}
-      >
-        Switch to draft
-      </button>
-    </div>
+    <WorkflowStepper steps={QUOTATION_STATUS_STEPS} currentStep={currentStatus} variant={variant} onStepChange={onStepChange} />
   );
 
   if (variant === 'mobile') {
     return (
       <div className="md:hidden mx-4 mt-3 rounded-xl border border-border bg-white px-4 py-3 space-y-3 shadow-sm">
-        {actions}
+        <button
+          type="button"
+          className="inline-flex items-center justify-center min-h-9 px-4 py-2 rounded-lg bg-primary text-white text-[11px] font-bold uppercase tracking-wide shadow-sm shadow-primary/15 hover:bg-primary/90 transition-colors disabled:opacity-45 disabled:pointer-events-none"
+          onClick={onSendEmail}
+          disabled={statusSaving}
+        >
+          Send email
+        </button>
         <div className="w-full overflow-x-auto pb-0.5">{stepper}</div>
       </div>
     );
@@ -173,7 +140,14 @@ const QuotationWorkflowBar: React.FC<{
 
   return (
     <div className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-3">
-      {actions}
+      <button
+        type="button"
+        className="inline-flex items-center justify-center min-h-9 px-4 py-2 rounded-lg bg-primary text-white text-[11px] font-bold uppercase tracking-wide shadow-sm shadow-primary/15 hover:bg-primary/90 transition-colors disabled:opacity-45 disabled:pointer-events-none"
+        onClick={onSendEmail}
+        disabled={statusSaving}
+      >
+        Send email
+      </button>
       <div className="flex min-w-0 flex-1 items-center justify-end overflow-x-auto md:max-w-[55%] lg:max-w-none lg:flex-initial">
         {stepper}
       </div>
@@ -800,7 +774,9 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
         setStatusSaving(true);
         await salesService.updateSalesItem(id, { status: next });
         onPersistedStatusChange?.(next);
-        toastSuccess('Quotation status updated');
+        const prevLabel = QUOTATION_STATUS_STEPS.find(s => s.id === prev)?.label || prev;
+        const nextLabel = QUOTATION_STATUS_STEPS.find(s => s.id === next)?.label || next;
+        toastSuccess(`Quotation status changed from "${prevLabel}" to "${nextLabel}"`);
       } catch (e: unknown) {
         const msg =
           e && typeof e === 'object' && 'message' in e
@@ -821,18 +797,6 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
       toastError,
     ],
   );
-
-  const handleAdvanceQuotationStatus = useCallback(() => {
-    const cur = normalizeQuotationStatus(formState.status);
-    const idx = QUOTATION_STATUS_STEPS.findIndex((s) => s.id === cur);
-    const next = QUOTATION_STATUS_STEPS[idx + 1];
-    if (!next) return;
-    void applyQuotationStatus(next.id);
-  }, [formState.status, applyQuotationStatus]);
-
-  const handleSwitchQuotationToDraft = useCallback(() => {
-    void applyQuotationStatus('draft');
-  }, [applyQuotationStatus]);
 
   const handleSendQuotationEmail = useCallback(() => {
     toastInfo('This feature is under development.');
@@ -1465,8 +1429,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
           currentStatus={quotationStatus}
           statusSaving={statusSaving}
           onSendEmail={handleSendQuotationEmail}
-          onAdvanceStatus={handleAdvanceQuotationStatus}
-          onSwitchToDraft={handleSwitchQuotationToDraft}
+          onStepChange={applyQuotationStatus}
         />
       ) : null}
 
@@ -1577,8 +1540,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                 currentStatus={quotationStatus}
                 statusSaving={statusSaving}
                 onSendEmail={handleSendQuotationEmail}
-                onAdvanceStatus={handleAdvanceQuotationStatus}
-                onSwitchToDraft={handleSwitchQuotationToDraft}
+                onStepChange={applyQuotationStatus}
               />
             </div>
           ) : null}

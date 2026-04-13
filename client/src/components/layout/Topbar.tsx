@@ -118,7 +118,8 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
       'candidates': 'Candidates',
       'ai-assistant': 'AI Assistant',
       'settings': 'Settings',
-      'profile': 'Profile'
+      'profile': 'Profile',
+      'sea-house-bl': 'Sea House B/L'
     };
     
     // Check for dynamic breadcrumb override from global state/window

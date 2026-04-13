@@ -1,0 +1,551 @@
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { clsx } from 'clsx';
+import {
+  Anchor,
+  ChevronDown,
+  ChevronLeft,
+  DollarSign,
+  FileText,
+  Printer,
+  Receipt,
+  Ship,
+  Upload,
+} from 'lucide-react';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
+import { useToastContext } from '../../contexts/ToastContext';
+import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
+import { jobService } from '../../services/jobService';
+import UploadBOLDialog from './dialogs/UploadBOLDialog';
+import { HeaderTab, emptyHeaderState } from './tabs/HeaderTab';
+import type { HeaderTabState } from './tabs/HeaderTab';
+import { ContainerTab, emptyContainerState } from './tabs/ContainerTab';
+import type { ContainerTabState } from './tabs/ContainerTab';
+import { MarksDescriptionTab, emptyMarksDescriptionState } from './tabs/MarksDescriptionTab';
+import type { MarksDescriptionTabState } from './tabs/MarksDescriptionTab';
+import { FreightTab, emptyFreightState } from './tabs/FreightTab';
+import type { FreightTabState } from './tabs/FreightTab';
+import { FieldLabel, inputClass } from './tabs/blSharedHelpers';
+
+/* ------------------------------------------------------------------ */
+/*  Types & constants                                                  */
+/* ------------------------------------------------------------------ */
+
+type HBLTab = 'header' | 'container' | 'marks' | 'freight' | 'tracking';
+
+const TABS: { key: HBLTab; label: string }[] = [
+  { key: 'header', label: 'Header' },
+  { key: 'container', label: 'Container' },
+  { key: 'marks', label: 'Marks & Description (Print)' },
+  { key: 'freight', label: 'Freight' },
+  { key: 'tracking', label: 'Tracking' },
+];
+
+const BL_TYPES = [
+  { value: 'original', label: 'Original' },
+  { value: 'copy', label: 'Copy' },
+  { value: 'telex', label: 'Telex Release' },
+  { value: 'seawaybill', label: 'Sea Waybill' },
+];
+
+const BL_RELEASE_STATUSES = [
+  { value: 'draft', label: 'Draft' },
+  { value: 'surrendered', label: 'Surrendered' },
+  { value: 'released', label: 'Released' },
+  { value: 'hold', label: 'Hold' },
+];
+
+const BOUNDS = [
+  { value: 'import', label: 'Import' },
+  { value: 'export', label: 'Export' },
+  { value: 'domestic', label: 'Domestic' },
+  { value: 'transit', label: 'Transit' },
+];
+
+const LOAD_TYPES = [
+  { value: 'fcl', label: 'FCL' },
+  { value: 'lcl', label: 'LCL' },
+  { value: 'bulk', label: 'Bulk' },
+  { value: 'breakbulk', label: 'Break Bulk' },
+];
+
+const INCOTERMS = [
+  { value: 'fob', label: 'FOB' },
+  { value: 'cif', label: 'CIF' },
+  { value: 'cfr', label: 'CFR' },
+  { value: 'exw', label: 'EXW' },
+  { value: 'dap', label: 'DAP' },
+  { value: 'ddp', label: 'DDP' },
+  { value: 'fas', label: 'FAS' },
+  { value: 'fca', label: 'FCA' },
+  { value: 'cpt', label: 'CPT' },
+  { value: 'cip', label: 'CIP' },
+  { value: 'dpu', label: 'DPU' },
+];
+
+const SERVICE_TERMS = [
+  { value: 'cy-cy', label: 'CY / CY' },
+  { value: 'cy-cfs', label: 'CY / CFS' },
+  { value: 'cfs-cy', label: 'CFS / CY' },
+  { value: 'cfs-cfs', label: 'CFS / CFS' },
+  { value: 'door-door', label: 'Door / Door' },
+  { value: 'door-cy', label: 'Door / CY' },
+  { value: 'cy-door', label: 'CY / Door' },
+];
+
+/* ------------------------------------------------------------------ */
+/*  Stats card                                                         */
+/* ------------------------------------------------------------------ */
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  color,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: number;
+  color: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-white px-4 py-3 shadow-sm transition-shadow hover:shadow-md">
+      <div
+        className={clsx(
+          'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
+          color,
+        )}
+      >
+        <Icon size={18} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[20px] font-black tracking-tight text-slate-900 leading-tight">
+          {value}
+        </p>
+        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide truncate">
+          {label}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Placeholder tab                                                    */
+/* ------------------------------------------------------------------ */
+
+function PlaceholderTab({ label }: { label: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+      <FileText size={32} className="mb-3 opacity-30" />
+      <p className="text-[13px] font-semibold">{label}</p>
+      <p className="mt-1 text-[11px]">This section will be available in a future update.</p>
+    </div>
+  );
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  Main page component                                                */
+/* ------------------------------------------------------------------ */
+const CreateSeaHouseBLPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { id: jobId } = useParams<{ id: string }>();
+  const { success: toastOk } = useToastContext();
+  const { setCustomBreadcrumbs } = useBreadcrumb();
+
+  const [activeTab, setActiveTab] = useState<HBLTab>('header');
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [printDropdownOpen, setPrintDropdownOpen] = useState(false);
+  const printDropdownRef = useRef<HTMLDivElement>(null);
+
+  /* Close print dropdown on outside click */
+  useEffect(() => {
+    if (!printDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (printDropdownRef.current && !printDropdownRef.current.contains(e.target as Node)) {
+        setPrintDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [printDropdownOpen]);
+
+  const PRINT_OPTIONS = [
+    'Delivery Request',
+    'HAWB',
+    'Proof Of Delivery',
+    'ISF 10+2',
+    'ISF 5+2',
+    'HBL',
+    'HBL Origin',
+    'Manifest XLSX',
+  ];
+
+  const handlePrintOption = useCallback((option: string) => {
+    setPrintDropdownOpen(false);
+    toastOk(`Print: ${option} — coming soon`);
+  }, [toastOk]);
+
+  /* Top form fields */
+  const [hbl, setHbl] = useState('');
+  const [blType, setBlType] = useState('');
+  const [blReleaseStatus, setBlReleaseStatus] = useState('');
+  const [bound, setBound] = useState('');
+  const [masterBl, setMasterBl] = useState('');
+  const [shipment, setShipment] = useState('');
+  const [switchBl, setSwitchBl] = useState('');
+  const [loadType, setLoadType] = useState('');
+  const [jobNo, setJobNo] = useState('');
+  const [incoterm, setIncoterm] = useState('');
+  const [serviceTerm, setServiceTerm] = useState('');
+  const [masterJobLabel, setMasterJobLabel] = useState('');
+
+  /* Header tab state */
+  const [headerState, setHeaderState] = useState<HeaderTabState>(emptyHeaderState);
+  const patchHeader = (patch: Partial<HeaderTabState>) =>
+    setHeaderState((prev) => ({ ...prev, ...patch }));
+
+  /* Container tab state */
+  const [containerState, setContainerState] = useState<ContainerTabState>(emptyContainerState);
+  const patchContainer = (patch: Partial<ContainerTabState>) =>
+    setContainerState((prev) => ({ ...prev, ...patch }));
+
+  /* Marks & Description tab state */
+  const [marksState, setMarksState] = useState<MarksDescriptionTabState>(emptyMarksDescriptionState);
+  const patchMarks = (patch: Partial<MarksDescriptionTabState>) =>
+    setMarksState((prev) => ({ ...prev, ...patch }));
+
+  /* Freight tab state */
+  const [freightState, setFreightState] = useState<FreightTabState>(emptyFreightState);
+  const patchFreight = (patch: Partial<FreightTabState>) =>
+    setFreightState((prev) => ({ ...prev, ...patch }));
+
+  /* Auto-fetch job to populate Job No. */
+  useEffect(() => {
+    if (!jobId) return;
+    void (async () => {
+      try {
+        const job = await jobService.getJob(jobId);
+        const mjn = job.master_job_no || '';
+        setJobNo(mjn);
+        setMasterJobLabel(mjn);
+      } catch {
+        /* ignore – user can fill manually */
+      }
+    })();
+  }, [jobId]);
+
+  /* Set up custom breadcrumbs */
+  useEffect(() => {
+    const jobLabel = masterJobLabel || (jobId ? `Job ${jobId.slice(0, 8)}...` : 'New Job');
+    setCustomBreadcrumbs([
+      { path: '/shipping', label: 'Shipping' },
+      { path: '/shipping/jobs', label: 'Job Management' },
+      ...(jobId ? [{ path: `/shipping/jobs/${jobId}/edit`, label: jobLabel }] : []),
+      { path: `/shipping/jobs/${jobId || 'new'}/sea-house-bl`, label: 'Sea House B/L' },
+    ]);
+
+    return () => {
+      setCustomBreadcrumbs(null);
+    };
+  }, [jobId, masterJobLabel, setCustomBreadcrumbs]);
+
+  /* Stat counts (placeholder) */
+  const stats = {
+    expenses: 0,
+    paymentNotes: 0,
+    debitNotes: 0,
+    dcNotes: 0,
+  };
+
+  return (
+    <div className="animate-in fade-in duration-300 mx-auto flex w-full flex-col gap-4 px-0 pb-24 sm:px-1 md:pb-6">
+      {/* ── Page header ───────────────────────────────────────────── */}
+      <div className="overflow-visible rounded-2xl border border-border bg-white shadow-sm shadow-slate-200/40">
+        <div className="flex flex-col gap-4 bg-gradient-to-br from-white via-white to-slate-50/40 px-5 py-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6 lg:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={() =>
+                jobId
+                  ? navigate(`/shipping/jobs/${jobId}/edit`)
+                  : navigate('/shipping/jobs')
+              }
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-white text-slate-600 shadow-sm transition-all hover:border-primary/25 hover:bg-primary/5 hover:text-primary touch-manipulation"
+              aria-label="Back"
+            >
+              <ChevronLeft size={22} />
+            </button>
+            <div className="min-w-0">
+              <h1 className="truncate text-xl font-black tracking-tight text-slate-900 lg:text-2xl">
+                Create Sea House B/L
+              </h1>
+              <p className="mt-1 truncate text-[13px] font-medium text-muted-foreground">
+                {masterJobLabel ? masterJobLabel : jobId ? `Job ${jobId.slice(0, 8)}…` : 'New Sea House Bill of Lading'}
+              </p>
+            </div>
+          </div>
+
+          {/* ── Toolbar buttons ──────────────────────────────────── */}
+          <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
+            <button
+              type="button"
+              onClick={() => toastOk('Create Master — coming soon')}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-teal-300 bg-teal-50 px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-teal-700 shadow-sm transition-all hover:bg-teal-100 hover:border-teal-400"
+            >
+              <Ship size={15} />
+              Create Master
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowUploadDialog(true)}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-indigo-300 bg-indigo-50 px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-indigo-700 shadow-sm transition-all hover:bg-indigo-100 hover:border-indigo-400"
+            >
+              <Upload size={15} />
+              Upload BOL
+            </button>
+            {/* Print dropdown */}
+            <div className="relative" ref={printDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setPrintDropdownOpen((v) => !v)}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-400"
+              >
+                <Printer size={15} />
+                Print
+                <ChevronDown size={14} className={clsx('transition-transform', printDropdownOpen && 'rotate-180')} />
+              </button>
+              {printDropdownOpen && (
+                <div className="absolute right-0 z-[9999] mt-1.5 w-52 animate-in fade-in slide-in-from-top-1 duration-150 rounded-xl border border-border bg-white py-1 shadow-xl shadow-slate-200/60">
+                  {PRINT_OPTIONS.map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => handlePrintOption(opt)}
+                      className="flex w-full items-center px-4 py-2.5 text-left text-[12px] font-semibold text-slate-700 transition-colors hover:bg-primary/5 hover:text-primary"
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Stats cards ───────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard
+          icon={DollarSign}
+          label="Expenses"
+          value={stats.expenses}
+          color="bg-emerald-100 text-emerald-600"
+        />
+        <StatCard
+          icon={FileText}
+          label="Payment Notes"
+          value={stats.paymentNotes}
+          color="bg-blue-100 text-blue-600"
+        />
+        <div
+          className="cursor-pointer transition-transform hover:scale-[1.02]"
+          onClick={() => navigate(`/shipping/jobs/${jobId}/sea-house-bl/debit-note`)}
+        >
+          <StatCard
+            icon={Receipt}
+            label="Debit Notes"
+            value={stats.debitNotes}
+            color="bg-amber-100 text-amber-600"
+          />
+        </div>
+        <StatCard
+          icon={Anchor}
+          label="DC Notes"
+          value={stats.dcNotes}
+          color="bg-violet-100 text-violet-600"
+        />
+      </div>
+
+      {/* ── Top form (4 columns) ──────────────────────────────────── */}
+      <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
+        <div className="shrink-0 border-b border-border bg-slate-50/80 px-4 py-3">
+          <h2 className="text-[12px] font-bold uppercase tracking-wider text-primary">
+            B/L Details
+          </h2>
+        </div>
+        <div className="p-4 flex flex-col gap-3">
+          {/* Row 1 */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div>
+              <FieldLabel>HBL</FieldLabel>
+              <input
+                value={hbl}
+                onChange={(e) => setHbl(e.target.value)}
+                className={inputClass}
+                placeholder="House B/L number"
+              />
+            </div>
+            <div>
+              <FieldLabel>BL Type</FieldLabel>
+              <SearchableSelect
+                options={BL_TYPES}
+                value={blType || undefined}
+                onValueChange={setBlType}
+                placeholder="Select type"
+                hideSearch
+              />
+            </div>
+            <div>
+              <FieldLabel>BL Release Status</FieldLabel>
+              <SearchableSelect
+                options={BL_RELEASE_STATUSES}
+                value={blReleaseStatus || undefined}
+                onValueChange={setBlReleaseStatus}
+                placeholder="Select status"
+                hideSearch
+              />
+            </div>
+            <div>
+              <FieldLabel>Bound</FieldLabel>
+              <SearchableSelect
+                options={BOUNDS}
+                value={bound || undefined}
+                onValueChange={setBound}
+                placeholder="Select bound"
+                hideSearch
+              />
+            </div>
+          </div>
+
+          {/* Row 2 */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div>
+              <FieldLabel>Master BL</FieldLabel>
+              <input
+                value={masterBl}
+                onChange={(e) => setMasterBl(e.target.value)}
+                className={inputClass}
+                placeholder="Master B/L number"
+              />
+            </div>
+            <div>
+              <FieldLabel>Shipment</FieldLabel>
+              <input
+                value={shipment}
+                onChange={(e) => setShipment(e.target.value)}
+                className={inputClass}
+                placeholder="Shipment"
+              />
+            </div>
+            <div>
+              <FieldLabel>Switch BL</FieldLabel>
+              <input
+                value={switchBl}
+                onChange={(e) => setSwitchBl(e.target.value)}
+                className={inputClass}
+                placeholder="Switch B/L"
+              />
+            </div>
+            <div>
+              <FieldLabel>Load Type</FieldLabel>
+              <SearchableSelect
+                options={LOAD_TYPES}
+                value={loadType || undefined}
+                onValueChange={setLoadType}
+                placeholder="Select"
+                hideSearch
+              />
+            </div>
+          </div>
+
+          {/* Row 3 */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div>
+              <FieldLabel>Job No.</FieldLabel>
+              <input
+                value={jobNo}
+                onChange={(e) => setJobNo(e.target.value)}
+                className={inputClass}
+                placeholder="Job number"
+              />
+            </div>
+            <div>
+              <FieldLabel>Incoterm</FieldLabel>
+              <SearchableSelect
+                options={INCOTERMS}
+                value={incoterm || undefined}
+                onValueChange={setIncoterm}
+                placeholder="Select incoterm"
+              />
+            </div>
+          </div>
+
+          {/* Row 4 */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="xl:col-span-2">
+              <FieldLabel>Service Term</FieldLabel>
+              <SearchableSelect
+                options={SERVICE_TERMS}
+                value={serviceTerm || undefined}
+                onValueChange={setServiceTerm}
+                placeholder="Select service term"
+                hideSearch
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Content tabs ──────────────────────────────────────────── */}
+      <div className="overflow-x-clip rounded-2xl border border-border bg-white shadow-sm">
+        {/* Tab bar */}
+        <div className="flex flex-wrap gap-1 overflow-x-auto overflow-y-hidden border-b border-border bg-slate-50/80 px-2 py-2 sm:px-3">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setActiveTab(t.key)}
+              className={clsx(
+                'shrink-0 rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wide transition-colors',
+                activeTab === t.key
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-white/80',
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        <div className="min-h-0 min-w-0">
+          {activeTab === 'header' ? (
+            <HeaderTab state={headerState} onChange={patchHeader} />
+          ) : activeTab === 'container' ? (
+            <ContainerTab state={containerState} onChange={patchContainer} />
+          ) : activeTab === 'marks' ? (
+            <MarksDescriptionTab state={marksState} onChange={patchMarks} />
+          ) : activeTab === 'freight' ? (
+            <FreightTab state={freightState} onChange={patchFreight} />
+          ) : (
+            <PlaceholderTab label="Tracking" />
+          )}
+        </div>
+      </div>
+
+      {/* Upload BOL dialog */}
+      <UploadBOLDialog
+        open={showUploadDialog}
+        onClose={() => setShowUploadDialog(false)}
+        onExtract={(file) => {
+          setShowUploadDialog(false);
+          toastOk(`Extracting data from ${file.name}…`);
+        }}
+      />
+    </div>
+  );
+};
+
+export default CreateSeaHouseBLPage;

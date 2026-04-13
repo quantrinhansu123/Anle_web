@@ -29,6 +29,8 @@ import PlaceholderPage from './pages/PlaceholderPage';
 import FmsDashboardPage from './pages/shipping/FmsDashboardPage';
 import JobPage from './pages/JobPage';
 import JobEditorPage from './pages/jobs/JobEditorPage';
+import CreateSeaHouseBLPage from './pages/jobs/CreateSeaHouseBLPage';
+import DebitNotePage from './pages/jobs/DebitNotePage';
 import LoginPage from './pages/auth/LoginPage';
 import { AuthProvider } from './contexts/AuthContext';
 import { BreadcrumbProvider } from './contexts/BreadcrumbContext';
@@ -62,6 +64,9 @@ function App() {
                 <Route path="/shipments/information" element={<ShipmentsPage />} />
                 <Route path="/shipping/jobs/new" element={<JobEditorPage />} />
                 <Route path="/shipping/jobs/:id/edit" element={<JobEditorPage />} />
+                <Route path="/shipping/jobs/:id/sea-house-bl" element={<CreateSeaHouseBLPage />} />
+                <Route path="/shipping/jobs/:id/sea-house-bl/debit-note" element={<DebitNotePage />} />
+                <Route path="/shipping/jobs/:id/sea-house-bl/debit-note/:dnId" element={<DebitNotePage />} />
                 <Route path="/shipping/jobs" element={<JobPage />} />
                 <Route path="/operations/jobs" element={<Navigate to="/shipping/jobs" replace />} />
                 <Route path="/customers/directory" element={<CustomerPage />} />

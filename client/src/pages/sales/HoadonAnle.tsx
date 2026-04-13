@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Printer, ArrowLeft, Loader2, ChevronsDown } from 'lucide-react';
+import { Printer, ArrowLeft, Loader2, ChevronsDown, Plus, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
@@ -274,6 +274,21 @@ async function downloadPdfFromElement(el: HTMLElement, filename: string): Promis
     backgroundColor: '#ffffff',
     onclone: (clonedDoc) => {
       clonedDoc.querySelectorAll('link[rel="stylesheet"]').forEach((node) => node.remove());
+      // Convert textareas to divs so html2canvas renders multi-line text properly
+      clonedDoc.querySelectorAll('.qp-term-textarea').forEach((ta) => {
+        const div = clonedDoc.createElement('div');
+        div.className = 'qp-term-div';
+        div.textContent = (ta as HTMLTextAreaElement).value;
+        ta.parentNode?.replaceChild(div, ta);
+      });
+      // Hide add/remove buttons and terms box border for clean PDF
+      clonedDoc.querySelectorAll('.qp-term-add, .qp-term-remove').forEach((btn) => {
+        (btn as HTMLElement).style.display = 'none';
+      });
+      clonedDoc.querySelectorAll('.qp-terms-box').forEach((box) => {
+        (box as HTMLElement).style.border = 'none';
+        (box as HTMLElement).style.padding = '0';
+      });
     },
   });
   const imgData = canvas.toDataURL('image/jpeg', 0.92);
@@ -295,6 +310,16 @@ async function downloadPdfFromElement(el: HTMLElement, filename: string): Promis
   pdf.save(filename);
 }
 
+const DEFAULT_TERMS_VI: string[] = [
+  'Với hàng xuất khẩu, tỉ giá sẽ được tính theo tỷ giá bán ra của VCB tại thời điểm ETD. Với hàng nhập khẩu, tỉ giá sẽ được tính theo tỷ giá bán ra của VCB theo ngày gửi Arrival Notice.\nHiện tại tỷ giá trên báo giá là tạm tính theo ngày gửi báo giá.',
+  'Giá trên chưa bao gồm VAT, VAT = 8%.',
+  'Chi phí trên chưa bao gồm các chi phí chi hộ: nâng/hạ cont, cơ sở hạ tầng, lệ phí cấp chứng thư, chi phí phát sinh tại cảng, chi phí bồi dưỡng nhân công bốc xếp, chi phí vào đường cấm (nếu có)…',
+  'Tờ khai luồng đỏ, phí kiểm hóa, chuyển đảo cont… sẽ tính theo thực tế phát sinh.',
+  'Miễn phí 8h từ khi xe đến nơi, sau 8h bắt đầu tính phí phát sinh neo: 1,200,000 VND/ngày. Chạy máy phát tại kho (nếu phát sinh): … VND/giờ.',
+  'Lấy/Hạ cont các khu vực sau có phụ thu: Khu vực Đồng Nai/Long Bình/Linh Xuân/Tân Vạn - ... VND/lượt, Quận 4/7 - ... VND/lượt, Hiệp Phước - ... VND/lượt.',
+  'Mua bảo hiểm hàng hóa: Tỷ lệ phí bảo hiểm tại MIC theo điều kiện loại A: ... x 110% CNF INV VALUE.',
+];
+
 interface QuotationDocumentBodyProps {
   lang: Lang;
   data: QuotationData;
@@ -302,11 +327,14 @@ interface QuotationDocumentBodyProps {
   displayedRows: DisplayedProgressRow[];
   totalAmount: number;
   formatProgressNumber: (n: number) => string;
+  termsConditions: string[];
+  onTermChange: (index: number, value: string) => void;
+  onAddTerm: () => void;
+  onRemoveTerm: (index: number) => void;
 }
 
 /** PDF capture: no Tailwind on this subtree — html2canvas cannot parse oklch() from Tailwind v4. */
 const QUOTATION_PRINT_CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 .quotation-print-root {
   box-sizing: border-box;
   width: 800px;
@@ -319,7 +347,7 @@ const QUOTATION_PRINT_CSS = `
   min-height: 1131px;
   position: relative;
   overflow: hidden;
-  font-family: Inter, system-ui, -apple-system, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
 }
 .quotation-print-root *, .quotation-print-root *::before, .quotation-print-root *::after { box-sizing: border-box; }
@@ -337,7 +365,7 @@ const QUOTATION_PRINT_CSS = `
 .qp-title { font-size: 1.875rem; font-weight: 700; color: #f24b43; text-align: center; text-transform: uppercase; letter-spacing: 0.025em; margin: 0; }
 .qp-date { text-align: right; font-weight: 600; font-size: 0.875rem; color: #000000; margin-top: 12px; }
 .qp-section { margin-bottom: 32px; }
-.qp-section-title { color: #f24b43; text-transform: uppercase; font-weight: 700; font-size: 0.875rem; margin: 0 0 8px 0; }
+.qp-section-title { color: #f24b43; text-transform: uppercase; font-weight: 700; font-size: 0.875rem; margin: 0 0 8px 0; padding-bottom: 6px; border-bottom: 2px solid #f24b43; }
 .qp-grid-wrap { border-top: 1px solid #f24b43; border-bottom: 1px solid #f24b43; display: grid; grid-template-columns: 1fr 1fr; position: relative; padding: 8px 0; }
 .qp-grid-vline { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #f24b43; transform: translateX(-50%); }
 .qp-col { font-size: 13px; color: #000000; }
@@ -374,17 +402,50 @@ const QUOTATION_PRINT_CSS = `
 .qp-empty { text-align: center; color: #6b7280; font-style: italic; font-size: 12px; padding: 24px 12px; }
 .qp-total-row { display: flex; justify-content: flex-end; padding: 16px 12px 0; margin-top: 0; color: #000000; }
 .qp-total { font-weight: 700; font-size: 16px; margin: 0; }
+/* Page 1 content fills exactly one A4 page */
+.qp-page-1-content { min-height: 1091px; }
+/* Page 2 */
+.qp-page-break { padding-top: 40px; }
+.qp-terms-box { border: 1px solid #d1d5db; padding: 16px 20px; margin-top: 8px; position: relative; }
+.qp-term-item { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 6px; position: relative; }
+.qp-term-item:last-of-type { margin-bottom: 0; }
+.qp-term-number { font-weight: 600; font-size: 13px; color: #000; min-width: 18px; flex-shrink: 0; padding-top: 1px; font-style: italic; }
+.qp-term-textarea { width: 100%; border: none; background: transparent; font-family: inherit; font-size: 13px; color: #000; resize: none; overflow: hidden; padding: 0; margin: 0; outline: none; line-height: 1.5; font-style: italic; }
+.qp-term-div { width: 100%; font-family: inherit; font-size: 13px; color: #000; line-height: 1.5; font-style: italic; white-space: pre-wrap; word-break: break-word; }
+.qp-term-textarea:focus { background: #fffbeb; border-radius: 2px; }
+.qp-term-remove { position: absolute; right: -10px; top: -4px; width: 20px; height: 20px; border-radius: 50%; border: 1px solid #e5e7eb; background: #fff; color: #ef4444; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity 0.15s; padding: 0; }
+.qp-term-item:hover .qp-term-remove { opacity: 1; }
+.qp-term-add { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px dashed #d1d5db; border-radius: 4px; background: #fff; color: #6b7280; cursor: pointer; margin-top: 8px; transition: all 0.15s; padding: 0; }
+.qp-term-add:hover { border-color: #f24b43; color: #f24b43; background: #fef2f2; }
+.qp-confirm-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+.qp-confirm-table th, .qp-confirm-table td { border: 1px solid #000; padding: 12px; vertical-align: top; }
+.qp-confirm-table th { font-weight: 700; text-align: center; font-size: 14px; }
+.qp-confirm-company { font-weight: 700; font-size: 14px; margin: 0 0 12px; font-style: italic; }
+.qp-confirm-info { font-style: italic; font-size: 13px; margin: 0 0 6px; }
+.qp-confirm-info:last-child { margin-bottom: 0; }
+.qp-confirm-sig-cell { min-height: 140px; }
+.qp-no-print { }
 @media print {
   @page { margin: 0; size: auto; }
-  body { margin: 0; padding: 0; }
-  .quotation-print-root { box-shadow: none; width: 100%; min-height: auto; padding: 24px 32px; }
+  html, body { margin: 0 !important; padding: 0 !important; overflow: visible !important; height: auto !important; }
+  *, *::before, *::after { overflow: visible !important; }
+  .quotation-print-root { box-shadow: none; width: 100%; min-height: auto; padding: 24px 32px; display: block !important; }
   .qp-print-no-break { break-inside: avoid; }
+  .qp-page-1-content { min-height: auto; display: block; }
+  .qp-page-break { margin-top: 0; padding-top: 32px; page-break-before: always; break-before: page; display: block; }
+  .qp-no-print { display: none !important; }
+  .qp-term-textarea { background: transparent !important; }
+  .qp-terms-box { border: none !important; padding: 0 !important; }
+  .qp-term-add, .qp-term-remove { display: none !important; }
+  .qp-term-item { margin-bottom: 2px !important; }
+  .qp-term-number { font-weight: 400 !important; }
+  .qp-term-textarea { font-weight: 400 !important; }
 }
 `;
 
 export const QuotationDocumentBody = forwardRef<HTMLDivElement, QuotationDocumentBodyProps>(
   function QuotationDocumentBody(
-    { lang, data, viewCurrency, displayedRows, totalAmount, formatProgressNumber },
+    { lang, data, viewCurrency, displayedRows, totalAmount, formatProgressNumber, termsConditions, onTermChange, onAddTerm, onRemoveTerm },
     ref,
   ) {
     const L = COPY[lang];
@@ -418,6 +479,7 @@ export const QuotationDocumentBody = forwardRef<HTMLDivElement, QuotationDocumen
       <div ref={ref} className="quotation-print-root">
         <style dangerouslySetInnerHTML={{ __html: QUOTATION_PRINT_CSS }} />
 
+        <div className="qp-page-1-content">
         <header className="qp-header">
           <div className="qp-logo-wrap">
             <img src={quotationLogoSrc()} alt="ANLE-SCM Logo" />
@@ -559,6 +621,78 @@ export const QuotationDocumentBody = forwardRef<HTMLDivElement, QuotationDocumen
             </p>
           </div>
         </div>
+        </div>{/* end qp-page-1-content */}
+
+        {/* ── Page 2: Terms & Conditions + Confirmation ── */}
+        <div className="qp-page-break">
+          <div className="qp-section">
+            <h2 className="qp-section-title">ĐIỀU KHOẢN VÀ ĐIỀU KIỆN</h2>
+            <div className="qp-terms-box">
+              {termsConditions.map((term, idx) => (
+                <div key={idx} className="qp-term-item">
+                  <span className="qp-term-number">{idx + 1}.</span>
+                  <textarea
+                    className="qp-term-textarea"
+                    value={term}
+                    onChange={(e) => {
+                      const el = e.target;
+                      el.style.height = 'auto';
+                      el.style.height = el.scrollHeight + 'px';
+                      onTermChange(idx, el.value);
+                    }}
+                    ref={(el) => {
+                      if (el) {
+                        el.style.height = 'auto';
+                        el.style.height = el.scrollHeight + 'px';
+                      }
+                    }}
+                  />
+                  {idx >= DEFAULT_TERMS_VI.length && (
+                    <button
+                      type="button"
+                      className="qp-term-remove qp-no-print"
+                      onClick={() => onRemoveTerm(idx)}
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                className="qp-term-add qp-no-print"
+                onClick={onAddTerm}
+              >
+                <Plus size={16} />
+              </button>
+            </div>
+          </div>
+
+          <div className="qp-section">
+            <h2 className="qp-section-title">XÁC NHẬN BÁO GIÁ</h2>
+            <table className="qp-confirm-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '34%' }}>&nbsp;</th>
+                  <th style={{ width: '33%' }}>Người phụ trách</th>
+                  <th style={{ width: '33%' }}>Khách Hàng</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <p className="qp-confirm-company">CÔNG TY TNHH<br />ANLE-SCM</p>
+                    <p className="qp-confirm-info"><u>Địa Chỉ</u>: Số 1L, Đường 7L, Tân Thuận, Thành Phố Hồ Chí Minh</p>
+                    <p className="qp-confirm-info"><u>Điện Thoại</u>: 0962787877</p>
+                    <p className="qp-confirm-info">Website: anle-scm.com</p>
+                  </td>
+                  <td className="qp-confirm-sig-cell"></td>
+                  <td className="qp-confirm-sig-cell"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     );
   },
@@ -577,6 +711,23 @@ const HoadonAnle: React.FC = () => {
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const printRefVi = useRef<HTMLDivElement>(null);
   const printRefEn = useRef<HTMLDivElement>(null);
+  const [termsConditions, setTermsConditions] = useState<string[]>(DEFAULT_TERMS_VI);
+
+  const handleTermChange = useCallback((index: number, value: string) => {
+    setTermsConditions(prev => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+  }, []);
+
+  const handleAddTerm = useCallback(() => {
+    setTermsConditions(prev => [...prev, '']);
+  }, []);
+
+  const handleRemoveTerm = useCallback((index: number) => {
+    setTermsConditions(prev => prev.filter((_, i) => i !== index));
+  }, []);
 
   const rateByCode = useMemo(() => {
     const m = new Map<string, number>();
@@ -886,6 +1037,10 @@ const HoadonAnle: React.FC = () => {
           displayedRows={displayedRows}
           totalAmount={totalAmount}
           formatProgressNumber={formatProgressNumber}
+          termsConditions={termsConditions}
+          onTermChange={handleTermChange}
+          onAddTerm={handleAddTerm}
+          onRemoveTerm={handleRemoveTerm}
         />
       </div>
 
@@ -898,6 +1053,10 @@ const HoadonAnle: React.FC = () => {
           displayedRows={displayedRows}
           totalAmount={totalAmount}
           formatProgressNumber={formatProgressNumber}
+          termsConditions={termsConditions}
+          onTermChange={handleTermChange}
+          onAddTerm={handleAddTerm}
+          onRemoveTerm={handleRemoveTerm}
         />
       </div>
     </div>

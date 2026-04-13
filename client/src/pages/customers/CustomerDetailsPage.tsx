@@ -19,8 +19,16 @@ import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 import { formatDate } from '../../lib/utils';
 import { clsx } from 'clsx';
 import { useToastContext } from '../../contexts/ToastContext';
-import { CustomerStatusStepperView } from './CustomerStatusStepperView';
-import { CUSTOMER_STATUS_STEPS } from './customerStatusStepper';
+import { WorkflowStepper, type WorkflowStep } from '../../components/ui/WorkflowStepper';
+import { Contact, PhoneCall, Mail, Users, XCircle } from 'lucide-react';
+
+const CUSTOMER_STATUS_STEPS: WorkflowStep<CustomerStatus>[] = [
+  { id: 'new', label: 'New', icon: Contact },
+  { id: 'follow_up', label: 'Follow Up', icon: PhoneCall },
+  { id: 'quotation_sent', label: 'Quotation Sent', icon: Mail },
+  { id: 'meeting', label: 'Meeting', icon: Users },
+  { id: 'lost', label: 'Lost', icon: XCircle, isCancel: true },
+];
 
 type LeftTab = 'pic' | 'sales_purchasing' | 'routing' | 'notes' | 'credit';
 
@@ -90,11 +98,11 @@ const CustomerDetailsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { setDynamicTitle } = useBreadcrumb();
-  
+
   const [activeLeftTab, setActiveLeftTab] = useState<LeftTab>('pic');
   const [isEditingInfo, setIsEditingInfo] = useState(false);
   const [isSavingInfo, setIsSavingInfo] = useState(false);
-  const [statusSaving, setStatusSaving] = useState(false);
+  const [_statusSaving, setStatusSaving] = useState(false);
   const [hoverRank, setHoverRank] = useState<number | null>(null);
   const [infoForm, setInfoForm] = useState<InfoFormState>({
     company_name: '', local_name: '', english_name: '', customer_group: '',
@@ -198,26 +206,15 @@ const CustomerDetailsPage: React.FC = () => {
       setStatusSaving(true);
       await customerService.updateCustomer(customer.id, { status: next });
       setCustomer(c => c ? { ...c, status: next } : c);
-      toastSuccess('Customer status updated');
+      const prevLabel = CUSTOMER_STATUS_STEPS.find(s => s.id === prev)?.label || prev;
+      const nextLabel = CUSTOMER_STATUS_STEPS.find(s => s.id === next)?.label || next;
+      toastSuccess(`Customer status changed from "${prevLabel}" to "${nextLabel}"`);
     } catch (err: unknown) {
       toastError(getErrorMessage(err, 'Failed to update status'));
     } finally {
       setStatusSaving(false);
     }
   }, [customer, toastSuccess, toastError]);
-
-  const handleAdvanceStatus = useCallback(() => {
-    if (!customer) return;
-    const cur = normalizeStatus(customer.status);
-    const idx = CUSTOMER_STATUS_STEPS.findIndex(s => s.id === cur);
-    const next = CUSTOMER_STATUS_STEPS[idx + 1];
-    if (!next) return;
-    void applyCustomerStatus(next.id as CustomerStatus);
-  }, [customer, applyCustomerStatus]);
-
-  const handleSwitchToNew = useCallback(() => {
-    void applyCustomerStatus('new');
-  }, [applyCustomerStatus]);
 
   const handleStartEditSales = () => {
     if (!customer) return;
@@ -276,54 +273,15 @@ const CustomerDetailsPage: React.FC = () => {
   const pageHeading = 'Customer details';
   const companySubtitle = customer.company_name?.trim() || '—';
 
-  const activeIndex = Math.max(0, CUSTOMER_STATUS_STEPS.findIndex(s => s.id === customerStatus));
-  const nextStep = CUSTOMER_STATUS_STEPS[activeIndex + 1];
-  const isNew = customerStatus === 'new';
-
-  const workflowOutline =
-    'inline-flex items-center justify-center min-h-9 px-4 py-2 rounded-lg border border-border bg-white text-slate-700 text-[11px] font-bold uppercase tracking-wide shadow-sm hover:bg-slate-50 transition-colors disabled:opacity-45 disabled:pointer-events-none';
-  const workflowLink =
-    'inline-flex items-center min-h-9 px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600 underline-offset-2 hover:text-primary hover:underline transition-colors disabled:opacity-35 disabled:pointer-events-none disabled:no-underline';
-
-  const statusActions = (
-    <div className="flex shrink-0 flex-wrap items-center gap-2">
-      <button
-        type="button"
-        className={workflowOutline}
-        onClick={handleAdvanceStatus}
-        disabled={statusSaving || !nextStep}
-        title={nextStep ? `Move to ${nextStep.label}` : 'Already at final status'}
-      >
-        {nextStep ? nextStep.label : 'Final'}
-      </button>
-      <button
-        type="button"
-        className={workflowLink}
-        onClick={handleSwitchToNew}
-        disabled={statusSaving || isNew}
-      >
-        Switch to new
-      </button>
-    </div>
-  );
-
   const desktopStatusRow = (
-    <div className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-3">
-      {statusActions}
-      <div className="flex min-w-0 flex-1 items-center justify-end overflow-x-auto md:max-w-[55%] lg:max-w-none lg:flex-initial">
-        <CustomerStatusStepperView currentStatus={customerStatus} variant="desktop" />
-      </div>
+    <div className="flex w-full items-center justify-end overflow-x-auto">
+      <WorkflowStepper steps={CUSTOMER_STATUS_STEPS} currentStep={customerStatus} onStepChange={applyCustomerStatus} variant="desktop" />
     </div>
   );
 
   const mobileStatusRow = (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        {statusActions}
-      </div>
-      <div className="w-full overflow-x-auto pb-0.5">
-        <CustomerStatusStepperView currentStatus={customerStatus} variant="mobile" />
-      </div>
+    <div className="w-full overflow-x-auto pb-0.5">
+      <WorkflowStepper steps={CUSTOMER_STATUS_STEPS} currentStep={customerStatus} onStepChange={applyCustomerStatus} variant="mobile" />
     </div>
   );
 
@@ -427,317 +385,317 @@ const CustomerDetailsPage: React.FC = () => {
       {/* MAIN PROFILE LAYOUT */}
       <div className="w-full px-4 md:px-0">
         <div className="relative flex w-full flex-col overflow-hidden rounded-[2rem] border border-border bg-white p-5 shadow-sm">
-            <div className="relative animate-in fade-in zoom-in-95 space-y-3 border-b border-border/60 pb-4 duration-300">
-              <div className="inline-flex items-center rounded-lg bg-primary/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-primary">
-                Info
-              </div>
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
-                {/* LEFT COLUMN */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div className={clsx('col-span-2 p-3 rounded-xl border bg-slate-50/60', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border')}>
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Customer Local Name</div>
-                    {isEditingInfo ? (
-                      <input type="text" value={infoForm.local_name} onChange={e => updateInfoField('local_name', e.target.value)} className="w-full mt-0.5 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
-                    ) : (
-                      <div className="text-[12px] font-black text-slate-800 mt-0.5">{customer.local_name || '—'}</div>
-                    )}
-                  </div>
-                  <div className={clsx('col-span-2 p-3 rounded-xl border bg-slate-50/60', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border')}>
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Customer English Name</div>
-                    {isEditingInfo ? (
-                      <input type="text" value={infoForm.english_name} onChange={e => updateInfoField('english_name', e.target.value)} className="w-full mt-0.5 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
-                    ) : (
-                      <div className="text-[12px] font-black text-slate-800 mt-0.5">{customer.english_name || '—'}</div>
-                    )}
-                  </div>
-                  <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
-                    <div className="flex items-center gap-1.5 text-slate-400"><Layers size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Customer Group</span></div>
-                    {isEditingInfo ? (
-                      <input type="text" value={infoForm.customer_group} onChange={e => updateInfoField('customer_group', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
-                    ) : (
-                      <div className="text-[12px] font-black text-slate-800 mt-1">{customer.customer_group || '—'}</div>
-                    )}
-                  </div>
-                  <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
-                    <div className="flex items-center gap-1.5 text-slate-400"><Tag size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Customer Source</span></div>
-                    {isEditingInfo ? (
-                      <input type="text" value={infoForm.customer_source} onChange={e => updateInfoField('customer_source', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
-                    ) : (
-                      <div className="text-[12px] font-black text-slate-800 mt-1">{customer.customer_source || '—'}</div>
-                    )}
-                  </div>
-                  <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
-                    <div className="flex items-center gap-1.5 text-slate-400"><Hash size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Customer Code</span></div>
-                    {isEditingInfo ? (
-                      <input type="text" value={infoForm.code} onChange={e => updateInfoField('code', e.target.value.toUpperCase().slice(0, 3))} maxLength={3} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all uppercase tracking-widest" />
-                    ) : (
-                      <div className="text-[12px] font-black text-slate-800 mt-1">{customer.code || '—'}</div>
-                    )}
-                  </div>
-                  <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
-                    <div className="flex items-center gap-1.5 text-slate-400"><Star size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Priority</span></div>
-                    <div
-                      className="flex items-center gap-1.5 mt-1"
-                      onMouseLeave={() => setHoverRank(null)}
-                    >
-                      {[1, 2, 3].map((star) => {
-                        const currentRank = isEditingInfo
-                          ? (hoverRank !== null ? hoverRank : infoForm.rank)
-                          : (hoverRank !== null ? hoverRank : (customer.rank || 0));
-                        const isFull = currentRank >= star;
-                        const isHalf = currentRank === star - 0.5;
-                        return (
-                          <button
-                            key={star}
-                            type="button"
-                            disabled={!isEditingInfo}
-                            onMouseMove={(e) => {
-                              if (!isEditingInfo) return;
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              const mid = rect.left + rect.width / 2;
-                              setHoverRank(e.clientX < mid ? star - 0.5 : star);
-                            }}
-                            onClick={() => {
-                              if (!isEditingInfo) return;
-                              updateInfoField('rank', hoverRank !== null ? hoverRank : star);
-                            }}
-                            className="flex items-center justify-center focus:outline-none focus:scale-110 transition-transform disabled:hover:scale-100 p-0.5 rounded-md hover:bg-slate-100 relative w-6 h-6"
-                          >
-                            <div className="relative w-5 h-5">
-                              <Star size={20} className="absolute inset-0 fill-slate-200 text-slate-300" />
-                              {(isFull || isHalf) && (
-                                <div className={clsx('absolute inset-y-0 left-0 overflow-hidden text-left', isHalf ? 'w-[50%]' : 'w-full')}>
-                                  <Star size={20} className="fill-amber-400 text-amber-400 drop-shadow-sm min-w-[20px]" />
-                                </div>
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* RIGHT COLUMN */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div className={clsx('col-span-2 p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
-                    <div className="flex items-center gap-1.5 text-slate-400"><Shield size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Tax Code</span></div>
-                    {isEditingInfo ? (
-                      <input type="text" value={infoForm.tax_code} onChange={e => updateInfoField('tax_code', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
-                    ) : (
-                      <div className="text-[12px] font-black text-slate-800 mt-1">{customer.tax_code || '—'}</div>
-                    )}
-                  </div>
-                  <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
-                    <div className="flex items-center gap-1.5 text-slate-400"><Phone size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Phone</span></div>
-                    {isEditingInfo ? (
-                      <input type="text" value={infoForm.phone} onChange={e => updateInfoField('phone', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
-                    ) : (
-                      <div className="text-[12px] font-black text-slate-800 mt-1">{customer.phone || '—'}</div>
-                    )}
-                  </div>
-                  <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
-                    <div className="flex items-center gap-1.5 text-slate-400"><Globe size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Website</span></div>
-                    {isEditingInfo ? (
-                      <input type="url" value={infoForm.website} onChange={e => updateInfoField('website', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
-                    ) : (
-                      <div className="text-[12px] font-black text-slate-800 mt-1 truncate">{customer.website || '—'}</div>
-                    )}
-                  </div>
-                  <div className={clsx('col-span-2 p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
-                    <div className="flex items-center gap-1.5 text-slate-400"><MapPin size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Address</span></div>
-                    {isEditingInfo ? (
-                      <textarea value={infoForm.address} onChange={e => updateInfoField('address', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none min-h-[60px]" />
-                    ) : (
-                      <div className="text-[12px] font-black text-slate-800 mt-1">{customer.address || '—'}</div>
-                    )}
-                  </div>
-                  <div className={clsx('col-span-2 p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
-                    <div className="flex items-center gap-1.5 text-slate-400"><Fingerprint size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Office Address</span></div>
-                    {isEditingInfo ? (
-                      <textarea value={infoForm.office_address} onChange={e => updateInfoField('office_address', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none min-h-[60px]" />
-                    ) : (
-                      <div className="text-[12px] font-black text-slate-800 mt-1">{customer.office_address || '—'}</div>
-                    )}
-                  </div>
-                  <div className={clsx('col-span-2 p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
-                    <div className="flex items-center gap-1.5 text-slate-400"><Fingerprint size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">B/L Address</span></div>
-                    {isEditingInfo ? (
-                      <textarea value={infoForm.bl_address} onChange={e => updateInfoField('bl_address', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none min-h-[60px]" />
-                    ) : (
-                      <div className="text-[12px] font-black text-slate-800 mt-1">{customer.bl_address || '—'}</div>
-                    )}
-                  </div>
-                  <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
-                    <div className="flex items-center gap-1.5 text-slate-400"><Globe size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Country</span></div>
-                    {isEditingInfo ? (
-                      <input type="text" value={infoForm.country} onChange={e => updateInfoField('country', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
-                    ) : (
-                      <div className="text-[12px] font-black text-slate-800 mt-1">{customer.country || '—'}</div>
-                    )}
-                  </div>
-                  <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
-                    <div className="flex items-center gap-1.5 text-slate-400"><MapPin size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">State/Province</span></div>
-                    {isEditingInfo ? (
-                      <input type="text" value={infoForm.state_province} onChange={e => updateInfoField('state_province', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
-                    ) : (
-                      <div className="text-[12px] font-black text-slate-800 mt-1">{customer.state_province || '—'}</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-3 rounded-xl border border-border bg-white">
-                <div className="flex items-center gap-1.5 text-slate-400"><Clock3 size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Last Updated</span></div>
-                <div className="text-[12px] font-black text-slate-800 mt-1">{displayLastUpdatedText}</div>
-              </div>
+          <div className="relative animate-in fade-in zoom-in-95 space-y-3 border-b border-border/60 pb-4 duration-300">
+            <div className="inline-flex items-center rounded-lg bg-primary/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-primary">
+              Info
             </div>
-
-            {/* TAB SELECTOR */}
-            <div className="flex flex-wrap gap-1.5 py-4 border-b border-border/60">
-              {LEFT_TABS.map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveLeftTab(tab.id)}
-                  className={clsx(
-                    "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all",
-                    activeLeftTab === tab.id
-                      ? "bg-primary text-white shadow-sm"
-                      : "bg-slate-50 text-slate-500 hover:bg-slate-100"
-                  )}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            {/* TAB CONTENT */}
-            <div className="pt-4 flex-1">
-
-              {activeLeftTab === 'pic' && (
-                <div className="space-y-3 animate-in fade-in duration-300">
-                  {customer.contacts && customer.contacts.length > 0 ? (
-                    customer.contacts.map(contact => (
-                      <div key={contact.id} className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-                        <div className="font-bold text-[12px] text-slate-900">{contact.full_name}</div>
-                        <div className="text-[10px] text-primary font-bold">{contact.position || contact.department || 'Contact'}</div>
-                        <div className="mt-1 space-y-0.5 text-[11px] text-slate-500">
-                          <div>{contact.phone}</div>
-                          <div className="truncate">{contact.email}</div>
-                        </div>
-                      </div>
-                    ))
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+              {/* LEFT COLUMN */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className={clsx('col-span-2 p-3 rounded-xl border bg-slate-50/60', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border')}>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Customer Local Name</div>
+                  {isEditingInfo ? (
+                    <input type="text" value={infoForm.local_name} onChange={e => updateInfoField('local_name', e.target.value)} className="w-full mt-0.5 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
                   ) : (
-                    <div className="text-center text-[11px] font-bold text-slate-400 py-4">No PIC data</div>
+                    <div className="text-[12px] font-black text-slate-800 mt-0.5">{customer.local_name || '—'}</div>
                   )}
                 </div>
-              )}
-
-              {activeLeftTab === 'sales_purchasing' && (
-                <div className="space-y-4 animate-in fade-in duration-300">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between border-b border-border/60 pb-1">
-                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sales Information</div>
-                      {isEditingSales ? (
-                        <div className="flex items-center gap-1">
-                          <button onClick={handleSaveSalesPurch} className="p-1 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors"><Check size={14} /></button>
-                          <button onClick={() => setIsEditingSales(false)} className="p-1 rounded bg-red-50 text-red-500 hover:bg-red-100 transition-colors"><XIcon size={14} /></button>
-                        </div>
-                      ) : (
-                        <button onClick={handleStartEditSales} className="flex items-center gap-1 text-[10px] font-bold text-primary hover:underline">
-                          <Edit2 size={12} /> Edit
+                <div className={clsx('col-span-2 p-3 rounded-xl border bg-slate-50/60', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border')}>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Customer English Name</div>
+                  {isEditingInfo ? (
+                    <input type="text" value={infoForm.english_name} onChange={e => updateInfoField('english_name', e.target.value)} className="w-full mt-0.5 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
+                  ) : (
+                    <div className="text-[12px] font-black text-slate-800 mt-0.5">{customer.english_name || '—'}</div>
+                  )}
+                </div>
+                <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                  <div className="flex items-center gap-1.5 text-slate-400"><Layers size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Customer Group</span></div>
+                  {isEditingInfo ? (
+                    <input type="text" value={infoForm.customer_group} onChange={e => updateInfoField('customer_group', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
+                  ) : (
+                    <div className="text-[12px] font-black text-slate-800 mt-1">{customer.customer_group || '—'}</div>
+                  )}
+                </div>
+                <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                  <div className="flex items-center gap-1.5 text-slate-400"><Tag size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Customer Source</span></div>
+                  {isEditingInfo ? (
+                    <input type="text" value={infoForm.customer_source} onChange={e => updateInfoField('customer_source', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
+                  ) : (
+                    <div className="text-[12px] font-black text-slate-800 mt-1">{customer.customer_source || '—'}</div>
+                  )}
+                </div>
+                <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                  <div className="flex items-center gap-1.5 text-slate-400"><Hash size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Customer Code</span></div>
+                  {isEditingInfo ? (
+                    <input type="text" value={infoForm.code} onChange={e => updateInfoField('code', e.target.value.toUpperCase().slice(0, 3))} maxLength={3} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all uppercase tracking-widest" />
+                  ) : (
+                    <div className="text-[12px] font-black text-slate-800 mt-1">{customer.code || '—'}</div>
+                  )}
+                </div>
+                <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                  <div className="flex items-center gap-1.5 text-slate-400"><Star size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Priority</span></div>
+                  <div
+                    className="flex items-center gap-1.5 mt-1"
+                    onMouseLeave={() => setHoverRank(null)}
+                  >
+                    {[1, 2, 3].map((star) => {
+                      const currentRank = isEditingInfo
+                        ? (hoverRank !== null ? hoverRank : infoForm.rank)
+                        : (hoverRank !== null ? hoverRank : (customer.rank || 0));
+                      const isFull = currentRank >= star;
+                      const isHalf = currentRank === star - 0.5;
+                      return (
+                        <button
+                          key={star}
+                          type="button"
+                          disabled={!isEditingInfo}
+                          onMouseMove={(e) => {
+                            if (!isEditingInfo) return;
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const mid = rect.left + rect.width / 2;
+                            setHoverRank(e.clientX < mid ? star - 0.5 : star);
+                          }}
+                          onClick={() => {
+                            if (!isEditingInfo) return;
+                            updateInfoField('rank', hoverRank !== null ? hoverRank : star);
+                          }}
+                          className="flex items-center justify-center focus:outline-none focus:scale-110 transition-transform disabled:hover:scale-100 p-0.5 rounded-md hover:bg-slate-100 relative w-6 h-6"
+                        >
+                          <div className="relative w-5 h-5">
+                            <Star size={20} className="absolute inset-0 fill-slate-200 text-slate-300" />
+                            {(isFull || isHalf) && (
+                              <div className={clsx('absolute inset-y-0 left-0 overflow-hidden text-left', isHalf ? 'w-[50%]' : 'w-full')}>
+                                <Star size={20} className="fill-amber-400 text-amber-400 drop-shadow-sm min-w-[20px]" />
+                              </div>
+                            )}
+                          </div>
                         </button>
-                      )}
-                    </div>
-                    
-                    <div className="flex flex-col gap-1 text-[12px]">
-                      <span className="font-bold text-slate-500 uppercase text-[9px] tracking-wider">Sales Executive</span>
-                      {isEditingSales ? (
-                        <input type="text" value={salesForm.sales_staff} onChange={e => setSalesForm({...salesForm, sales_staff: e.target.value})} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50" />
-                      ) : (
-                        <span className="font-black text-slate-800">{customer.sales_staff || '—'}</span>
-                      )}
-                    </div>
-                    
-                    <div className="flex flex-col gap-1 text-[12px]">
-                      <span className="font-bold text-slate-500 uppercase text-[9px] tracking-wider">Sales Team</span>
-                      {isEditingSales ? (
-                        <input type="text" value={salesForm.sales_team} onChange={e => setSalesForm({...salesForm, sales_team: e.target.value})} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50" />
-                      ) : (
-                        <span className="font-black text-slate-800">{customer.sales_team || '—'}</span>
-                      )}
-                    </div>
-
-                    <div className="flex flex-col gap-1 text-[12px]">
-                      <span className="font-bold text-slate-500 uppercase text-[9px] tracking-wider">Sales Department</span>
-                      {isEditingSales ? (
-                        <input type="text" value={salesForm.sales_department} onChange={e => setSalesForm({...salesForm, sales_department: e.target.value})} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50" />
-                      ) : (
-                        <span className="font-black text-slate-800">{customer.sales_department || '—'}</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 pt-2">
-                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-border/60 pb-1">Other Information</div>
-                    
-                    <div className="flex flex-col gap-1 text-[12px]">
-                      <span className="font-bold text-slate-500 uppercase text-[9px] tracking-wider">Company ID</span>
-                      {isEditingSales ? (
-                        <input type="text" value={salesForm.company_id_number} onChange={e => setSalesForm({...salesForm, company_id_number: e.target.value})} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50" />
-                      ) : (
-                        <span className="font-black text-slate-800">{customer.company_id_number || '—'}</span>
-                      )}
-                    </div>
-                    
-                    <div className="flex flex-col gap-1 text-[12px]">
-                      <span className="font-bold text-slate-500 uppercase text-[9px] tracking-wider">Industry</span>
-                      {isEditingSales ? (
-                        <input type="text" value={salesForm.industry} onChange={e => setSalesForm({...salesForm, industry: e.target.value})} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50" />
-                      ) : (
-                        <span className="font-black text-slate-800">{customer.industry || '—'}</span>
-                      )}
-                    </div>
+                      );
+                    })}
                   </div>
                 </div>
-              )}
+              </div>
 
-              {activeLeftTab === 'routing' && (
-                <div className="space-y-3 animate-in fade-in duration-300">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Preferred Routes</div>
-                  {customer.shipments?.slice(0, 4).map((s: ShipmentRoutePreview) => (
-                    <div key={s.id} className="text-[11px] font-bold text-slate-700 bg-slate-50 p-2 rounded-lg truncate">
-                       {s.pol && s.pod ? `${s.pol} -> ${s.pod}` : s.commodity || 'General Logistics'}
-                    </div>
-                  )) || <div className="text-[11px] text-slate-400">No data</div>}
+              {/* RIGHT COLUMN */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className={clsx('col-span-2 p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                  <div className="flex items-center gap-1.5 text-slate-400"><Shield size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Tax Code</span></div>
+                  {isEditingInfo ? (
+                    <input type="text" value={infoForm.tax_code} onChange={e => updateInfoField('tax_code', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
+                  ) : (
+                    <div className="text-[12px] font-black text-slate-800 mt-1">{customer.tax_code || '—'}</div>
+                  )}
                 </div>
-              )}
-
-              {activeLeftTab === 'notes' && (
-                <div className="space-y-3 animate-in fade-in duration-300">
-                  {customer.notes?.map((n: CustomerNote) => (
-                    <div key={n.id} className="p-3 bg-amber-50/30 rounded-xl border border-amber-100/50">
-                      <div className="text-[10px] font-black text-amber-600 mb-1">{formatDate(n.created_at)}</div>
-                      <div className="text-[11px] text-slate-700 font-medium leading-relaxed">{n.content}</div>
-                    </div>
-                  )) || <div className="text-[11px] text-slate-400">No notes</div>}
+                <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                  <div className="flex items-center gap-1.5 text-slate-400"><Phone size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Phone</span></div>
+                  {isEditingInfo ? (
+                    <input type="text" value={infoForm.phone} onChange={e => updateInfoField('phone', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
+                  ) : (
+                    <div className="text-[12px] font-black text-slate-800 mt-1">{customer.phone || '—'}</div>
+                  )}
                 </div>
-              )}
-
-              {activeLeftTab === 'credit' && (
-                <div className="space-y-4 animate-in fade-in duration-300">
-                  <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                    <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Credit Limit</div>
-                    <div className="text-xl font-black text-emerald-900 mt-1">{customer.credit_limit?.toLocaleString() || 0}</div>
-                    <div className="text-[10px] text-emerald-700/60 font-bold mt-0.5">VNĐ</div>
-                  </div>
-                  <div className="flex items-center justify-between p-3 border border-border rounded-xl">
-                    <span className="text-[11px] font-bold text-slate-500">Payment Terms</span>
-                    <span className="text-[12px] font-black text-slate-900">Net {customer.credit_term_days || 0}</span>
-                  </div>
+                <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                  <div className="flex items-center gap-1.5 text-slate-400"><Globe size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Website</span></div>
+                  {isEditingInfo ? (
+                    <input type="url" value={infoForm.website} onChange={e => updateInfoField('website', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
+                  ) : (
+                    <div className="text-[12px] font-black text-slate-800 mt-1 truncate">{customer.website || '—'}</div>
+                  )}
                 </div>
-              )}
+                <div className={clsx('col-span-2 p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                  <div className="flex items-center gap-1.5 text-slate-400"><MapPin size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Address</span></div>
+                  {isEditingInfo ? (
+                    <textarea value={infoForm.address} onChange={e => updateInfoField('address', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none min-h-[60px]" />
+                  ) : (
+                    <div className="text-[12px] font-black text-slate-800 mt-1">{customer.address || '—'}</div>
+                  )}
+                </div>
+                <div className={clsx('col-span-2 p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                  <div className="flex items-center gap-1.5 text-slate-400"><Fingerprint size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Office Address</span></div>
+                  {isEditingInfo ? (
+                    <textarea value={infoForm.office_address} onChange={e => updateInfoField('office_address', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none min-h-[60px]" />
+                  ) : (
+                    <div className="text-[12px] font-black text-slate-800 mt-1">{customer.office_address || '—'}</div>
+                  )}
+                </div>
+                <div className={clsx('col-span-2 p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                  <div className="flex items-center gap-1.5 text-slate-400"><Fingerprint size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">B/L Address</span></div>
+                  {isEditingInfo ? (
+                    <textarea value={infoForm.bl_address} onChange={e => updateInfoField('bl_address', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none min-h-[60px]" />
+                  ) : (
+                    <div className="text-[12px] font-black text-slate-800 mt-1">{customer.bl_address || '—'}</div>
+                  )}
+                </div>
+                <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                  <div className="flex items-center gap-1.5 text-slate-400"><Globe size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Country</span></div>
+                  {isEditingInfo ? (
+                    <input type="text" value={infoForm.country} onChange={e => updateInfoField('country', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
+                  ) : (
+                    <div className="text-[12px] font-black text-slate-800 mt-1">{customer.country || '—'}</div>
+                  )}
+                </div>
+                <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                  <div className="flex items-center gap-1.5 text-slate-400"><MapPin size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">State/Province</span></div>
+                  {isEditingInfo ? (
+                    <input type="text" value={infoForm.state_province} onChange={e => updateInfoField('state_province', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
+                  ) : (
+                    <div className="text-[12px] font-black text-slate-800 mt-1">{customer.state_province || '—'}</div>
+                  )}
+                </div>
+              </div>
             </div>
+
+            <div className="p-3 rounded-xl border border-border bg-white">
+              <div className="flex items-center gap-1.5 text-slate-400"><Clock3 size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Last Updated</span></div>
+              <div className="text-[12px] font-black text-slate-800 mt-1">{displayLastUpdatedText}</div>
+            </div>
+          </div>
+
+          {/* TAB SELECTOR */}
+          <div className="flex flex-wrap gap-1.5 py-4 border-b border-border/60">
+            {LEFT_TABS.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveLeftTab(tab.id)}
+                className={clsx(
+                  "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all",
+                  activeLeftTab === tab.id
+                    ? "bg-primary text-white shadow-sm"
+                    : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* TAB CONTENT */}
+          <div className="pt-4 flex-1">
+
+            {activeLeftTab === 'pic' && (
+              <div className="space-y-3 animate-in fade-in duration-300">
+                {customer.contacts && customer.contacts.length > 0 ? (
+                  customer.contacts.map(contact => (
+                    <div key={contact.id} className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                      <div className="font-bold text-[12px] text-slate-900">{contact.full_name}</div>
+                      <div className="text-[10px] text-primary font-bold">{contact.position || contact.department || 'Contact'}</div>
+                      <div className="mt-1 space-y-0.5 text-[11px] text-slate-500">
+                        <div>{contact.phone}</div>
+                        <div className="truncate">{contact.email}</div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center text-[11px] font-bold text-slate-400 py-4">No PIC data</div>
+                )}
+              </div>
+            )}
+
+            {activeLeftTab === 'sales_purchasing' && (
+              <div className="space-y-4 animate-in fade-in duration-300">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-border/60 pb-1">
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sales Information</div>
+                    {isEditingSales ? (
+                      <div className="flex items-center gap-1">
+                        <button onClick={handleSaveSalesPurch} className="p-1 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors"><Check size={14} /></button>
+                        <button onClick={() => setIsEditingSales(false)} className="p-1 rounded bg-red-50 text-red-500 hover:bg-red-100 transition-colors"><XIcon size={14} /></button>
+                      </div>
+                    ) : (
+                      <button onClick={handleStartEditSales} className="flex items-center gap-1 text-[10px] font-bold text-primary hover:underline">
+                        <Edit2 size={12} /> Edit
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col gap-1 text-[12px]">
+                    <span className="font-bold text-slate-500 uppercase text-[9px] tracking-wider">Sales Executive</span>
+                    {isEditingSales ? (
+                      <input type="text" value={salesForm.sales_staff} onChange={e => setSalesForm({ ...salesForm, sales_staff: e.target.value })} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50" />
+                    ) : (
+                      <span className="font-black text-slate-800">{customer.sales_staff || '—'}</span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col gap-1 text-[12px]">
+                    <span className="font-bold text-slate-500 uppercase text-[9px] tracking-wider">Sales Team</span>
+                    {isEditingSales ? (
+                      <input type="text" value={salesForm.sales_team} onChange={e => setSalesForm({ ...salesForm, sales_team: e.target.value })} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50" />
+                    ) : (
+                      <span className="font-black text-slate-800">{customer.sales_team || '—'}</span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col gap-1 text-[12px]">
+                    <span className="font-bold text-slate-500 uppercase text-[9px] tracking-wider">Sales Department</span>
+                    {isEditingSales ? (
+                      <input type="text" value={salesForm.sales_department} onChange={e => setSalesForm({ ...salesForm, sales_department: e.target.value })} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50" />
+                    ) : (
+                      <span className="font-black text-slate-800">{customer.sales_department || '—'}</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-2">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-border/60 pb-1">Other Information</div>
+
+                  <div className="flex flex-col gap-1 text-[12px]">
+                    <span className="font-bold text-slate-500 uppercase text-[9px] tracking-wider">Company ID</span>
+                    {isEditingSales ? (
+                      <input type="text" value={salesForm.company_id_number} onChange={e => setSalesForm({ ...salesForm, company_id_number: e.target.value })} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50" />
+                    ) : (
+                      <span className="font-black text-slate-800">{customer.company_id_number || '—'}</span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col gap-1 text-[12px]">
+                    <span className="font-bold text-slate-500 uppercase text-[9px] tracking-wider">Industry</span>
+                    {isEditingSales ? (
+                      <input type="text" value={salesForm.industry} onChange={e => setSalesForm({ ...salesForm, industry: e.target.value })} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50" />
+                    ) : (
+                      <span className="font-black text-slate-800">{customer.industry || '—'}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeLeftTab === 'routing' && (
+              <div className="space-y-3 animate-in fade-in duration-300">
+                <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Preferred Routes</div>
+                {customer.shipments?.slice(0, 4).map((s: ShipmentRoutePreview) => (
+                  <div key={s.id} className="text-[11px] font-bold text-slate-700 bg-slate-50 p-2 rounded-lg truncate">
+                    {s.pol && s.pod ? `${s.pol} -> ${s.pod}` : s.commodity || 'General Logistics'}
+                  </div>
+                )) || <div className="text-[11px] text-slate-400">No data</div>}
+              </div>
+            )}
+
+            {activeLeftTab === 'notes' && (
+              <div className="space-y-3 animate-in fade-in duration-300">
+                {customer.notes?.map((n: CustomerNote) => (
+                  <div key={n.id} className="p-3 bg-amber-50/30 rounded-xl border border-amber-100/50">
+                    <div className="text-[10px] font-black text-amber-600 mb-1">{formatDate(n.created_at)}</div>
+                    <div className="text-[11px] text-slate-700 font-medium leading-relaxed">{n.content}</div>
+                  </div>
+                )) || <div className="text-[11px] text-slate-400">No notes</div>}
+              </div>
+            )}
+
+            {activeLeftTab === 'credit' && (
+              <div className="space-y-4 animate-in fade-in duration-300">
+                <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                  <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Credit Limit</div>
+                  <div className="text-xl font-black text-emerald-900 mt-1">{customer.credit_limit?.toLocaleString() || 0}</div>
+                  <div className="text-[10px] text-emerald-700/60 font-bold mt-0.5">VNĐ</div>
+                </div>
+                <div className="flex items-center justify-between p-3 border border-border rounded-xl">
+                  <span className="text-[11px] font-bold text-slate-500">Payment Terms</span>
+                  <span className="text-[12px] font-black text-slate-900">Net {customer.credit_term_days || 0}</span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

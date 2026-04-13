@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom';
 import { clsx } from 'clsx';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { Briefcase, ChevronLeft, HelpCircle, Loader2, Plus, Trash2 } from 'lucide-react';
+import { Briefcase, ChevronLeft, HelpCircle, Loader2, Plus, Ship, Trash2 } from 'lucide-react';
 import { DateInput } from '../../components/ui/DateInput';
 import {
   JOB_SERVICE_TAGS,
@@ -55,7 +55,15 @@ import {
 import { JobSeaTabPanel } from './JobSeaTabPanel';
 import { JobTruckingTabPanel } from './JobTruckingTabPanel';
 import { JobCustomsTabPanel } from './JobCustomsTabPanel';
-import { JobWorkflowStepperView } from './JobWorkflowStepperView';
+import { Edit3, CheckCircle2, XCircle } from 'lucide-react';
+import { WorkflowStepper, type WorkflowStep } from '../../components/ui/WorkflowStepper';
+
+export const JOB_WORKFLOW_STEPS: WorkflowStep<JobWorkflowStatus>[] = [
+  { id: 'draft', label: 'Draft', icon: Edit3 },
+  { id: 'closed', label: 'Closed', icon: CheckCircle2 },
+  { id: 'cancelled', label: 'Cancelled', icon: XCircle, isCancel: true },
+];
+
 
 const emptyBlLine = (order: number): FmsJobBlLine => ({
   sort_order: order,
@@ -91,64 +99,41 @@ const YES_NO_OPTIONS: { value: JobYesNo; label: string }[] = [
   { value: 'no', label: 'No' },
 ];
 
+/** Workflow stepper + B/L creation actions. Status transitions are handled by clicking steps directly. */
 const JobWorkflowBar: React.FC<{
   variant: 'desktop' | 'mobile';
   currentStatus: JobWorkflowStatus;
   workflowSaving: boolean;
-  onClosed: () => void;
-  onCancelled: () => void;
-  onSwitchToDraft: () => void;
+  onCreateSeaHouseBL: () => void;
+  onCreateSeaMasterBL: () => void;
+  onStepChange?: (status: JobWorkflowStatus) => void;
 }> = ({
   variant,
   currentStatus,
   workflowSaving,
-  onClosed,
-  onCancelled,
-  onSwitchToDraft,
+  onCreateSeaHouseBL,
+  onCreateSeaMasterBL,
+  onStepChange,
 }) => {
-  const isDraft = currentStatus === 'draft';
+  const blAction =
+    'inline-flex items-center justify-center gap-1.5 min-h-9 px-4 py-2 rounded-lg border border-teal-300 bg-teal-50 text-teal-700 text-[11px] font-bold uppercase tracking-wide shadow-sm hover:bg-teal-100 hover:border-teal-400 transition-colors disabled:opacity-45 disabled:pointer-events-none';
 
-  const workflowPrimary =
-    'inline-flex items-center justify-center min-h-9 px-4 py-2 rounded-lg bg-primary text-white text-[11px] font-bold uppercase tracking-wide shadow-sm shadow-primary/15 hover:bg-primary/90 transition-colors disabled:opacity-45 disabled:pointer-events-none';
+  const stepper = <WorkflowStepper steps={JOB_WORKFLOW_STEPS} currentStep={currentStatus} variant={variant} onStepChange={onStepChange} />;
 
-  const workflowOutline =
-    'inline-flex items-center justify-center min-h-9 px-4 py-2 rounded-lg border border-border bg-white text-slate-700 text-[11px] font-bold uppercase tracking-wide shadow-sm hover:bg-slate-50 transition-colors disabled:opacity-45 disabled:pointer-events-none';
-
-  const workflowLink =
-    'inline-flex items-center min-h-9 px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600 underline-offset-2 hover:text-primary hover:underline transition-colors disabled:opacity-35 disabled:pointer-events-none disabled:no-underline';
-
-  const stepper = <JobWorkflowStepperView currentStatus={currentStatus} variant={variant} />;
-
-  const actions = (
+  const blButtons = (
     <div
       className={clsx(
         'flex shrink-0 flex-wrap items-center gap-2',
         variant === 'mobile' && 'w-full',
       )}
     >
-      <button
-        type="button"
-        className={workflowPrimary}
-        onClick={onClosed}
-        disabled={workflowSaving || currentStatus === 'closed'}
-      >
-        Closed
+      <button type="button" className={blAction} onClick={onCreateSeaHouseBL} disabled={workflowSaving}>
+        <Ship size={13} />
+        Create Sea House B/L
       </button>
-      <button
-        type="button"
-        className={workflowOutline}
-        onClick={onCancelled}
-        disabled={workflowSaving || currentStatus === 'cancelled'}
-      >
-        Cancelled
-      </button>
-      <button
-        type="button"
-        className={workflowLink}
-        onClick={onSwitchToDraft}
-        disabled={workflowSaving || isDraft}
-      >
-        Switch to draft
+      <button type="button" className={blAction} onClick={onCreateSeaMasterBL} disabled={workflowSaving}>
+        <Ship size={13} />
+        Create Sea Master B/L
       </button>
     </div>
   );
@@ -156,7 +141,7 @@ const JobWorkflowBar: React.FC<{
   if (variant === 'mobile') {
     return (
       <div className="mx-4 mt-3 rounded-xl border border-border bg-white px-4 py-3 shadow-sm md:hidden">
-        {actions}
+        {blButtons}
         <div className="mt-3 w-full overflow-x-auto pb-0.5">{stepper}</div>
       </div>
     );
@@ -164,7 +149,7 @@ const JobWorkflowBar: React.FC<{
 
   return (
     <div className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-3">
-      {actions}
+      {blButtons}
       <div className="flex min-w-0 flex-1 items-center justify-end overflow-x-auto md:max-w-[55%] lg:max-w-none lg:flex-initial">
         {stepper}
       </div>
@@ -710,11 +695,15 @@ const JobEditorPage: React.FC = () => {
       toastErr('Save the job first');
       return;
     }
+    const prev = workflow_status;
+    if (prev === next) return;
     setWorkflowSaving(true);
     try {
       const job = await jobService.patchWorkflow(jobId, next);
       setWorkflowStatus(job.workflow_status);
-      toastOk('Updated');
+      const prevLabel = JOB_WORKFLOW_STEPS.find(s => s.id === prev)?.label || prev;
+      const nextLabel = JOB_WORKFLOW_STEPS.find(s => s.id === next)?.label || next;
+      toastOk(`Job status changed from "${prevLabel}" to "${nextLabel}"`);
     } catch (e: unknown) {
       toastErr(e instanceof Error ? e.message : 'Update failed');
     } finally {
@@ -808,9 +797,9 @@ const JobEditorPage: React.FC = () => {
           variant="mobile"
           currentStatus={workflow_status}
           workflowSaving={workflowSaving}
-          onClosed={() => void patchWorkflow('closed')}
-          onCancelled={() => void patchWorkflow('cancelled')}
-          onSwitchToDraft={() => void patchWorkflow('draft')}
+          onCreateSeaHouseBL={() => jobId && navigate(`/shipping/jobs/${jobId}/sea-house-bl`)}
+          onCreateSeaMasterBL={() => toastOk('Create Sea Master B/L — coming soon')}
+          onStepChange={patchWorkflow}
         />
       ) : null}
 
@@ -869,9 +858,9 @@ const JobEditorPage: React.FC = () => {
                 variant="desktop"
                 currentStatus={workflow_status}
                 workflowSaving={workflowSaving}
-                onClosed={() => void patchWorkflow('closed')}
-                onCancelled={() => void patchWorkflow('cancelled')}
-                onSwitchToDraft={() => void patchWorkflow('draft')}
+                onCreateSeaHouseBL={() => jobId && navigate(`/shipping/jobs/${jobId}/sea-house-bl`)}
+                onCreateSeaMasterBL={() => toastOk('Create Sea Master B/L — coming soon')}
+                onStepChange={patchWorkflow}
               />
             </div>
           ) : null}
