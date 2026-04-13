@@ -23,7 +23,12 @@ import SupplierDetailsPage from './pages/suppliers/SupplierDetailsPage';
 import CompanyInfoPage from './pages/system/CompanyInfoPage';
 import ImageGalleryPage from './pages/system/ImageGalleryPage';
 import HoadonAnle from './pages/sales/HoadonAnle';
+import SalesEditorPage from './pages/sales/SalesEditorPage';
+import SalesChargeCatalogPage from './pages/SalesChargeCatalogPage';
 import PlaceholderPage from './pages/PlaceholderPage';
+import FmsDashboardPage from './pages/shipping/FmsDashboardPage';
+import JobPage from './pages/JobPage';
+import JobEditorPage from './pages/jobs/JobEditorPage';
 import LoginPage from './pages/auth/LoginPage';
 import { AuthProvider } from './contexts/AuthContext';
 import { BreadcrumbProvider } from './contexts/BreadcrumbContext';
@@ -45,6 +50,7 @@ function App() {
                 <Route path="/profile" element={<ProfilePage />} />
 
                 {/* Module Directory Pages */}
+                <Route path="/shipping" element={<ModulePage />} />
                 <Route path="/operations" element={<ModulePage />} />
                 <Route path="/marketing" element={<ModulePage />} />
                 <Route path="/hr" element={<ModulePage />} />
@@ -54,6 +60,10 @@ function App() {
 
                 {/* Existing Routes */}
                 <Route path="/shipments/information" element={<ShipmentsPage />} />
+                <Route path="/shipping/jobs/new" element={<JobEditorPage />} />
+                <Route path="/shipping/jobs/:id/edit" element={<JobEditorPage />} />
+                <Route path="/shipping/jobs" element={<JobPage />} />
+                <Route path="/operations/jobs" element={<Navigate to="/shipping/jobs" replace />} />
                 <Route path="/customers/directory" element={<CustomerPage />} />
                 <Route path="/customers/directory/:id" element={<CustomerDetailsPage />} />
                 <Route path="/suppliers/directory" element={<SupplierPage />} />
@@ -63,7 +73,11 @@ function App() {
                 <Route path="/employees/directory/:id" element={<EmployeeDetailsPage />} />
                 <Route path="/contracts/directory" element={<ContractsPage />} />
                 <Route path="/financials/sales" element={<SalesPage />} />
+                <Route path="/financials/sales/new" element={<SalesEditorPage mode="add" />} />
+                <Route path="/financials/sales/:id" element={<SalesEditorPage mode="detail" />} />
+                <Route path="/financials/sales/:id/edit" element={<SalesEditorPage mode="edit" />} />
                 <Route path="/financials/sales/quotation/:id" element={<HoadonAnle />} />
+                <Route path="/financials/sales-charges" element={<SalesChargeCatalogPage />} />
                 <Route path="/financials/purchasing" element={<PurchasingPage />} />
                 <Route path="/financials/po-approvals" element={<POApprovalsPage />} />
                 <Route path="/financials/payment-requests" element={<PaymentRequestsPage />} />
@@ -89,6 +103,8 @@ function App() {
                 <Route path="/calendar" element={<PlaceholderPage />} />
                 <Route path="/activity-dashboard" element={<PlaceholderPage />} />
                 <Route path="/my-dashboard" element={<PlaceholderPage />} />
+                <Route path="/shipping/dashboard-fms" element={<FmsDashboardPage />} />
+                <Route path="/shipping/business-dashboard" element={<PlaceholderPage />} />
                 <Route path="/apps" element={<PlaceholderPage />} />
                 <Route path="/system/job-queue" element={<PlaceholderPage />} />
                 <Route path="/system/mass-activities" element={<PlaceholderPage />} />

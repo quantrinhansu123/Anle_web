@@ -5,11 +5,25 @@ import {
   Truck, Handshake, Package, ShoppingCart, Palette, Building2, ImageIcon,
   Calendar, Activity, LayoutDashboard, Database, Zap, Mail, Link as LinkIcon, Briefcase, GraduationCap, Grid,
   MessageSquare, Banknote, Coins, AppWindow,
-  Bot, Shield, UserCircle
+  Bot, Shield, UserCircle, BarChart3, ClipboardList
 } from 'lucide-react';
 import type { ModuleCardProps } from '../components/ui/ModuleCard';
 
 export const moduleData: Record<string, { section: string; items: ModuleCardProps[] }[]> = {
+  '/shipping': [
+    {
+      section: 'Shipping',
+      items: [
+        { icon: LayoutDashboard, title: 'Dashboard FMS', description: 'Freight operations and shipment overview.', colorScheme: 'blue', path: '/shipping/dashboard-fms' },
+        { icon: BarChart3, title: 'Business Dashboard', description: 'Business metrics and transportation performance.', colorScheme: 'emerald', path: '/shipping/business-dashboard' },
+        { icon: BadgeDollarSign, title: 'Sales', description: 'Quotes, orders, and service rates.', colorScheme: 'amber', path: '/financials/sales' },
+        { icon: ClipboardList, title: 'Job Management', description: 'Job board: HBL, master code, PIC, operators, and priority.', colorScheme: 'blue', path: '/shipping/jobs' },
+        { icon: Package, title: 'Transport Services', description: 'Manage freight charge catalog and transport services.', colorScheme: 'slate', path: '/financials/sales-charges' },
+        { icon: CreditCard, title: 'Payment Management', description: 'Payment requests and cost flow.', colorScheme: 'teal', path: '/financials/payment-requests' },
+        { icon: FileText, title: 'Debit Notes', description: 'Customer debit notes and credit-note handling.', colorScheme: 'blue', path: '/financials/debit-notes' },
+      ]
+    }
+  ],
   '/operations': [
     {
       section: 'Logistics & Supply Chain',
@@ -22,7 +36,6 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
     {
       section: 'Trading',
       items: [
-        { icon: BadgeDollarSign, title: 'Sales', description: 'Quotation items and service rates.', colorScheme: 'amber', path: '/financials/sales' },
         { icon: ShoppingCart, title: 'Purchasing', description: 'Manage purchasing items and costs.', colorScheme: 'orange', path: '/financials/purchasing' },
         { icon: FileSignature, title: 'Contracts', description: 'Comprehensive list of all shipping contracts.', colorScheme: 'slate', path: '/contracts/directory' },
         { icon: FileText, title: 'Pending Approvals', description: 'Review and approve pending purchase orders.', colorScheme: 'teal', path: '/financials/po-approvals' },
@@ -69,8 +82,6 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
       section: 'Accounting',
       items: [
         { icon: FileText, title: 'Invoicing', description: 'Create and manage customer invoices.', colorScheme: 'teal', path: '/financials/invoicing' },
-        { icon: CreditCard, title: 'Debit Notes', description: 'Customer debit note management.', colorScheme: 'blue', path: '/financials/debit-notes' },
-        { icon: FileText, title: 'Payment Requests', description: 'Internal requests for supplier payments.', colorScheme: 'teal', path: '/financials/payment-requests' },
       ]
     },
     {

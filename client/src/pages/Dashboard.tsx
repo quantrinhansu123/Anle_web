@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { ActionCard } from '../components/ui/ActionCard';
 import type { ActionCardProps } from '../components/ui/ActionCard';
 import {
-  Package, Users, BadgeDollarSign, Settings, Handshake, Clock,
-  Search, Star
+  Package, Users, BadgeDollarSign, Handshake,
+  Search, Star, Truck
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { moduleData, getDirectPath } from '../data/moduleData';
@@ -12,11 +12,18 @@ import { useBookmarks } from '../hooks/useBookmarks';
 
 const dashboardModules: ActionCardProps[] = [
   {
+    icon: Truck,
+    title: 'Shipping',
+    description: 'FMS, Business Dashboard, Sales, jobs, payments, and debit notes.',
+    href: '/shipping',
+    colorScheme: 'blue'
+  },
+  {
     icon: Package,
     title: 'Operations',
     description: 'Logistics, Inventory, Fleet, and Trading.',
     href: '/operations',
-    colorScheme: 'blue'
+    colorScheme: 'slate'
   },
   {
     icon: Handshake,
@@ -38,20 +45,6 @@ const dashboardModules: ActionCardProps[] = [
     description: 'Invoicing, Expenses, and Accounting.',
     href: '/finance',
     colorScheme: 'amber'
-  },
-  {
-    icon: Clock,
-    title: 'Productivity',
-    description: 'Discuss, Calendar, and Personal Dashboards.',
-    href: '/productivity',
-    colorScheme: 'teal'
-  },
-  {
-    icon: Settings,
-    title: 'System & Apps',
-    description: 'System settings, apps, and background jobs.',
-    href: '/system',
-    colorScheme: 'slate' as any
   }
 ];
 
@@ -126,7 +119,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {activeTab === 'modules' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-5">
           {dashboardModules.map((module, idx) => (
             <ActionCard
               key={idx}
@@ -178,6 +171,7 @@ const Dashboard: React.FC = () => {
               });
 
               const orderedNames = [
+                'Shipping',
                 'Logistics & Supply Chain', 'Trading',
                 'Customer Relations', 'Digital Presence',
                 'Human Resources', 'Work & Development',

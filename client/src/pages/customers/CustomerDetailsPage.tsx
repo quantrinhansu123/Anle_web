@@ -1,19 +1,86 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ChevronLeft, Building2, Mail, Phone, MapPin,
-  Ship, Loader2, AlertCircle,
-  Plus, Receipt, Shield, ExternalLink, Star,
-  Calendar, Edit2, Check, X as XIcon
+  ChevronLeft, Phone, MapPin,
+  Loader2, AlertCircle,
+  Shield, Star,
+  Edit2, Check, X as XIcon, Globe, Layers, Clock3, Tag, Fingerprint, Hash,
+  Pencil, User, Plus,
 } from 'lucide-react';
-import { customerService, type CustomerDetails } from '../../services/customerService';
+import {
+  customerService,
+  CUSTOMER_STATUS_VALUES,
+  type CustomerDetails,
+  type CustomerStatus,
+  type CustomerNote,
+  type Shipment
+} from '../../services/customerService';
 import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 import { formatDate } from '../../lib/utils';
 import { clsx } from 'clsx';
 import { useToastContext } from '../../contexts/ToastContext';
-import CustomerDialog from './dialogs/CustomerDialog';
+import { CustomerStatusStepperView } from './CustomerStatusStepperView';
+import { CUSTOMER_STATUS_STEPS } from './customerStatusStepper';
 
-type LeftTab = 'info' | 'pic' | 'sales_purchasing' | 'routing' | 'notes' | 'credit';
+type LeftTab = 'pic' | 'sales_purchasing' | 'routing' | 'notes' | 'credit';
+
+type InfoFormState = {
+  company_name: string;
+  local_name: string;
+  english_name: string;
+  customer_group: string;
+  customer_source: string;
+  code: string;
+  rank: number;
+  tax_code: string;
+  website: string;
+  phone: string;
+  customer_class: string;
+  country: string;
+  state_province: string;
+  address: string;
+  office_address: string;
+  bl_address: string;
+  email: string;
+  status: CustomerStatus;
+};
+
+type SalesFormState = {
+  sales_staff: string;
+  sales_team: string;
+  sales_department: string;
+  company_id_number: string;
+  industry: string;
+};
+
+type ShipmentRoutePreview = Shipment & {
+  pol?: string;
+  pod?: string;
+  commodity?: string;
+};
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return fallback;
+};
+
+
+
+const normalizeStatus = (status: string | undefined): CustomerStatus => {
+  if (status && CUSTOMER_STATUS_VALUES.includes(status as CustomerStatus)) {
+    return status as CustomerStatus;
+  }
+  return 'new';
+};
+
+/** Header subtitle: prefer customer code, else short id (same idea as quotation Q-… on SalesEditorPage). */
+const formatCustomerDocLabel = (code: string | undefined, customerId: string): string => {
+  const c = (code || '').trim();
+  if (c) return c.toUpperCase();
+  return `C-${customerId.slice(0, 8).toUpperCase()}`;
+};
 
 const CustomerDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -24,13 +91,26 @@ const CustomerDetailsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const { setDynamicTitle } = useBreadcrumb();
   
-  const [activeLeftTab, setActiveLeftTab] = useState<LeftTab>('info');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isClosing, setIsClosing] = useState(false);
-  const [formState, setFormState] = useState<any>({});
+  const [activeLeftTab, setActiveLeftTab] = useState<LeftTab>('pic');
+  const [isEditingInfo, setIsEditingInfo] = useState(false);
+  const [isSavingInfo, setIsSavingInfo] = useState(false);
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [hoverRank, setHoverRank] = useState<number | null>(null);
+  const [infoForm, setInfoForm] = useState<InfoFormState>({
+    company_name: '', local_name: '', english_name: '', customer_group: '',
+    customer_source: '', code: '', rank: 0, tax_code: '', website: '',
+    phone: '', customer_class: '', country: '', state_province: '',
+    address: '', office_address: '', bl_address: '', email: '', status: 'new'
+  });
 
   const [isEditingSales, setIsEditingSales] = useState(false);
-  const [salesForm, setSalesForm] = useState<any>({});
+  const [salesForm, setSalesForm] = useState<SalesFormState>({
+    sales_staff: '',
+    sales_team: '',
+    sales_department: '',
+    company_id_number: '',
+    industry: ''
+  });
 
   useEffect(() => {
     if (customer) {
@@ -39,50 +119,105 @@ const CustomerDetailsPage: React.FC = () => {
     return () => setDynamicTitle(null);
   }, [customer, setDynamicTitle]);
 
-  useEffect(() => {
+  const fetchDetails = useCallback(async () => {
     if (!id) return;
-    fetchDetails();
-  }, [id]);
-
-  const fetchDetails = async () => {
     try {
       setLoading(true);
       const data = await customerService.getCustomerDetails(id!);
       setCustomer(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || 'Failed to fetch customer details');
+      setError(getErrorMessage(err, 'Failed to fetch customer details'));
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
-  const handleOpenEdit = () => {
+  useEffect(() => {
+    fetchDetails();
+  }, [fetchDetails]);
+
+  const handleStartEditInfo = () => {
     if (!customer) return;
-    setFormState(customer);
-    setIsDialogOpen(true);
+    setInfoForm({
+      company_name: customer.company_name || '',
+      local_name: customer.local_name || '',
+      english_name: customer.english_name || '',
+      customer_group: customer.customer_group || '',
+      customer_source: customer.customer_source || '',
+      code: customer.code || '',
+      rank: customer.rank || 0,
+      tax_code: customer.tax_code || '',
+      website: customer.website || '',
+      phone: customer.phone || '',
+      customer_class: customer.customer_class || '',
+      country: customer.country || '',
+      state_province: customer.state_province || '',
+      address: customer.address || '',
+      office_address: customer.office_address || '',
+      bl_address: customer.bl_address || '',
+      email: customer.email || '',
+      status: normalizeStatus(customer.status)
+    });
+    setIsEditingInfo(true);
   };
 
-  const handleSaveCustomer = async () => {
+  const handleCancelEditInfo = () => {
+    setIsEditingInfo(false);
+  };
+
+  const handleSaveInfo = async () => {
     try {
-      if (!formState.company_name) {
+      if (!infoForm.company_name) {
         toastError('Company name is required');
         return;
       }
-      const { id: custId, contacts, notes, shipments, sales, ...dto } = formState;
-      await customerService.updateCustomer(custId!, dto);
-
-      setIsClosing(true);
-      setTimeout(() => {
-        setIsDialogOpen(false);
-        setIsClosing(false);
-      }, 350);
+      if (!customer) return;
+      setIsSavingInfo(true);
+      await customerService.updateCustomer(customer.id, infoForm);
+      setIsEditingInfo(false);
       fetchDetails();
       toastSuccess('Customer updated successfully');
-    } catch (err: any) {
-      toastError(err?.message || 'Failed to save customer');
+    } catch (err: unknown) {
+      toastError(getErrorMessage(err, 'Failed to save customer'));
+    } finally {
+      setIsSavingInfo(false);
     }
   };
+
+  const updateInfoField = (key: keyof InfoFormState, value: any) => {
+    setInfoForm(prev => ({ ...prev, [key]: value }));
+  };
+
+  /** Persist a status change to the backend immediately (without needing edit mode). */
+  const applyCustomerStatus = useCallback(async (next: CustomerStatus) => {
+    if (!customer) return;
+    const prev = normalizeStatus(customer.status);
+    if (prev === next) return;
+    try {
+      setStatusSaving(true);
+      await customerService.updateCustomer(customer.id, { status: next });
+      setCustomer(c => c ? { ...c, status: next } : c);
+      toastSuccess('Customer status updated');
+    } catch (err: unknown) {
+      toastError(getErrorMessage(err, 'Failed to update status'));
+    } finally {
+      setStatusSaving(false);
+    }
+  }, [customer, toastSuccess, toastError]);
+
+  const handleAdvanceStatus = useCallback(() => {
+    if (!customer) return;
+    const cur = normalizeStatus(customer.status);
+    const idx = CUSTOMER_STATUS_STEPS.findIndex(s => s.id === cur);
+    const next = CUSTOMER_STATUS_STEPS[idx + 1];
+    if (!next) return;
+    void applyCustomerStatus(next.id as CustomerStatus);
+  }, [customer, applyCustomerStatus]);
+
+  const handleSwitchToNew = useCallback(() => {
+    void applyCustomerStatus('new');
+  }, [applyCustomerStatus]);
 
   const handleStartEditSales = () => {
     if (!customer) return;
@@ -102,8 +237,8 @@ const CustomerDetailsPage: React.FC = () => {
       setIsEditingSales(false);
       fetchDetails();
       toastSuccess('Sales information updated successfully');
-    } catch (err: any) {
-      toastError(err?.message || 'Failed to update sales info');
+    } catch (err: unknown) {
+      toastError(getErrorMessage(err, 'Failed to update sales info'));
     }
   };
 
@@ -125,7 +260,6 @@ const CustomerDetailsPage: React.FC = () => {
   }
 
   const LEFT_TABS: { id: LeftTab, label: string }[] = [
-    { id: 'info', label: 'Info' },
     { id: 'pic', label: 'PIC' },
     { id: 'sales_purchasing', label: 'Sales/Purch' },
     { id: 'routing', label: 'Routing' },
@@ -133,65 +267,335 @@ const CustomerDetailsPage: React.FC = () => {
     { id: 'credit', label: 'Credit' }
   ];
 
+  const displayLastUpdated = customer.updated_at || customer.created_at;
+  const displayLastUpdatedText = displayLastUpdated
+    ? new Date(displayLastUpdated).toLocaleString()
+    : '—';
+  const customerStatus = normalizeStatus(customer.status);
+  const customerDocLabel = formatCustomerDocLabel(customer.code, customer.id);
+  const pageHeading = 'Customer details';
+  const companySubtitle = customer.company_name?.trim() || '—';
+
+  const activeIndex = Math.max(0, CUSTOMER_STATUS_STEPS.findIndex(s => s.id === customerStatus));
+  const nextStep = CUSTOMER_STATUS_STEPS[activeIndex + 1];
+  const isNew = customerStatus === 'new';
+
+  const workflowPrimary =
+    'inline-flex items-center justify-center min-h-9 px-4 py-2 rounded-lg bg-primary text-white text-[11px] font-bold uppercase tracking-wide shadow-sm shadow-primary/15 hover:bg-primary/90 transition-colors disabled:opacity-45 disabled:pointer-events-none';
+  const workflowOutline =
+    'inline-flex items-center justify-center min-h-9 px-4 py-2 rounded-lg border border-border bg-white text-slate-700 text-[11px] font-bold uppercase tracking-wide shadow-sm hover:bg-slate-50 transition-colors disabled:opacity-45 disabled:pointer-events-none';
+  const workflowLink =
+    'inline-flex items-center min-h-9 px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600 underline-offset-2 hover:text-primary hover:underline transition-colors disabled:opacity-35 disabled:pointer-events-none disabled:no-underline';
+
+  const statusActions = (
+    <div className="flex shrink-0 flex-wrap items-center gap-2">
+      <button
+        type="button"
+        className={workflowOutline}
+        onClick={handleAdvanceStatus}
+        disabled={statusSaving || !nextStep}
+        title={nextStep ? `Move to ${nextStep.label}` : 'Already at final status'}
+      >
+        {nextStep ? nextStep.label : 'Final'}
+      </button>
+      <button
+        type="button"
+        className={workflowLink}
+        onClick={handleSwitchToNew}
+        disabled={statusSaving || isNew}
+      >
+        Switch to new
+      </button>
+    </div>
+  );
+
+  const desktopStatusRow = (
+    <div className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-3">
+      {statusActions}
+      <div className="flex min-w-0 flex-1 items-center justify-end overflow-x-auto md:max-w-[55%] lg:max-w-none lg:flex-initial">
+        <CustomerStatusStepperView currentStatus={customerStatus} variant="desktop" />
+      </div>
+    </div>
+  );
+
+  const mobileStatusRow = (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {statusActions}
+      </div>
+      <div className="w-full overflow-x-auto pb-0.5">
+        <CustomerStatusStepperView currentStatus={customerStatus} variant="mobile" />
+      </div>
+    </div>
+  );
+
   return (
-    <div className="flex-1 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
-      {/* HEADER */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/customers/directory')}
-            className="p-2.5 rounded-xl border border-border bg-white text-slate-600 hover:text-primary transition-all"
-          >
-            <ChevronLeft size={20} />
-          </button>
-          <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Customer Profile</h1>
-            <div className="flex items-center gap-2 text-slate-400 mt-0.5">
-              <Shield size={12} className="text-primary/50" />
-              <span className="text-[11px] font-bold uppercase tracking-widest">Enterprise Network</span>
-            </div>
+    <div className="relative flex min-h-0 w-full flex-1 flex-col animate-in fade-in slide-in-from-bottom-4 duration-500 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:min-h-0 md:pb-12">
+      {/* Mobile header — aligned with SalesEditorPage */}
+      <div className="shrink-0 flex items-center gap-3 border-b border-border bg-white px-4 py-3.5 md:hidden">
+        <button
+          type="button"
+          onClick={() => navigate('/customers/directory')}
+          className="flex h-10 w-10 shrink-0 items-center justify-center self-center rounded-xl border border-border bg-slate-50 text-slate-600 transition-all touch-manipulation hover:border-primary/20 hover:bg-white hover:text-primary"
+          aria-label="Back to list"
+        >
+          <ChevronLeft size={22} />
+        </button>
+        <div className="flex min-w-0 flex-1 items-center gap-3 self-center">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <User size={18} />
+          </div>
+          <div className="min-w-0">
+            <h2 className="truncate text-[15px] font-black leading-tight tracking-tight text-slate-900">
+              {pageHeading}
+            </h2>
+            <p className="mt-0.5 truncate text-[11px] font-semibold text-muted-foreground">
+              <span className="font-bold text-primary">{customerDocLabel}</span>
+              <span className="font-medium text-slate-400"> · {companySubtitle}</span>
+            </p>
           </div>
         </div>
-        <button
-          onClick={handleOpenEdit}
-          className="px-5 py-2.5 bg-primary text-white rounded-xl text-[12px] font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-95"
-        >
-          Manage Customer
-        </button>
       </div>
 
-      {/* 3-COLUMN LAYOUT */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="mx-4 mt-3 rounded-xl border border-border bg-white px-4 py-3 shadow-sm md:hidden">
+        <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</div>
+        {mobileStatusRow}
+      </div>
 
-        {/* COLUMN 1: LEFT PART WITH TABS (4/12) */}
-        <div className="lg:col-span-4 flex flex-col gap-6">
-          <div className="bg-white rounded-[2rem] border border-border shadow-sm p-5 overflow-hidden relative flex flex-col">
-            <div className="flex flex-col items-center text-center pb-4 border-b border-border/60">
-              <div className="w-20 h-20 rounded-2xl bg-slate-100 p-1 mb-3">
-                <div className="w-full h-full rounded-xl bg-white border-2 border-white flex items-center justify-center shadow-sm">
-                  <Building2 size={28} className="text-primary" />
-                </div>
-              </div>
-              <h2 className="text-lg font-black text-slate-900 leading-tight">{customer.company_name}</h2>
-              <div className="flex items-center gap-1 mt-2">
-                {[1, 2, 3].map((star) => {
-                  const rank = customer.rank || 0;
-                  const isHalf = rank === star - 0.5;
-                  return (
-                    <div key={star} className="relative w-4 h-4 flex items-center justify-center">
-                      <Star size={16} className="absolute inset-0 fill-slate-100 text-slate-200" />
-                      {(rank >= star || isHalf) && (
-                        <div className={clsx("absolute inset-y-0 left-0 overflow-hidden", isHalf ? "w-[50%]" : "w-full")}>
-                          <Star size={16} className="fill-amber-400 text-amber-400 min-w-[16px]" />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+      <div className="mb-6 hidden shrink-0 px-0 md:block">
+        <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm shadow-slate-200/40">
+          <div className="flex flex-col gap-4 border-b border-slate-100 bg-gradient-to-br from-white via-white to-slate-50/40 px-5 py-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6 lg:px-6">
+            <div className="flex min-w-0 items-center gap-3">
+              <button
+                type="button"
+                onClick={() => navigate('/customers/directory')}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-white text-slate-600 shadow-sm transition-all touch-manipulation hover:border-primary/25 hover:bg-primary/5 hover:text-primary"
+                aria-label="Back to list"
+              >
+                <ChevronLeft size={22} />
+              </button>
+              <div className="min-w-0">
+                <h1 className="truncate text-xl font-black tracking-tight text-slate-900 lg:text-2xl">{pageHeading}</h1>
+                <p className="mt-1 truncate text-[13px] font-medium text-muted-foreground">
+                  <span className="font-bold text-primary">{customerDocLabel}</span>
+                  <span className="text-slate-500"> · {companySubtitle}</span>
+                </p>
               </div>
             </div>
 
-            {/* TAB SELECTOR (ONLY IN LEFT PART) */}
+            <div className="flex flex-wrap items-center justify-start gap-2 lg:shrink-0 lg:justify-end">
+              {isEditingInfo ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleCancelEditInfo}
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 py-2 text-[12px] font-bold text-slate-600 shadow-sm transition-all hover:bg-slate-50 active:scale-[0.99]"
+                  >
+                    <XIcon size={15} />
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveInfo}
+                    disabled={isSavingInfo}
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2 text-[12px] font-bold text-white shadow-md shadow-primary/25 transition-all hover:bg-primary/90 active:scale-[0.99] disabled:pointer-events-none disabled:opacity-45"
+                  >
+                    {isSavingInfo ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+                    {isSavingInfo ? 'Saving…' : 'Save changes'}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleStartEditInfo}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-2 text-[12px] font-bold text-white shadow-md transition-all hover:bg-slate-800 active:scale-[0.99]"
+                >
+                  <Pencil size={15} />
+                  Edit
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 border-b border-slate-100 bg-slate-50/70 px-5 py-3 lg:px-6">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</span>
+            </div>
+            {desktopStatusRow}
+          </div>
+        </div>
+      </div>
+
+      {/* MAIN PROFILE LAYOUT */}
+      <div className="w-full px-4 md:px-0">
+        <div className="relative flex w-full flex-col overflow-hidden rounded-[2rem] border border-border bg-white p-5 shadow-sm">
+            <div className="relative animate-in fade-in zoom-in-95 space-y-3 border-b border-border/60 pb-4 duration-300">
+              <div className="inline-flex items-center rounded-lg bg-primary/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-primary">
+                Info
+              </div>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+                {/* LEFT COLUMN */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className={clsx('col-span-2 p-3 rounded-xl border bg-slate-50/60', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border')}>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Customer Local Name</div>
+                    {isEditingInfo ? (
+                      <input type="text" value={infoForm.local_name} onChange={e => updateInfoField('local_name', e.target.value)} className="w-full mt-0.5 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
+                    ) : (
+                      <div className="text-[12px] font-black text-slate-800 mt-0.5">{customer.local_name || '—'}</div>
+                    )}
+                  </div>
+                  <div className={clsx('col-span-2 p-3 rounded-xl border bg-slate-50/60', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border')}>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Customer English Name</div>
+                    {isEditingInfo ? (
+                      <input type="text" value={infoForm.english_name} onChange={e => updateInfoField('english_name', e.target.value)} className="w-full mt-0.5 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
+                    ) : (
+                      <div className="text-[12px] font-black text-slate-800 mt-0.5">{customer.english_name || '—'}</div>
+                    )}
+                  </div>
+                  <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                    <div className="flex items-center gap-1.5 text-slate-400"><Layers size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Customer Group</span></div>
+                    {isEditingInfo ? (
+                      <input type="text" value={infoForm.customer_group} onChange={e => updateInfoField('customer_group', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
+                    ) : (
+                      <div className="text-[12px] font-black text-slate-800 mt-1">{customer.customer_group || '—'}</div>
+                    )}
+                  </div>
+                  <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                    <div className="flex items-center gap-1.5 text-slate-400"><Tag size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Customer Source</span></div>
+                    {isEditingInfo ? (
+                      <input type="text" value={infoForm.customer_source} onChange={e => updateInfoField('customer_source', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
+                    ) : (
+                      <div className="text-[12px] font-black text-slate-800 mt-1">{customer.customer_source || '—'}</div>
+                    )}
+                  </div>
+                  <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                    <div className="flex items-center gap-1.5 text-slate-400"><Hash size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Customer Code</span></div>
+                    {isEditingInfo ? (
+                      <input type="text" value={infoForm.code} onChange={e => updateInfoField('code', e.target.value.toUpperCase().slice(0, 3))} maxLength={3} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all uppercase tracking-widest" />
+                    ) : (
+                      <div className="text-[12px] font-black text-slate-800 mt-1">{customer.code || '—'}</div>
+                    )}
+                  </div>
+                  <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                    <div className="flex items-center gap-1.5 text-slate-400"><Star size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Priority</span></div>
+                    <div
+                      className="flex items-center gap-1.5 mt-1"
+                      onMouseLeave={() => setHoverRank(null)}
+                    >
+                      {[1, 2, 3].map((star) => {
+                        const currentRank = isEditingInfo
+                          ? (hoverRank !== null ? hoverRank : infoForm.rank)
+                          : (hoverRank !== null ? hoverRank : (customer.rank || 0));
+                        const isFull = currentRank >= star;
+                        const isHalf = currentRank === star - 0.5;
+                        return (
+                          <button
+                            key={star}
+                            type="button"
+                            disabled={!isEditingInfo}
+                            onMouseMove={(e) => {
+                              if (!isEditingInfo) return;
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const mid = rect.left + rect.width / 2;
+                              setHoverRank(e.clientX < mid ? star - 0.5 : star);
+                            }}
+                            onClick={() => {
+                              if (!isEditingInfo) return;
+                              updateInfoField('rank', hoverRank !== null ? hoverRank : star);
+                            }}
+                            className="flex items-center justify-center focus:outline-none focus:scale-110 transition-transform disabled:hover:scale-100 p-0.5 rounded-md hover:bg-slate-100 relative w-6 h-6"
+                          >
+                            <div className="relative w-5 h-5">
+                              <Star size={20} className="absolute inset-0 fill-slate-200 text-slate-300" />
+                              {(isFull || isHalf) && (
+                                <div className={clsx('absolute inset-y-0 left-0 overflow-hidden text-left', isHalf ? 'w-[50%]' : 'w-full')}>
+                                  <Star size={20} className="fill-amber-400 text-amber-400 drop-shadow-sm min-w-[20px]" />
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* RIGHT COLUMN */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className={clsx('col-span-2 p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                    <div className="flex items-center gap-1.5 text-slate-400"><Shield size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Tax Code</span></div>
+                    {isEditingInfo ? (
+                      <input type="text" value={infoForm.tax_code} onChange={e => updateInfoField('tax_code', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
+                    ) : (
+                      <div className="text-[12px] font-black text-slate-800 mt-1">{customer.tax_code || '—'}</div>
+                    )}
+                  </div>
+                  <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                    <div className="flex items-center gap-1.5 text-slate-400"><Phone size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Phone</span></div>
+                    {isEditingInfo ? (
+                      <input type="text" value={infoForm.phone} onChange={e => updateInfoField('phone', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
+                    ) : (
+                      <div className="text-[12px] font-black text-slate-800 mt-1">{customer.phone || '—'}</div>
+                    )}
+                  </div>
+                  <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                    <div className="flex items-center gap-1.5 text-slate-400"><Globe size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Website</span></div>
+                    {isEditingInfo ? (
+                      <input type="url" value={infoForm.website} onChange={e => updateInfoField('website', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
+                    ) : (
+                      <div className="text-[12px] font-black text-slate-800 mt-1 truncate">{customer.website || '—'}</div>
+                    )}
+                  </div>
+                  <div className={clsx('col-span-2 p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                    <div className="flex items-center gap-1.5 text-slate-400"><MapPin size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Address</span></div>
+                    {isEditingInfo ? (
+                      <textarea value={infoForm.address} onChange={e => updateInfoField('address', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none min-h-[60px]" />
+                    ) : (
+                      <div className="text-[12px] font-black text-slate-800 mt-1">{customer.address || '—'}</div>
+                    )}
+                  </div>
+                  <div className={clsx('col-span-2 p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                    <div className="flex items-center gap-1.5 text-slate-400"><Fingerprint size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Office Address</span></div>
+                    {isEditingInfo ? (
+                      <textarea value={infoForm.office_address} onChange={e => updateInfoField('office_address', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none min-h-[60px]" />
+                    ) : (
+                      <div className="text-[12px] font-black text-slate-800 mt-1">{customer.office_address || '—'}</div>
+                    )}
+                  </div>
+                  <div className={clsx('col-span-2 p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                    <div className="flex items-center gap-1.5 text-slate-400"><Fingerprint size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">B/L Address</span></div>
+                    {isEditingInfo ? (
+                      <textarea value={infoForm.bl_address} onChange={e => updateInfoField('bl_address', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none min-h-[60px]" />
+                    ) : (
+                      <div className="text-[12px] font-black text-slate-800 mt-1">{customer.bl_address || '—'}</div>
+                    )}
+                  </div>
+                  <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                    <div className="flex items-center gap-1.5 text-slate-400"><Globe size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Country</span></div>
+                    {isEditingInfo ? (
+                      <input type="text" value={infoForm.country} onChange={e => updateInfoField('country', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
+                    ) : (
+                      <div className="text-[12px] font-black text-slate-800 mt-1">{customer.country || '—'}</div>
+                    )}
+                  </div>
+                  <div className={clsx('p-3 rounded-xl border', isEditingInfo ? 'border-primary/20 bg-primary/[0.02]' : 'border-border bg-white')}>
+                    <div className="flex items-center gap-1.5 text-slate-400"><MapPin size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">State/Province</span></div>
+                    {isEditingInfo ? (
+                      <input type="text" value={infoForm.state_province} onChange={e => updateInfoField('state_province', e.target.value)} className="w-full mt-1 px-2 py-1 bg-white border border-border rounded-lg text-[12px] font-black text-slate-800 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
+                    ) : (
+                      <div className="text-[12px] font-black text-slate-800 mt-1">{customer.state_province || '—'}</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl border border-border bg-white">
+                <div className="flex items-center gap-1.5 text-slate-400"><Clock3 size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">Last Updated</span></div>
+                <div className="text-[12px] font-black text-slate-800 mt-1">{displayLastUpdatedText}</div>
+              </div>
+            </div>
+
+            {/* TAB SELECTOR */}
             <div className="flex flex-wrap gap-1.5 py-4 border-b border-border/60">
               {LEFT_TABS.map(tab => (
                 <button
@@ -209,40 +613,8 @@ const CustomerDetailsPage: React.FC = () => {
               ))}
             </div>
 
-            {/* TAB CONTENT (LEFT COLUMN) */}
+            {/* TAB CONTENT */}
             <div className="pt-4 flex-1">
-              {activeLeftTab === 'info' && (
-                <div className="space-y-4 animate-in fade-in zoom-in-95 duration-300 relative">
-                  <div className="flex items-center gap-3">
-                    <Shield size={14} className="text-slate-400 shrink-0" />
-                    <div>
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tax Code</div>
-                      <div className="text-[12px] font-black text-slate-700">{customer.tax_code || '—'}</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Mail size={14} className="text-slate-400 shrink-0" />
-                    <div className="truncate">
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email</div>
-                      <div className="text-[12px] font-black text-slate-700 truncate">{customer.email || '—'}</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Phone size={14} className="text-slate-400 shrink-0" />
-                    <div>
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Phone</div>
-                      <div className="text-[12px] font-black text-slate-700">{customer.phone || '—'}</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <MapPin size={14} className="text-slate-400 shrink-0 mt-1" />
-                    <div>
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Address</div>
-                      <div className="text-[12px] font-black text-slate-700 leading-tight">{customer.address || '—'}</div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {activeLeftTab === 'pic' && (
                 <div className="space-y-3 animate-in fade-in duration-300">
@@ -335,7 +707,7 @@ const CustomerDetailsPage: React.FC = () => {
               {activeLeftTab === 'routing' && (
                 <div className="space-y-3 animate-in fade-in duration-300">
                   <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Preferred Routes</div>
-                  {customer.shipments?.slice(0, 4).map((s: any) => (
+                  {customer.shipments?.slice(0, 4).map((s: ShipmentRoutePreview) => (
                     <div key={s.id} className="text-[11px] font-bold text-slate-700 bg-slate-50 p-2 rounded-lg truncate">
                        {s.pol && s.pod ? `${s.pol} -> ${s.pod}` : s.commodity || 'General Logistics'}
                     </div>
@@ -345,7 +717,7 @@ const CustomerDetailsPage: React.FC = () => {
 
               {activeLeftTab === 'notes' && (
                 <div className="space-y-3 animate-in fade-in duration-300">
-                  {customer.notes?.map((n: any) => (
+                  {customer.notes?.map((n: CustomerNote) => (
                     <div key={n.id} className="p-3 bg-amber-50/30 rounded-xl border border-amber-100/50">
                       <div className="text-[10px] font-black text-amber-600 mb-1">{formatDate(n.created_at)}</div>
                       <div className="text-[11px] text-slate-700 font-medium leading-relaxed">{n.content}</div>
@@ -368,140 +740,49 @@ const CustomerDetailsPage: React.FC = () => {
                 </div>
               )}
             </div>
-          </div>
         </div>
-
-        {/* COLUMN 2: SHIPMENTS (4/12) */}
-        <div className="lg:col-span-4">
-          <div className="bg-white rounded-[2.5rem] border border-border shadow-sm flex flex-col h-full overflow-hidden min-h-[500px]">
-            <div className="p-6 border-b border-border bg-slate-50/10 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                  <Ship size={20} />
-                </div>
-                <div>
-                  <h3 className="text-[15px] font-black text-slate-900">Shipments</h3>
-                  <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Active Logistics</p>
-                </div>
-              </div>
-              <button
-                className="w-10 h-10 rounded-2xl bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/20 hover:scale-110 active:scale-95 transition-all"
-              >
-                <Plus size={20} />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-              {customer.shipments && customer.shipments.length > 0 ? (
-                <div className="space-y-3">
-                  {customer.shipments.map((shipment: any) => (
-                    <div key={shipment.id} className="p-5 rounded-[2rem] bg-blue-50/30 border border-blue-100/50 hover:bg-blue-50/50 transition-all group relative overflow-hidden">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-[10px] font-black text-blue-600 px-3 py-1 bg-white border border-blue-100 rounded-full uppercase tracking-widest shadow-sm">
-                          {shipment.transport_air ? 'Air' : shipment.transport_sea ? 'Sea' : 'Logistic'}
-                        </span>
-                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400">
-                          <Calendar size={14} />
-                          {formatDate(shipment.created_at)}
-                        </div>
-                      </div>
-
-                      <h4 className="text-[16px] font-black text-blue-900 mb-1 group-hover:text-primary transition-colors leading-tight">{shipment.commodity || 'General Cargo'}</h4>
-                      <p className="text-[12px] text-blue-600/70 font-bold tracking-tight mb-4 flex items-center gap-1.5 opacity-80">
-                        {shipment.suppliers?.company_name || 'Individual Supplier'}
-                      </p>
-
-                      <div className="flex items-center justify-between pt-4 border-t border-blue-100/50 relative">
-                        <div className="flex items-center gap-8">
-                          <div className="flex flex-col">
-                            <span className="text-[9px] uppercase font-black text-slate-400 tracking-tight mb-0.5">Quantity</span>
-                            <span className="text-[12px] font-black text-slate-700">{shipment.quantity} {shipment.packing || 'Units'}</span>
-                          </div>
-                          <div className="flex flex-col border-l border-blue-100/50 pl-8">
-                            <span className="text-[9px] uppercase font-black text-slate-400 tracking-tight mb-0.5">Vessel</span>
-                            <span className="text-[12px] font-black text-slate-700 max-w-[120px] truncate">{shipment.vessel_voyage || '—'}</span>
-                          </div>
-                        </div>
-                        <button className="w-9 h-9 rounded-xl bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/20 hover:scale-110 active:scale-95 transition-all">
-                          <ExternalLink size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center p-12 opacity-40">
-                  <div className="w-16 h-16 rounded-3xl bg-slate-100 flex items-center justify-center mb-4 text-slate-300">
-                    <Ship size={32} />
-                  </div>
-                  <p className="text-[13px] font-bold text-slate-900">No shipments found</p>
-                  <p className="text-[11px] text-slate-400 mt-1 max-w-[150px]">No shipments associated with this customer yet.</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* COLUMN 3: FINANCIALS (4/12) */}
-        <div className="lg:col-span-4">
-          <div className="bg-white rounded-[2.5rem] border border-border shadow-sm flex flex-col h-full overflow-hidden max-h-[700px]">
-            <div className="p-6 border-b border-border bg-slate-50/10 flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                    <Receipt size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-[15px] font-black text-slate-900">Financials</h3>
-                    <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Accounting Records</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-slate-50/10">
-               {customer.sales && customer.sales.length > 0 ? (
-                  customer.sales.map((sale: any) => (
-                    <div key={sale.id} className="p-4 mb-3 bg-white border border-border rounded-2xl shadow-sm hover:shadow-md transition-all">
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-[12px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg">Quotation</span>
-                        <span className="text-[11px] text-slate-400 font-bold uppercase">{formatDate(sale.quote_date)}</span>
-                      </div>
-                      <div className="text-[14px] font-bold text-slate-900 mb-1">{sale.no_doc}</div>
-                      <div className="flex justify-between items-center mt-3 pt-3 border-t border-border/50">
-                        <span className="text-[10px] uppercase font-black text-slate-400">Total Value</span>
-                        <span className="font-black text-slate-800 text-[13px]">
-                          {sale.sales_items?.reduce((a: number, c: any) => a + (Number(c.total) || 0), 0).toLocaleString()} VNĐ
-                        </span>
-                      </div>
-                    </div>
-                  ))
-               ) : (
-                 <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-40">
-                    <Receipt size={32} className="text-slate-300 mb-3" />
-                    <p className="text-[12px] font-bold text-slate-900">No financial records</p>
-                 </div>
-               )}
-            </div>
-          </div>
-        </div>
-
       </div>
 
-      {isDialogOpen && (
-        <CustomerDialog
-          isOpen={isDialogOpen}
-          isClosing={isClosing}
-          mode="edit"
-          onClose={() => {
-            setIsClosing(true);
-            setTimeout(() => { setIsDialogOpen(false); setIsClosing(false); }, 350);
-          }}
-          formState={formState}
-          setFormField={(key, val) => setFormState((prev: any) => ({ ...prev, [key]: val }))}
-          onSave={handleSaveCustomer}
-        />
-      )}
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-12px_40px_rgba(15,23,42,0.07)] backdrop-blur-md md:hidden">
+        {!isEditingInfo ? (
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => navigate('/customers/directory')}
+              className="min-h-[48px] shrink-0 touch-manipulation rounded-xl border border-border bg-white px-4 py-2.5 text-[13px] font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50"
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              onClick={handleStartEditInfo}
+              className="inline-flex min-h-[48px] flex-1 touch-manipulation items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-[13px] font-bold text-white shadow-md hover:bg-slate-800 active:scale-[0.99]"
+            >
+              <Pencil size={16} />
+              <span className="truncate">Edit</span>
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-stretch gap-2">
+            <button
+              type="button"
+              onClick={handleCancelEditInfo}
+              className="min-h-[48px] shrink-0 touch-manipulation rounded-xl border border-border bg-white px-4 py-2.5 text-[13px] font-bold text-slate-700 shadow-sm hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveInfo}
+              disabled={isSavingInfo}
+              className="flex min-h-[48px] flex-1 touch-manipulation items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-[13px] font-bold text-white shadow-md shadow-primary/20 hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-45"
+            >
+              {isSavingInfo ? <Loader2 size={17} className="animate-spin" /> : <Plus size={17} />}
+              {isSavingInfo ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

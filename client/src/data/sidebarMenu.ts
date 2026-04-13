@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   Package,
+  Truck,
   Users,
   BadgeDollarSign,
   Copyright,
@@ -18,6 +19,7 @@ export type SidebarItem = {
 
 export const sidebarMenu: SidebarItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+  { icon: Truck, label: 'Shipping', path: '/shipping' },
   { icon: Package, label: 'Operations', path: '/operations' },
   { icon: Handshake, label: 'CRM & Marketing', path: '/marketing' },
   { icon: Users, label: 'HR & Projects', path: '/hr' },

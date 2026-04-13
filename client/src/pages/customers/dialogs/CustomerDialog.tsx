@@ -1,10 +1,16 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X, User, Mail, Phone, MapPin, Hash, Plus, ChevronRight, Building2, Edit, Star
+  X, User, Mail, Phone, MapPin, Hash, Plus, ChevronRight, Building2, Edit, KanbanSquare, Globe, Layers, Tag
 } from 'lucide-react';
 import { clsx } from 'clsx';
-import type { Customer, CreateCustomerDto } from '../../../services/customerService';
+import { ThreeStarRating } from '../../../components/ui/ThreeStarRating';
+import {
+  CUSTOMER_STATUS_VALUES,
+  type Customer,
+  type CreateCustomerDto,
+  type CustomerStatus
+} from '../../../services/customerService';
 
 interface Props {
   isOpen: boolean;
@@ -27,14 +33,36 @@ const CustomerDialog: React.FC<Props> = ({
   onSave,
   onEdit
 }) => {
-  const [hoverRank, setHoverRank] = useState<number | null>(null);
-
   if (!isOpen && !isClosing) return null;
 
   const isDetailMode = mode === 'detail';
   const isEditMode = mode === 'edit';
 
-  const { company_name, email, phone, address, tax_code } = formState;
+  const statusLabelMap: Record<CustomerStatus, string> = {
+    new: 'New',
+    follow_up: 'Follow Up',
+    quotation_sent: 'Quotation Sent',
+    meeting: 'Meeting',
+    lost: 'Lost'
+  };
+
+  const {
+    company_name,
+    local_name,
+    english_name,
+    customer_group,
+    customer_source,
+    email,
+    phone,
+    website,
+    address,
+    office_address,
+    bl_address,
+    country,
+    state_province,
+    customer_class,
+    tax_code
+  } = formState;
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex justify-end">
@@ -108,6 +136,89 @@ const CustomerDialog: React.FC<Props> = ({
               </div>
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Building2 size={16} className="text-muted-foreground/70" />
+                  <label className="text-[13px] font-bold text-foreground">Local Name</label>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Enter local name"
+                  value={local_name || ''}
+                  onChange={e => setFormField('local_name', e.target.value)}
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Building2 size={16} className="text-muted-foreground/70" />
+                  <label className="text-[13px] font-bold text-foreground">English Name</label>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Enter English name"
+                  value={english_name || ''}
+                  onChange={e => setFormField('english_name', e.target.value)}
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Layers size={16} className="text-muted-foreground/70" />
+                  <label className="text-[13px] font-bold text-foreground">Customer Group</label>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Enter customer group"
+                  value={customer_group || ''}
+                  onChange={e => setFormField('customer_group', e.target.value)}
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Tag size={16} className="text-muted-foreground/70" />
+                  <label className="text-[13px] font-bold text-foreground">Customer Source</label>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Enter source"
+                  value={customer_source || ''}
+                  onChange={e => setFormField('customer_source', e.target.value)}
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <KanbanSquare size={16} className="text-muted-foreground/70" />
+                <label className="text-[13px] font-bold text-foreground">Status</label>
+              </div>
+              <select
+                value={formState.status || 'new'}
+                onChange={e => setFormField('status', e.target.value as CustomerStatus)}
+                disabled={isDetailMode}
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
+              >
+                {CUSTOMER_STATUS_VALUES.map((status) => (
+                  <option key={status} value={status}>
+                    {statusLabelMap[status]}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
                 <Mail size={16} className="text-muted-foreground/70" />
@@ -118,6 +229,21 @@ const CustomerDialog: React.FC<Props> = ({
                 placeholder="customer@email.com"
                 value={email || ''}
                 onChange={e => setFormField('email', e.target.value)}
+                disabled={isDetailMode}
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <Globe size={16} className="text-muted-foreground/70" />
+                <label className="text-[13px] font-bold text-foreground">Website</label>
+              </div>
+              <input
+                type="url"
+                placeholder="https://example.com"
+                value={website || ''}
+                onChange={e => setFormField('website', e.target.value)}
                 disabled={isDetailMode}
                 className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
               />
@@ -154,50 +280,13 @@ const CustomerDialog: React.FC<Props> = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Star size={16} className="text-muted-foreground/70" />
-                  <label className="text-[13px] font-bold text-foreground">Customer Rating</label>
-                </div>
-                <div
-                  className="flex items-center gap-2 h-[38px] px-3 bg-muted/5 border border-border rounded-xl w-max"
-                  onMouseLeave={() => setHoverRank(null)}
-                >
-                  {[1, 2, 3].map((star) => {
-                    const displayRank = hoverRank !== null ? hoverRank : (formState.rank || 0);
-                    const isFull = displayRank >= star;
-                    const isHalf = displayRank === star - 0.5;
-
-                    return (
-                      <button
-                        key={star}
-                        type="button"
-                        disabled={isDetailMode}
-                        onMouseMove={(e) => {
-                          if (isDetailMode) return;
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          const mid = rect.left + rect.width / 2;
-                          setHoverRank(e.clientX < mid ? star - 0.5 : star);
-                        }}
-                        onClick={() => {
-                          if (isDetailMode) return;
-                          setFormField('rank', hoverRank !== null ? hoverRank : star);
-                        }}
-                        className="flex items-center justify-center focus:outline-none focus:scale-110 transition-transform disabled:hover:scale-100 disabled:opacity-70 p-1 rounded-md hover:bg-slate-100 relative w-7 h-7"
-                      >
-                        <div className="relative w-5 h-5">
-                          <Star size={20} className="absolute inset-0 fill-slate-200 text-slate-300" />
-                          {(isFull || isHalf) && (
-                            <div className={clsx("absolute inset-y-0 left-0 overflow-hidden text-left", isHalf ? "w-[50%]" : "w-full")}>
-                              <Star size={20} className="fill-amber-400 text-amber-400 drop-shadow-sm min-w-[20px]" />
-                            </div>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              <ThreeStarRating
+                label="Customer Rating"
+                showStarInLabel
+                value={formState.rank || 0}
+                onChange={(v) => setFormField('rank', v)}
+                disabled={isDetailMode}
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -212,6 +301,81 @@ const CustomerDialog: React.FC<Props> = ({
                 disabled={isDetailMode}
                 className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium min-h-[100px] resize-none disabled:bg-muted/5 disabled:text-muted-foreground"
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <MapPin size={16} className="text-muted-foreground/70" />
+                <label className="text-[13px] font-bold text-foreground">Office Address</label>
+              </div>
+              <textarea
+                placeholder="Enter office address"
+                value={office_address || ''}
+                onChange={e => setFormField('office_address', e.target.value)}
+                disabled={isDetailMode}
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium min-h-[100px] resize-none disabled:bg-muted/5 disabled:text-muted-foreground"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <MapPin size={16} className="text-muted-foreground/70" />
+                <label className="text-[13px] font-bold text-foreground">B/L Address</label>
+              </div>
+              <textarea
+                placeholder="Enter B/L address"
+                value={bl_address || ''}
+                onChange={e => setFormField('bl_address', e.target.value)}
+                disabled={isDetailMode}
+                className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium min-h-[100px] resize-none disabled:bg-muted/5 disabled:text-muted-foreground"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Globe size={16} className="text-muted-foreground/70" />
+                  <label className="text-[13px] font-bold text-foreground">Country</label>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Country"
+                  value={country || ''}
+                  onChange={e => setFormField('country', e.target.value)}
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <MapPin size={16} className="text-muted-foreground/70" />
+                  <label className="text-[13px] font-bold text-foreground">State/Province</label>
+                </div>
+                <input
+                  type="text"
+                  placeholder="State or province"
+                  value={state_province || ''}
+                  onChange={e => setFormField('state_province', e.target.value)}
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Layers size={16} className="text-muted-foreground/70" />
+                  <label className="text-[13px] font-bold text-foreground">Class</label>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Class"
+                  value={customer_class || ''}
+                  onChange={e => setFormField('customer_class', e.target.value)}
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-bold disabled:bg-muted/5 disabled:text-muted-foreground"
+                />
+              </div>
             </div>
           </div>
         </div>

@@ -13,7 +13,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4">
+      <div className="h-full min-h-0 w-full bg-slate-50 flex flex-col items-center justify-center gap-4">
         <Loader2 size={40} className="animate-spin text-primary" />
         <p className="text-[13px] font-bold text-slate-400 animate-pulse uppercase tracking-widest">Verifying Session...</p>
       </div>

@@ -26,9 +26,14 @@ export class CustomerService {
   }
 
   async create(dto: CreateCustomerDto): Promise<Customer> {
+    const payload: CreateCustomerDto = {
+      ...dto,
+      status: dto.status ?? 'new',
+    };
+
     const { data, error } = await supabase
       .from('customers')
-      .insert(dto)
+      .insert(payload)
       .select()
       .single();
 
@@ -37,9 +42,14 @@ export class CustomerService {
   }
 
   async update(id: string, dto: UpdateCustomerDto): Promise<Customer> {
+    const payload = {
+      ...dto,
+      updated_at: new Date().toISOString(),
+    };
+
     const { data, error } = await supabase
       .from('customers')
-      .update(dto)
+      .update(payload)
       .eq('id', id)
       .select()
       .single();

@@ -15,10 +15,20 @@ import { shipmentService } from '../services/shipmentService';
 import { customerService, type Customer } from '../services/customerService';
 import { formatDate } from '../lib/utils';
 import { supplierService, type Supplier } from '../services/supplierService';
+import {
+  shipmentDocumentService,
+  type CreateShipmentDocumentDto,
+  type ShipmentDocument,
+} from '../services/shipmentDocumentService';
+import {
+  customsClearanceService,
+  type CreateCustomsClearanceDto,
+  type CustomsClearance,
+} from '../services/customsClearanceService';
 import { FilterDropdown } from '../components/ui/FilterDropdown';
 import { ColumnSettings } from '../components/ui/ColumnSettings';
 import { useAuth } from '../contexts/AuthContext';
-import type { Shipment, ShipmentFormState } from './shipments/types';
+import type { Shipment, ShipmentFormState, ShipmentReadinessResult } from './shipments/types';
 import ShipmentDialog from './shipments/dialogs/ShipmentDialog';
 import { useToastContext } from '../contexts/ToastContext';
 import {
@@ -45,6 +55,15 @@ const INITIAL_FORM_STATE: ShipmentFormState = {
   pod: '',
   etd: '',
   eta: '',
+  status: 'draft',
+  is_docs_ready: false,
+  is_hs_confirmed: false,
+  is_phytosanitary_ready: false,
+  is_cost_locked: false,
+  is_truck_booked: false,
+  is_agent_booked: false,
+  pod_confirmed_at: null,
+  cost_locked_at: null,
   isNewCustomer: false,
   newCustomer: { company_name: '' },
   isNewSupplier: false,
@@ -52,10 +71,28 @@ const INITIAL_FORM_STATE: ShipmentFormState = {
   pic_id: ''
 };
 const statusConfig: Record<string, { label: string; classes: string }> = {
-  'pre_booking': { label: 'Pre-booking', classes: 'bg-slate-100 text-slate-600 border-slate-200' },
+  'draft': { label: 'Draft', classes: 'bg-slate-100 text-slate-600 border-slate-200' },
+  'feasibility_checked': { label: 'Feasibility', classes: 'bg-indigo-50 text-indigo-600 border-indigo-200' },
+  'planned': { label: 'Planned', classes: 'bg-violet-50 text-violet-600 border-violet-200' },
+  'docs_ready': { label: 'Docs Ready', classes: 'bg-sky-50 text-sky-700 border-sky-200' },
+  'booked': { label: 'Booked', classes: 'bg-amber-50 text-amber-700 border-amber-200' },
+  'customs_ready': { label: 'Customs Ready', classes: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
   'in_transit': { label: 'In Transit', classes: 'bg-blue-50 text-blue-600 border-blue-200' },
   'delivered': { label: 'Delivered', classes: 'bg-emerald-50 text-emerald-600 border-emerald-200' },
+  'cost_closed': { label: 'Cost Closed', classes: 'bg-green-50 text-green-700 border-green-200' },
   'cancelled': { label: 'Cancelled', classes: 'bg-red-50 text-red-600 border-red-200' },
+};
+
+const getShipmentStatusKey = (shipment: Shipment): keyof typeof statusConfig => {
+  if (shipment.status && statusConfig[shipment.status]) {
+    return shipment.status;
+  }
+
+  if (shipment.eta && new Date(shipment.eta).getTime() < new Date().getTime()) {
+    return 'delivered';
+  }
+
+  return 'in_transit';
 };
 
 const transportConfig: Record<string, { label: string; icon: any; color: string }> = {
@@ -123,8 +160,7 @@ const COLUMN_DEFS: Record<string, ColDef> = {
     thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-32',
     tdClass: 'px-4 py-4',
     renderContent: (s) => {
-      const isDelivered = s.eta && new Date(s.eta).getTime() < new Date().getTime();
-      const statusKey = isDelivered ? 'delivered' : 'in_transit';
+      const statusKey = getShipmentStatusKey(s);
       return <span className={clsx('px-2.5 py-1 rounded-full text-[10px] font-bold border whitespace-nowrap block text-center', statusConfig[statusKey].classes)}>{statusConfig[statusKey].label}</span>;
     }
   }
@@ -169,6 +205,15 @@ const ShipmentsPage: React.FC = () => {
   const [isClosing, setIsClosing] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isDetailMode, setIsDetailMode] = useState(false);
+  const [dialogReadiness, setDialogReadiness] = useState<ShipmentReadinessResult | null>(null);
+  const [isReadinessLoading, setIsReadinessLoading] = useState(false);
+  const [isComplianceLoading, setIsComplianceLoading] = useState(false);
+  const [isCreatingDocument, setIsCreatingDocument] = useState(false);
+  const [isCreatingCustoms, setIsCreatingCustoms] = useState(false);
+  const [documentActionLoadingId, setDocumentActionLoadingId] = useState<string | null>(null);
+  const [customsActionLoadingId, setCustomsActionLoadingId] = useState<string | null>(null);
+  const [shipmentDocuments, setShipmentDocuments] = useState<ShipmentDocument[]>([]);
+  const [customsClearances, setCustomsClearances] = useState<CustomsClearance[]>([]);
   const [formState, setFormState] = useState<ShipmentFormState>(INITIAL_FORM_STATE);
   // Options for Selects
   const [customerOptions, setCustomerOptions] = useState<(Customer & { value: string, label: string })[]>([]);
@@ -246,6 +291,9 @@ const ShipmentsPage: React.FC = () => {
 
   // --- ACTIONS ---
   const handleOpenAdd = () => {
+    setDialogReadiness(null);
+    setShipmentDocuments([]);
+    setCustomsClearances([]);
     setFormState({
       ...INITIAL_FORM_STATE,
       pic: user ? { full_name: user.full_name } : undefined
@@ -256,6 +304,9 @@ const ShipmentsPage: React.FC = () => {
   };
 
   const handleOpenEdit = (shipment: Shipment) => {
+    setDialogReadiness(null);
+    setShipmentDocuments([]);
+    setCustomsClearances([]);
     setFormState({
       ...shipment,
       isNewCustomer: false,
@@ -278,6 +329,161 @@ const ShipmentsPage: React.FC = () => {
     setIsEditMode(false);
     setIsDetailMode(true);
     setIsDialogOpen(true);
+    void handleRefreshReadiness(shipment.id);
+    void handleRefreshCompliance(shipment.id);
+  };
+
+  const handleRefreshCompliance = async (shipmentId?: string) => {
+    if (!shipmentId) return;
+    try {
+      setIsComplianceLoading(true);
+      const [docs, clearances] = await Promise.all([
+        shipmentDocumentService.getShipmentDocuments(1, 50, shipmentId),
+        customsClearanceService.getCustomsClearances(1, 50, shipmentId),
+      ]);
+
+      setShipmentDocuments(Array.isArray(docs) ? docs : []);
+      setCustomsClearances(Array.isArray(clearances) ? clearances : []);
+    } catch (err) {
+      console.error('Failed to fetch compliance data:', err);
+      setShipmentDocuments([]);
+      setCustomsClearances([]);
+    } finally {
+      setIsComplianceLoading(false);
+    }
+  };
+
+  const refreshCurrentShipment = async (shipmentId?: string) => {
+    if (!shipmentId) return;
+    try {
+      const latest = await shipmentService.getShipmentById(shipmentId);
+      setFormState((prev) => ({
+        ...prev,
+        ...latest,
+      }));
+    } catch (err) {
+      console.error('Failed to refresh current shipment:', err);
+    }
+  };
+
+  const refreshComplianceBundle = async (shipmentId?: string) => {
+    if (!shipmentId) return;
+    await Promise.all([
+      handleRefreshCompliance(shipmentId),
+      handleRefreshReadiness(shipmentId),
+      refreshCurrentShipment(shipmentId),
+      fetchData(),
+    ]);
+  };
+
+  const handleCreateDocument = async (dto: Omit<CreateShipmentDocumentDto, 'shipment_id'>) => {
+    if (!formState.id) return;
+    try {
+      setIsCreatingDocument(true);
+      await shipmentDocumentService.createShipmentDocument({
+        ...dto,
+        shipment_id: formState.id,
+      });
+      await refreshComplianceBundle(formState.id);
+      success('Shipment document added successfully');
+    } catch (err: any) {
+      console.error('Failed to create shipment document:', err);
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to add shipment document'));
+    } finally {
+      setIsCreatingDocument(false);
+    }
+  };
+
+  const handleCreateCustoms = async (dto: Omit<CreateCustomsClearanceDto, 'shipment_id'>) => {
+    if (!formState.id) return;
+    try {
+      setIsCreatingCustoms(true);
+      await customsClearanceService.createCustomsClearance({
+        ...dto,
+        shipment_id: formState.id,
+      });
+      await refreshComplianceBundle(formState.id);
+      success('Customs clearance added successfully');
+    } catch (err: any) {
+      console.error('Failed to create customs clearance:', err);
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to add customs clearance'));
+    } finally {
+      setIsCreatingCustoms(false);
+    }
+  };
+
+  const handleUpdateDocumentStatus = async (id: string, status: ShipmentDocument['status']) => {
+    if (!formState.id) return;
+    try {
+      setDocumentActionLoadingId(id);
+      await shipmentDocumentService.updateShipmentDocument(id, { status });
+      await refreshComplianceBundle(formState.id);
+      success('Document status updated successfully');
+    } catch (err: any) {
+      console.error('Failed to update document status:', err);
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to update document status'));
+    } finally {
+      setDocumentActionLoadingId(null);
+    }
+  };
+
+  const handleDeleteDocument = async (id: string) => {
+    if (!formState.id) return;
+    try {
+      setDocumentActionLoadingId(id);
+      await shipmentDocumentService.deleteShipmentDocument(id);
+      await refreshComplianceBundle(formState.id);
+      success('Document removed successfully');
+    } catch (err: any) {
+      console.error('Failed to delete document:', err);
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to delete document'));
+    } finally {
+      setDocumentActionLoadingId(null);
+    }
+  };
+
+  const handleUpdateCustomsStatus = async (id: string, status: CustomsClearance['status']) => {
+    if (!formState.id) return;
+    try {
+      setCustomsActionLoadingId(id);
+      await customsClearanceService.updateCustomsClearance(id, { status });
+      await refreshComplianceBundle(formState.id);
+      success('Customs status updated successfully');
+    } catch (err: any) {
+      console.error('Failed to update customs status:', err);
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to update customs status'));
+    } finally {
+      setCustomsActionLoadingId(null);
+    }
+  };
+
+  const handleDeleteCustoms = async (id: string) => {
+    if (!formState.id) return;
+    try {
+      setCustomsActionLoadingId(id);
+      await customsClearanceService.deleteCustomsClearance(id);
+      await refreshComplianceBundle(formState.id);
+      success('Customs clearance removed successfully');
+    } catch (err: any) {
+      console.error('Failed to delete customs clearance:', err);
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to delete customs clearance'));
+    } finally {
+      setCustomsActionLoadingId(null);
+    }
+  };
+
+  const handleRefreshReadiness = async (shipmentId?: string) => {
+    if (!shipmentId) return;
+    try {
+      setIsReadinessLoading(true);
+      const readiness = await shipmentService.getShipmentReadiness(shipmentId);
+      setDialogReadiness(readiness);
+    } catch (err) {
+      console.error('Failed to fetch shipment readiness:', err);
+      setDialogReadiness(null);
+    } finally {
+      setIsReadinessLoading(false);
+    }
   };
 
   const handleCloseDialog = () => {
@@ -637,8 +843,8 @@ const ShipmentsPage: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         {s.transport_sea ? <Ship size={14} className="text-blue-500" /> : s.transport_air ? <Plane size={14} className="text-indigo-500" /> : <Truck size={14} className="text-orange-500" />}
-                        <span className={clsx('px-2 py-0.5 rounded-full text-[9px] font-bold border', (s.eta && new Date(s.eta) < new Date() ? statusConfig.delivered : statusConfig.in_transit).classes)}>
-                          {(s.eta && new Date(s.eta) < new Date() ? statusConfig.delivered : statusConfig.in_transit).label}
+                        <span className={clsx('px-2 py-0.5 rounded-full text-[9px] font-bold border', statusConfig[getShipmentStatusKey(s)].classes)}>
+                          {statusConfig[getShipmentStatusKey(s)].label}
                         </span>
                       </div>
                     </div>
@@ -837,7 +1043,7 @@ const ShipmentsPage: React.FC = () => {
                     <tr
                       key={s.id}
                       onClick={() => handleOpenDetail(s)}
-                      className={clsx('hover:bg-slate-50/60 transition-colors group cursor-pointer', selectedShipments.includes(s.id) && 'bg-primary/[0.02]')}
+                      className={clsx('hover:bg-slate-50/60 transition-colors group cursor-pointer', selectedShipments.includes(s.id) && 'bg-primary/2')}
                     >
                       <td className="px-4 py-4 text-center border-r border-border/40" onClick={(e) => e.stopPropagation()}>
                         <input type="checkbox" checked={selectedShipments.includes(s.id)} onChange={() => toggleSelect(s.id)} className="rounded border-border" />
@@ -1035,8 +1241,8 @@ const ShipmentsPage: React.FC = () => {
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               {[
                 { label: 'Total Shipments', value: filteredShipments.length, icon: <Ship size={18} />, color: 'text-primary', bg: 'bg-primary/10' },
-                { label: 'In Transit', value: filteredShipments.filter(s => !s.eta || new Date(s.eta).getTime() >= new Date().getTime()).length, icon: <TrendingUp size={18} />, color: 'text-indigo-600', bg: 'bg-indigo-500/10' },
-                { label: 'Delivered', value: filteredShipments.filter(s => s.eta && new Date(s.eta).getTime() < new Date().getTime()).length, icon: <CheckCircle2 size={18} />, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
+                { label: 'In Transit', value: filteredShipments.filter(s => getShipmentStatusKey(s) === 'in_transit').length, icon: <TrendingUp size={18} />, color: 'text-indigo-600', bg: 'bg-indigo-500/10' },
+                { label: 'Delivered', value: filteredShipments.filter(s => ['delivered', 'cost_closed'].includes(getShipmentStatusKey(s))).length, icon: <CheckCircle2 size={18} />, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
                 { label: 'Sea Freight', value: filteredShipments.filter(s => s.transport_sea).length, icon: <Ship size={18} />, color: 'text-blue-600', bg: 'bg-blue-500/10' },
                 { label: 'Air Freight', value: filteredShipments.filter(s => s.transport_air).length, icon: <Plane size={18} />, color: 'text-sky-600', bg: 'bg-sky-500/10' },
               ].map((item, idx) => (
@@ -1258,7 +1464,7 @@ const ShipmentsPage: React.FC = () => {
 
       {/* MOBILE FILTER BOTTOM SHEET (PORTAL) */}
       {showMobileFilter && createPortal(
-        <div className="md:hidden fixed inset-0 z-[9999] flex flex-col justify-end">
+        <div className="md:hidden fixed inset-0 z-9999 flex flex-col justify-end">
           <div className={clsx('absolute inset-0 bg-black/40 transition-opacity duration-300', mobileFilterClosing ? 'opacity-0' : 'opacity-100')} onClick={closeMobileFilter} />
           <div className={clsx('relative bg-white rounded-t-3xl flex flex-col max-h-[85vh] shadow-2xl', mobileFilterClosing ? 'animate-out slide-out-to-bottom duration-300' : 'animate-in slide-in-from-bottom duration-300')}>
             <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full bg-border" /></div>
@@ -1426,6 +1632,23 @@ const ShipmentsPage: React.FC = () => {
         customerOptions={customerOptions}
         supplierOptions={supplierOptions}
         onSave={handleSave}
+        readiness={dialogReadiness}
+        readinessLoading={isReadinessLoading}
+        documents={shipmentDocuments}
+        customsClearances={customsClearances}
+        complianceLoading={isComplianceLoading}
+        isCreatingDocument={isCreatingDocument}
+        isCreatingCustoms={isCreatingCustoms}
+        documentActionLoadingId={documentActionLoadingId}
+        customsActionLoadingId={customsActionLoadingId}
+        onRefreshReadiness={() => handleRefreshReadiness(formState.id)}
+        onRefreshCompliance={() => handleRefreshCompliance(formState.id)}
+        onCreateDocument={handleCreateDocument}
+        onCreateCustoms={handleCreateCustoms}
+        onChangeDocumentStatus={handleUpdateDocumentStatus}
+        onDeleteDocument={handleDeleteDocument}
+        onChangeCustomsStatus={handleUpdateCustomsStatus}
+        onDeleteCustoms={handleDeleteCustoms}
         onEdit={() => {
           setIsEditMode(true);
           setIsDetailMode(false);

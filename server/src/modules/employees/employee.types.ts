@@ -1,6 +1,7 @@
 export interface Employee {
   id: string;
   full_name: string;
+  team?: string;
   department?: string;
   position?: string;
   email: string;
@@ -13,6 +14,7 @@ export interface Employee {
 
 export interface CreateEmployeeDTO {
   full_name: string;
+  team?: string;
   department?: string;
   position?: string;
   email: string;

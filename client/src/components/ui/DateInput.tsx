@@ -21,6 +21,8 @@ interface DateInputProps {
   required?: boolean;
   placeholder?: string;
   className?: string;
+  /** Compact trigger for table rows (fixed h-8 to align with sibling inputs) */
+  dense?: boolean;
 }
 
 export const DateInput: React.FC<DateInputProps> = ({
@@ -28,7 +30,8 @@ export const DateInput: React.FC<DateInputProps> = ({
   onChange,
   disabled,
   placeholder = 'dd/mm/yyyy',
-  className
+  className,
+  dense = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'days' | 'months'>('days');
@@ -187,12 +190,21 @@ export const DateInput: React.FC<DateInputProps> = ({
   return (
     <Popover open={isOpen} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild disabled={disabled}>
-        <div className={clsx("relative group w-full", className)}>
+        <div className={clsx("relative group w-full", dense && "h-8 min-h-8", className)}>
           <div
             className={clsx(
-              "w-full px-3 py-2 bg-white border border-border rounded-lg text-[13px] transition-all font-medium flex items-center justify-between cursor-text",
-              disabled ? "opacity-70 cursor-not-allowed bg-slate-50" : "hover:border-primary/40 group-focus-within:ring-2 group-focus-within:ring-primary/10 group-focus-within:border-primary/40",
-              isOpen && "border-primary/40 ring-2 ring-primary/10"
+              "w-full border border-border bg-white font-medium flex items-center justify-between cursor-text transition-all",
+              dense
+                ? clsx(
+                    "h-full rounded px-1.5 gap-1 text-[11px]",
+                    disabled ? "opacity-70 cursor-not-allowed bg-slate-50" : "hover:border-primary/40 group-focus-within:ring-1 group-focus-within:ring-primary/10 group-focus-within:border-primary/40",
+                    isOpen && "border-primary/40 ring-1 ring-primary/10",
+                  )
+                : clsx(
+                    "px-3 py-2 rounded-lg text-[13px]",
+                    disabled ? "opacity-70 cursor-not-allowed bg-slate-50" : "hover:border-primary/40 group-focus-within:ring-2 group-focus-within:ring-primary/10 group-focus-within:border-primary/40",
+                    isOpen && "border-primary/40 ring-2 ring-primary/10",
+                  ),
             )}
           >
             <input
@@ -201,12 +213,18 @@ export const DateInput: React.FC<DateInputProps> = ({
               onChange={handleInputChange}
               placeholder={placeholder}
               disabled={disabled}
-              className="bg-transparent border-none outline-none w-full text-slate-900 placeholder:text-muted-foreground/60 focus:ring-0 p-0 text-[13px]"
+              className={clsx(
+                "min-w-0 bg-transparent border-none outline-none w-full text-slate-900 placeholder:text-muted-foreground/60 focus:ring-0 p-0",
+                dense ? "text-[11px] leading-tight" : "text-[13px]",
+              )}
             />
-            <CalendarIcon size={16} className={clsx(
-              "transition-colors cursor-pointer",
-              isOpen ? "text-primary" : "text-muted-foreground/50 group-hover:text-primary"
-            )} />
+            <CalendarIcon
+              size={dense ? 13 : 16}
+              className={clsx(
+                "shrink-0 transition-colors cursor-pointer",
+                isOpen ? "text-primary" : "text-muted-foreground/50 group-hover:text-primary",
+              )}
+            />
           </div>
         </div>
       </PopoverTrigger>

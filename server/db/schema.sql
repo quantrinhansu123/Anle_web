@@ -6,9 +6,19 @@
 create table customers (
   id          uuid primary key default gen_random_uuid(),
   company_name text not null,
+  local_name  text,
+  english_name text,
+  customer_group text,
+  customer_source text,
   email       text,
   phone       text,
+  website     text,
   address     text,
+  office_address text,
+  bl_address  text,
+  country     text,
+  state_province text,
+  customer_class text,
   tax_code    text,
   rank        numeric(2,1) default 0,
   credit_limit numeric(18,4) default 0,
@@ -18,7 +28,9 @@ create table customers (
   sales_department text,
   company_id_number text,
   industry text,
-  created_at  timestamptz default now()
+  status varchar(32) not null default 'new' check (status in ('new', 'follow_up', 'quotation_sent', 'meeting', 'lost')),
+  created_at  timestamptz default now(),
+  updated_at  timestamptz not null default now()
 );
 
 -- ============================================================
@@ -80,9 +92,11 @@ create table employees (
 -- ============================================================
 create table shipments (
   id             uuid primary key default gen_random_uuid(),
+  code           text,
   customer_id    uuid references customers(id),
   supplier_id    char(3) references suppliers(id),
   pic_id         uuid references employees(id), -- added
+  status         varchar(32) not null default 'draft' check (status in ('draft','feasibility_checked','planned','docs_ready','booked','customs_ready','in_transit','delivered','cost_closed','cancelled')),
   commodity      text,
   hs_code        text,
   quantity       numeric(18,4),
@@ -95,8 +109,36 @@ create table shipments (
   load_lcl       boolean default false,
   pol            text,
   pod            text,
+  pickup_date    date,
   etd            date,
   eta            date,
+  delivery_date  date,
+  yard_dropoff_date date,
+  yard_pickup_date date,
+  customs_declaration_no text,
+  bill_no        text,
+  container_no   text,
+  truck_plate_no text,
+  driver_name    text,
+  extra_yard_cost numeric(18,4) not null default 0,
+  extra_trip_cost numeric(18,4) not null default 0,
+  note           text,
+  is_docs_ready  boolean not null default false,
+  is_hs_confirmed boolean not null default false,
+  is_phytosanitary_ready boolean not null default false,
+  is_cost_locked boolean not null default false,
+  is_truck_booked boolean not null default false,
+  is_agent_booked boolean not null default false,
+  pod_confirmed_at timestamptz,
+  cost_locked_at timestamptz,
+  shipment_ready_to_run boolean generated always as (
+    is_docs_ready
+    and is_hs_confirmed
+    and is_phytosanitary_ready
+    and is_cost_locked
+    and is_truck_booked
+    and is_agent_booked
+  ) stored,
   created_at     timestamptz default now()
 );
 
@@ -108,6 +150,10 @@ create table sales (
   shipment_id uuid references shipments(id) on delete cascade,
   quote_date date default current_date,
   no_doc text generated always as ('Q-' || substring(id::text, 1, 8)) stored,
+  bill_no text,
+  customs_declaration_no text,
+  incoterms text,
+  customer_trade_name text,
   created_at timestamptz default now()
 );
 
@@ -125,6 +171,38 @@ create table sales_items (
   total         numeric(18,4) generated always as (rate * quantity * exchange_rate + rate * quantity * exchange_rate * tax_percent / 100) stored,
   created_at    timestamptz default now()
 );
+
+-- ============================================================
+-- 5.1 SALES CHARGE CATALOG (danh mục loại phí / cước phí)
+-- ============================================================
+create table sales_charge_catalog (
+  id uuid primary key default gen_random_uuid(),
+  freight_code text not null,
+  charge_name text not null,
+  charge_type text not null,
+  created_at timestamptz default now(),
+  updated_at timestamptz not null default now(),
+  constraint sales_charge_catalog_freight_code_key unique (freight_code)
+);
+
+create index idx_sales_charge_catalog_charge_type on sales_charge_catalog (charge_type);
+create index idx_sales_charge_catalog_charge_name on sales_charge_catalog (charge_name);
+
+-- ============================================================
+-- 5.2 SALES UNIT CATALOG (danh mục đơn vị)
+-- ============================================================
+create table sales_unit_catalog (
+  id uuid primary key default gen_random_uuid(),
+  code text not null,
+  name text not null,
+  active boolean not null default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz not null default now(),
+  constraint sales_unit_catalog_code_key unique (code)
+);
+
+create index idx_sales_unit_catalog_active on sales_unit_catalog (active);
+create index idx_sales_unit_catalog_name on sales_unit_catalog (name);
 
 -- ============================================================
 -- 6. PURCHASING (mua hàng)
@@ -261,6 +339,42 @@ left join purchasing_items pi on pi.shipment_id = s.id
 group by s.id, c.company_name, sup.company_name;
 
 -- ============================================================
+-- 10.1 SHIPMENT DOCUMENTS
+-- ============================================================
+create table shipment_documents (
+  id             uuid primary key default gen_random_uuid(),
+  shipment_id    uuid not null references shipments(id) on delete cascade,
+  doc_type       varchar(32) not null check (doc_type in ('commercial_invoice', 'packing_list', 'sales_contract', 'co_form_e', 'phytosanitary', 'bill_of_lading', 'import_document')),
+  doc_number     text,
+  version        int not null default 1,
+  status         varchar(20) not null default 'draft' check (status in ('draft', 'verified', 'rejected', 'issued')),
+  file_url       text,
+  issued_at      date,
+  verified_at    timestamptz,
+  verified_by_id uuid references employees(id),
+  note           text,
+  created_at     timestamptz default now()
+);
+
+-- ============================================================
+-- 10.2 CUSTOMS CLEARANCES
+-- ============================================================
+create table customs_clearances (
+  id                   uuid primary key default gen_random_uuid(),
+  shipment_id          uuid not null references shipments(id) on delete cascade,
+  hs_code              text not null,
+  hs_confirmed         boolean not null default false,
+  declaration_no       text,
+  lane_type            varchar(10) check (lane_type in ('green', 'yellow', 'red')),
+  phytosanitary_status varchar(20) not null default 'pending' check (phytosanitary_status in ('pending', 'in_progress', 'passed', 'failed')),
+  status               varchar(20) not null default 'draft' check (status in ('draft', 'submitted', 'inspecting', 'released', 'on_hold', 'rejected')),
+  hold_reason          text,
+  released_at          timestamptz,
+  escalated_to_manager boolean not null default false,
+  created_at           timestamptz default now()
+);
+
+-- ============================================================
 -- 11. SETTINGS / EXCHANGE RATES
 -- ============================================================
 create table exchange_rates (
@@ -286,3 +400,7 @@ alter table debit_notes         enable row level security;
 alter table debit_note_invoice_items enable row level security;
 alter table debit_note_chi_ho_items  enable row level security;
 alter table exchange_rates           enable row level security;
+alter table shipment_documents       enable row level security;
+alter table customs_clearances       enable row level security;
+alter table sales_charge_catalog     enable row level security;
+alter table sales_unit_catalog       enable row level security;

@@ -21,6 +21,11 @@ interface Option {
   label: string
 }
 
+interface SearchableSelectFooterAction {
+  label: string
+  onClick: () => void
+}
+
 interface SearchableSelectProps {
   options: Option[]
   value?: string
@@ -32,6 +37,8 @@ interface SearchableSelectProps {
   disabled?: boolean
   hideSearch?: boolean
   hideClearIcon?: boolean
+  /** Link dưới danh sách (ví dụ mở dialog tra cứu đầy đủ) */
+  footerAction?: SearchableSelectFooterAction
 }
 
 export function SearchableSelect({
@@ -45,6 +52,7 @@ export function SearchableSelect({
   disabled = false,
   hideSearch = false,
   hideClearIcon = false,
+  footerAction,
 }: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false)
 
@@ -121,6 +129,20 @@ export function SearchableSelect({
             </CommandGroup>
           </CommandList>
         </Command>
+        {footerAction && (
+          <div className="border-t border-border/80 px-1 py-1">
+            <button
+              type="button"
+              className="w-full text-left px-3 py-2 rounded-lg text-[12px] font-bold text-primary hover:bg-primary/5 transition-colors"
+              onClick={() => {
+                setOpen(false)
+                footerAction.onClick()
+              }}
+            >
+              {footerAction.label}
+            </button>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   )

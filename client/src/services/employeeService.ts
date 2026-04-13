@@ -3,6 +3,7 @@ import { apiFetch } from '../lib/api';
 export interface Employee {
   id: string;
   full_name: string;
+  team?: string;
   department?: string;
   position?: string;
   email: string;

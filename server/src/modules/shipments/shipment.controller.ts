@@ -37,6 +37,15 @@ export const ShipmentController = {
     }
   },
 
+  async getReadiness(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await service.getReadiness(req.params.id);
+      res.json(successResponse(result));
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async create(req: Request, res: Response, next: NextFunction) {
     try {
       const item = await service.create(req.body);
@@ -50,6 +59,15 @@ export const ShipmentController = {
     try {
       const item = await service.update(req.params.id, req.body);
       res.json(successResponse(item, 'Shipment updated successfully'));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async updateStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+      const item = await service.updateStatus(req.params.id, req.body.status);
+      res.json(successResponse(item, 'Shipment status updated successfully'));
     } catch (err) {
       next(err);
     }

@@ -80,7 +80,7 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { avatar } = useTheme();
-  const { dynamicTitle } = useBreadcrumb();
+  const { dynamicTitle, customBreadcrumbs } = useBreadcrumb();
   const { user, logout } = useAuth();
 
   const defaultAvatar = "https://ui-avatars.com/api/?name=Admin&background=random&color=random";
@@ -107,6 +107,7 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
     
     // Fallback labels for segments
     const segmentLabels: Record<string, string> = {
+      'shipping': 'Shipping',
       'shipments': 'Shipments',
       'customers': 'Customers',
       'suppliers': 'Suppliers',
@@ -196,7 +197,8 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
     return b;
   };
 
-  const breadcrumbs = getBreadcrumbs();
+  const breadcrumbs =
+    customBreadcrumbs && customBreadcrumbs.length > 0 ? customBreadcrumbs : getBreadcrumbs();
 
   const pageTitle = breadcrumbs.length > 0 ? breadcrumbs[breadcrumbs.length - 1].label : 'Dashboard';
 

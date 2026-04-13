@@ -1,11 +1,31 @@
 import { apiFetch } from '../lib/api';
 
+export type CustomerStatus = 'new' | 'follow_up' | 'quotation_sent' | 'meeting' | 'lost';
+
+export const CUSTOMER_STATUS_VALUES: CustomerStatus[] = [
+  'new',
+  'follow_up',
+  'quotation_sent',
+  'meeting',
+  'lost'
+];
+
 export interface Customer {
   id: string;
   company_name: string;
+  local_name?: string;
+  english_name?: string;
+  customer_group?: string;
+  customer_source?: string;
   email?: string;
   phone?: string;
+  website?: string;
   address?: string;
+  office_address?: string;
+  bl_address?: string;
+  country?: string;
+  state_province?: string;
+  customer_class?: string;
   tax_code?: string;
   code?: string;
   rank?: number;
@@ -16,7 +36,21 @@ export interface Customer {
   sales_department?: string;
   company_id_number?: string;
   industry?: string;
+  status: CustomerStatus;
   created_at: string;
+  updated_at: string;
+}
+
+export interface Shipment {
+  id: string;
+  customer_id: string;
+  // Add other shipment fields as needed
+}
+
+export interface Sale {
+  id: string;
+  customer_id: string;
+  // Add other sale fields as needed
 }
 
 export interface CustomerContact {
@@ -42,15 +76,25 @@ export interface CustomerNote {
 export interface CustomerDetails extends Customer {
   contacts: CustomerContact[];
   notes: CustomerNote[];
-  shipments: any[]; // Adjust to use Shipment type
-  sales: any[]; // Adjust to use Sale type
+  shipments: Shipment[];
+  sales: Sale[];
 }
 
 export interface CreateCustomerDto {
   company_name: string;
+  local_name?: string;
+  english_name?: string;
+  customer_group?: string;
+  customer_source?: string;
   email?: string;
   phone?: string;
+  website?: string;
   address?: string;
+  office_address?: string;
+  bl_address?: string;
+  country?: string;
+  state_province?: string;
+  customer_class?: string;
   tax_code?: string;
   code?: string;
   rank?: number;
@@ -61,6 +105,7 @@ export interface CreateCustomerDto {
   sales_department?: string;
   company_id_number?: string;
   industry?: string;
+  status?: CustomerStatus;
 }
 
 export const customerService = {

@@ -49,6 +49,7 @@ export const employeeService = {
   async create(dto: CreateEmployeeDTO) {
     const {
       full_name,
+      team,
       department,
       position,
       email,
@@ -60,6 +61,7 @@ export const employeeService = {
 
     const insertData: any = {
       full_name,
+      team,
       department,
       position,
       email,
@@ -86,6 +88,7 @@ export const employeeService = {
   async update(id: string, dto: UpdateEmployeeDTO) {
     const {
       full_name,
+      team,
       department,
       position,
       email,
@@ -97,6 +100,7 @@ export const employeeService = {
 
     const updateData: any = {
       full_name,
+      team,
       department,
       position,
       email,

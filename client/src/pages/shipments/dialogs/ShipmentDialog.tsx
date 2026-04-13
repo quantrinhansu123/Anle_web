@@ -1,17 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Ship, X, User, Mail, Phone, MapPin, Calendar,
   FileText, Plus, Edit, ChevronRight, Hash, Package,
   Anchor, Plane, Tag, Info, Barcode,
-  CheckCircle2, XCircle, Loader2
+  CheckCircle2, XCircle, Loader2, Trash2
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { SearchableSelect } from '../../../components/ui/SearchableSelect';
 import { DateInput } from '../../../components/ui/DateInput';
 import { type Customer } from '../../../services/customerService';
 import { type Supplier } from '../../../services/supplierService';
-import type { ShipmentFormState } from '../types';
+import {
+  type CreateShipmentDocumentDto,
+  type ShipmentDocument,
+} from '../../../services/shipmentDocumentService';
+import {
+  type CreateCustomsClearanceDto,
+  type CustomsClearance,
+} from '../../../services/customsClearanceService';
+import type { ShipmentFormState, ShipmentReadinessResult } from '../types';
 
 interface Props {
   isOpen: boolean;
@@ -28,6 +36,23 @@ interface Props {
   onEdit?: () => void;
   onConfirmCustomer?: () => void;
   onConfirmSupplier?: () => void;
+  readiness?: ShipmentReadinessResult | null;
+  readinessLoading?: boolean;
+  onRefreshReadiness?: () => void;
+  documents?: ShipmentDocument[];
+  customsClearances?: CustomsClearance[];
+  complianceLoading?: boolean;
+  isCreatingDocument?: boolean;
+  isCreatingCustoms?: boolean;
+  documentActionLoadingId?: string | null;
+  customsActionLoadingId?: string | null;
+  onRefreshCompliance?: () => void;
+  onCreateDocument?: (dto: Omit<CreateShipmentDocumentDto, 'shipment_id'>) => void;
+  onCreateCustoms?: (dto: Omit<CreateCustomsClearanceDto, 'shipment_id'>) => void;
+  onChangeDocumentStatus?: (id: string, status: ShipmentDocument['status']) => void;
+  onDeleteDocument?: (id: string) => void;
+  onChangeCustomsStatus?: (id: string, status: CustomsClearance['status']) => void;
+  onDeleteCustoms?: (id: string) => void;
   isSavingCustomer?: boolean;
   isSavingSupplier?: boolean;
 }
@@ -47,6 +72,23 @@ const ShipmentDialog: React.FC<Props> = ({
   onEdit,
   onConfirmCustomer,
   onConfirmSupplier,
+  readiness,
+  readinessLoading = false,
+  onRefreshReadiness,
+  documents = [],
+  customsClearances = [],
+  complianceLoading = false,
+  isCreatingDocument = false,
+  isCreatingCustoms = false,
+  documentActionLoadingId = null,
+  customsActionLoadingId = null,
+  onRefreshCompliance,
+  onCreateDocument,
+  onCreateCustoms,
+  onChangeDocumentStatus,
+  onDeleteDocument,
+  onChangeCustomsStatus,
+  onDeleteCustoms,
   isSavingCustomer = false,
   isSavingSupplier = false
 }) => {
@@ -55,9 +97,51 @@ const ShipmentDialog: React.FC<Props> = ({
   const {
     customer_id, supplier_id, code, commodity, hs_code, quantity,
     packing, vessel_voyage, term, transport_air, transport_sea,
-    load_fcl, load_lcl, pol, pod, etd, eta,
+    load_fcl, load_lcl, pol, pod, etd, eta, status,
+    is_docs_ready, is_hs_confirmed, is_phytosanitary_ready,
+    is_cost_locked, is_truck_booked, is_agent_booked,
     isNewCustomer, isEditingCustomer, newCustomer, isNewSupplier, isEditingSupplier, newSupplier
   } = formState;
+
+  const localReadiness = Boolean(
+    is_docs_ready
+    && is_hs_confirmed
+    && is_phytosanitary_ready
+    && is_cost_locked
+    && is_truck_booked
+    && is_agent_booked,
+  );
+
+  const [newDocType, setNewDocType] = useState<CreateShipmentDocumentDto['doc_type']>('commercial_invoice');
+  const [newDocStatus, setNewDocStatus] = useState<CreateShipmentDocumentDto['status']>('draft');
+  const [newDocNumber, setNewDocNumber] = useState('');
+
+  const [newCustomsHsCode, setNewCustomsHsCode] = useState('');
+  const [newCustomsStatus, setNewCustomsStatus] = useState<CreateCustomsClearanceDto['status']>('draft');
+  const [newPhytosanitaryStatus, setNewPhytosanitaryStatus] = useState<CreateCustomsClearanceDto['phytosanitary_status']>('pending');
+  const [newHsConfirmed, setNewHsConfirmed] = useState(false);
+
+  const handleCreateDocumentClick = () => {
+    if (!onCreateDocument) return;
+    onCreateDocument({
+      doc_type: newDocType,
+      status: newDocStatus,
+      doc_number: newDocNumber || null,
+    });
+    setNewDocNumber('');
+  };
+
+  const handleCreateCustomsClick = () => {
+    if (!onCreateCustoms || !newCustomsHsCode.trim()) return;
+    onCreateCustoms({
+      hs_code: newCustomsHsCode.trim(),
+      hs_confirmed: newHsConfirmed,
+      status: newCustomsStatus,
+      phytosanitary_status: newPhytosanitaryStatus,
+    });
+    setNewCustomsHsCode('');
+    setNewHsConfirmed(false);
+  };
 
   const handleSetNewCustomerField = (key: string, value: string) => {
     setFormField('newCustomer', { ...newCustomer, [key]: value } as any);
@@ -71,7 +155,7 @@ const ShipmentDialog: React.FC<Props> = ({
   const selectedSupplier = supplierOptions.find(s => s.value === supplier_id);
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex justify-end">
+    <div className="fixed inset-0 z-9999 flex justify-end">
       {/* Backdrop */}
       <div
         className={clsx(
@@ -84,7 +168,7 @@ const ShipmentDialog: React.FC<Props> = ({
       {/* Panel */}
       <div
         className={clsx(
-          'relative w-full max-w-[850px] bg-[#f8fafc] shadow-2xl flex flex-col h-screen border-l border-border transition-transform duration-350 ease-out',
+          'relative w-full max-w-212.5 bg-[#f8fafc] shadow-2xl flex flex-col h-screen border-l border-border transition-transform duration-350 ease-out',
           isClosing ? 'translate-x-full' : 'translate-x-0 animate-in slide-in-from-right duration-350',
         )}
       >
@@ -673,14 +757,336 @@ const ShipmentDialog: React.FC<Props> = ({
                   <FileText size={16} className="text-indigo-600/70" />
                   <label className="text-[13px] font-bold text-foreground">Term</label>
                 </div>
-                <input
-                  type="text"
-                  placeholder="E.g. FOB, CIF, EXW"
+                <select
                   value={term || ''}
                   onChange={e => setFormField('term', e.target.value)}
                   disabled={isDetailMode}
-                  className="w-full px-4 py-2 bg-indigo-50/30 border border-indigo-100 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all font-medium disabled:opacity-70 placeholder:text-indigo-500/30"
-                />
+                  className="w-full px-4 py-2 bg-indigo-50/30 border border-indigo-100 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all font-medium disabled:opacity-70"
+                >
+                  <option value="">Select Incoterm</option>
+                  <option value="EXW">EXW</option>
+                  <option value="FCA">FCA</option>
+                  <option value="CPT">CPT</option>
+                  <option value="CIP">CIP</option>
+                  <option value="DAP">DAP</option>
+                  <option value="DPU">DPU</option>
+                  <option value="DDP">DDP</option>
+                  <option value="FAS">FAS</option>
+                  <option value="FOB">FOB</option>
+                  <option value="CFR">CFR</option>
+                  <option value="CIF">CIF</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <FileText size={16} className="text-indigo-600/70" />
+                  <label className="text-[13px] font-bold text-foreground">Workflow Status</label>
+                </div>
+                <select
+                  value={status || 'draft'}
+                  onChange={e => setFormField('status', e.target.value as ShipmentFormState['status'])}
+                  disabled={isDetailMode}
+                  className="w-full px-4 py-2 bg-indigo-50/30 border border-indigo-100 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all font-medium disabled:opacity-70"
+                >
+                  <option value="draft">Draft</option>
+                  <option value="feasibility_checked">Feasibility Checked</option>
+                  <option value="planned">Planned</option>
+                  <option value="docs_ready">Docs Ready</option>
+                  <option value="booked">Booked</option>
+                  <option value="customs_ready">Customs Ready</option>
+                  <option value="in_transit">In Transit</option>
+                  <option value="delivered">Delivered</option>
+                  <option value="cost_closed">Cost Closed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[13px] font-bold text-foreground block">Run Checklist (SOP Gates)</label>
+                  <span className={clsx('px-2 py-0.5 rounded-full text-[10px] font-bold border', localReadiness ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200')}>
+                    {localReadiness ? 'Ready to Run' : 'Blocked'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 p-3 rounded-xl border border-indigo-100 bg-indigo-50/20">
+                  <label className="flex items-center gap-2 text-[12px] font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(is_docs_ready)}
+                      onChange={e => setFormField('is_docs_ready', e.target.checked)}
+                      disabled={isDetailMode}
+                      className="w-4 h-4 rounded border-indigo-200 text-indigo-600"
+                    />
+                    Documents Ready
+                  </label>
+                  <label className="flex items-center gap-2 text-[12px] font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(is_hs_confirmed)}
+                      onChange={e => setFormField('is_hs_confirmed', e.target.checked)}
+                      disabled={isDetailMode}
+                      className="w-4 h-4 rounded border-indigo-200 text-indigo-600"
+                    />
+                    HS Confirmed
+                  </label>
+                  <label className="flex items-center gap-2 text-[12px] font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(is_phytosanitary_ready)}
+                      onChange={e => setFormField('is_phytosanitary_ready', e.target.checked)}
+                      disabled={isDetailMode}
+                      className="w-4 h-4 rounded border-indigo-200 text-indigo-600"
+                    />
+                    Phytosanitary Ready
+                  </label>
+                  <label className="flex items-center gap-2 text-[12px] font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(is_cost_locked)}
+                      onChange={e => setFormField('is_cost_locked', e.target.checked)}
+                      disabled={isDetailMode}
+                      className="w-4 h-4 rounded border-indigo-200 text-indigo-600"
+                    />
+                    Cost Locked
+                  </label>
+                  <label className="flex items-center gap-2 text-[12px] font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(is_truck_booked)}
+                      onChange={e => setFormField('is_truck_booked', e.target.checked)}
+                      disabled={isDetailMode}
+                      className="w-4 h-4 rounded border-indigo-200 text-indigo-600"
+                    />
+                    Truck Booked
+                  </label>
+                  <label className="flex items-center gap-2 text-[12px] font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(is_agent_booked)}
+                      onChange={e => setFormField('is_agent_booked', e.target.checked)}
+                      disabled={isDetailMode}
+                      className="w-4 h-4 rounded border-indigo-200 text-indigo-600"
+                    />
+                    Agent Booked
+                  </label>
+                </div>
+                {isDetailMode && (
+                  <div className="mt-2 rounded-xl border border-indigo-100 bg-white p-3">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Backend Gate Check</span>
+                      <button
+                        type="button"
+                        onClick={onRefreshReadiness}
+                        className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 disabled:opacity-50"
+                        disabled={readinessLoading}
+                      >
+                        {readinessLoading ? 'Checking...' : 'Refresh'}
+                      </button>
+                    </div>
+                    {readiness ? (
+                      readiness.ready ? (
+                        <p className="text-[12px] font-medium text-emerald-700">All mandatory run gates are satisfied.</p>
+                      ) : (
+                        <p className="text-[12px] font-medium text-amber-700">
+                          Missing gates: {readiness.missing.join(', ')}
+                        </p>
+                      )
+                    ) : (
+                      <p className="text-[12px] font-medium text-slate-500">No readiness data loaded yet.</p>
+                    )}
+                  </div>
+                )}
+
+                {isDetailMode && (
+                  <div className="mt-2 rounded-xl border border-indigo-100 bg-white p-3">
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Documentation & Customs</span>
+                      <button
+                        type="button"
+                        onClick={onRefreshCompliance}
+                        className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 disabled:opacity-50"
+                        disabled={complianceLoading}
+                      >
+                        {complianceLoading ? 'Refreshing...' : 'Refresh'}
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="rounded-lg border border-slate-200 p-2.5">
+                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Documents ({documents.length})</p>
+                        {documents.length === 0 ? (
+                          <p className="text-[12px] text-slate-500">No document records yet.</p>
+                        ) : (
+                          <div className="space-y-1.5 max-h-28 overflow-auto pr-1">
+                            {documents.slice(0, 8).map((doc) => (
+                              <div key={doc.id} className="flex items-center justify-between gap-2 text-[12px]">
+                                <span className="font-medium text-slate-700 truncate">{doc.doc_type}</span>
+                                <div className="flex items-center gap-1.5">
+                                  <select
+                                    value={doc.status}
+                                    onChange={(e) => onChangeDocumentStatus?.(doc.id, e.target.value as ShipmentDocument['status'])}
+                                    disabled={documentActionLoadingId === doc.id || !onChangeDocumentStatus}
+                                    className="px-1.5 py-0.5 rounded border border-slate-200 bg-white text-[10px] font-bold uppercase"
+                                  >
+                                    <option value="draft">draft</option>
+                                    <option value="verified">verified</option>
+                                    <option value="rejected">rejected</option>
+                                    <option value="issued">issued</option>
+                                  </select>
+                                  <button
+                                    type="button"
+                                    onClick={() => onDeleteDocument?.(doc.id)}
+                                    disabled={documentActionLoadingId === doc.id || !onDeleteDocument}
+                                    className="p-1 rounded border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                                  >
+                                    <Trash2 size={11} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="rounded-lg border border-slate-200 p-2.5">
+                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Customs ({customsClearances.length})</p>
+                        {customsClearances.length === 0 ? (
+                          <p className="text-[12px] text-slate-500">No customs clearance records yet.</p>
+                        ) : (
+                          <div className="space-y-1.5 max-h-28 overflow-auto pr-1">
+                            {customsClearances.slice(0, 8).map((item) => (
+                              <div key={item.id} className="flex items-center justify-between gap-2 text-[12px]">
+                                <span className="font-medium text-slate-700 truncate">{item.declaration_no || item.hs_code}</span>
+                                <div className="flex items-center gap-1.5">
+                                  <select
+                                    value={item.status}
+                                    onChange={(e) => onChangeCustomsStatus?.(item.id, e.target.value as CustomsClearance['status'])}
+                                    disabled={customsActionLoadingId === item.id || !onChangeCustomsStatus}
+                                    className="px-1.5 py-0.5 rounded border border-slate-200 bg-white text-[10px] font-bold uppercase"
+                                  >
+                                    <option value="draft">draft</option>
+                                    <option value="submitted">submitted</option>
+                                    <option value="inspecting">inspecting</option>
+                                    <option value="released">released</option>
+                                    <option value="on_hold">on_hold</option>
+                                    <option value="rejected">rejected</option>
+                                  </select>
+                                  <button
+                                    type="button"
+                                    onClick={() => onDeleteCustoms?.(item.id)}
+                                    disabled={customsActionLoadingId === item.id || !onDeleteCustoms}
+                                    className="p-1 rounded border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                                  >
+                                    <Trash2 size={11} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 pt-3 border-t border-slate-200">
+                      <div className="rounded-lg border border-slate-200 p-2.5">
+                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Quick Add Document</p>
+                        <div className="space-y-2">
+                          <select
+                            value={newDocType}
+                            onChange={(e) => setNewDocType(e.target.value as CreateShipmentDocumentDto['doc_type'])}
+                            className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-[12px]"
+                          >
+                            <option value="commercial_invoice">commercial_invoice</option>
+                            <option value="packing_list">packing_list</option>
+                            <option value="sales_contract">sales_contract</option>
+                            <option value="co_form_e">co_form_e</option>
+                            <option value="phytosanitary">phytosanitary</option>
+                            <option value="bill_of_lading">bill_of_lading</option>
+                            <option value="import_document">import_document</option>
+                          </select>
+                          <select
+                            value={newDocStatus}
+                            onChange={(e) => setNewDocStatus(e.target.value as CreateShipmentDocumentDto['status'])}
+                            className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-[12px]"
+                          >
+                            <option value="draft">draft</option>
+                            <option value="verified">verified</option>
+                            <option value="rejected">rejected</option>
+                            <option value="issued">issued</option>
+                          </select>
+                          <input
+                            type="text"
+                            value={newDocNumber}
+                            onChange={(e) => setNewDocNumber(e.target.value)}
+                            placeholder="Document number (optional)"
+                            className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-[12px]"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleCreateDocumentClick}
+                            disabled={isCreatingDocument || !onCreateDocument}
+                            className="w-full py-1.5 rounded-lg bg-indigo-600 text-white text-[12px] font-bold disabled:opacity-50"
+                          >
+                            {isCreatingDocument ? 'Adding...' : 'Add Document'}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg border border-slate-200 p-2.5">
+                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Quick Add Customs</p>
+                        <div className="space-y-2">
+                          <input
+                            type="text"
+                            value={newCustomsHsCode}
+                            onChange={(e) => setNewCustomsHsCode(e.target.value)}
+                            placeholder="HS code"
+                            className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-[12px]"
+                          />
+                          <select
+                            value={newCustomsStatus}
+                            onChange={(e) => setNewCustomsStatus(e.target.value as CreateCustomsClearanceDto['status'])}
+                            className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-[12px]"
+                          >
+                            <option value="draft">draft</option>
+                            <option value="submitted">submitted</option>
+                            <option value="inspecting">inspecting</option>
+                            <option value="released">released</option>
+                            <option value="on_hold">on_hold</option>
+                            <option value="rejected">rejected</option>
+                          </select>
+                          <select
+                            value={newPhytosanitaryStatus}
+                            onChange={(e) => setNewPhytosanitaryStatus(e.target.value as CreateCustomsClearanceDto['phytosanitary_status'])}
+                            className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-[12px]"
+                          >
+                            <option value="pending">pending</option>
+                            <option value="in_progress">in_progress</option>
+                            <option value="passed">passed</option>
+                            <option value="failed">failed</option>
+                          </select>
+                          <label className="flex items-center gap-2 text-[12px] text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={newHsConfirmed}
+                              onChange={(e) => setNewHsConfirmed(e.target.checked)}
+                              className="w-4 h-4 rounded border-slate-200"
+                            />
+                            HS confirmed
+                          </label>
+                          <button
+                            type="button"
+                            onClick={handleCreateCustomsClick}
+                            disabled={isCreatingCustoms || !newCustomsHsCode.trim() || !onCreateCustoms}
+                            className="w-full py-1.5 rounded-lg bg-cyan-600 text-white text-[12px] font-bold disabled:opacity-50"
+                          >
+                            {isCreatingCustoms ? 'Adding...' : 'Add Customs'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">

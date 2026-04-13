@@ -10,30 +10,52 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
 import { salesService } from '../services/salesService';
-import { shipmentService } from '../services/shipmentService';
 import { supplierService } from '../services/supplierService';
 import type { Supplier } from '../services/supplierService';
 import { FilterDropdown } from '../components/ui/FilterDropdown';
 import { ColumnSettings } from '../components/ui/ColumnSettings';
-import type { Sales, SalesFormState } from './sales/types';
-import type { Shipment } from './shipments/types';
-import SalesDialog from './sales/dialogs/SalesDialog';
+import type { Sales } from './sales/types';
 import { exchangeRateService, type ExchangeRate } from '../services/exchangeRateService';
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
 import { useToastContext } from '../contexts/ToastContext';
-
-const INITIAL_FORM_STATE: SalesFormState = {
-  shipment_id: '',
-  items: [],
-};
+import { ThreeStarRating } from '../components/ui/ThreeStarRating';
 
 type ColDef = { label: string; thClass: string; tdClass: string; renderContent: (s: Sales) => React.ReactNode };
+
+const QUOTATION_STATUS_META: Record<string, { label: string; className: string }> = {
+  draft: { label: 'Draft', className: 'bg-slate-100 text-slate-700 border-slate-200' },
+  sent: { label: 'Sent', className: 'bg-blue-50 text-blue-700 border-blue-200' },
+  converted: { label: 'Converted', className: 'bg-violet-50 text-violet-700 border-violet-200' },
+  confirmed: { label: 'Confirmed', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  final: { label: 'Final', className: 'bg-amber-50 text-amber-700 border-amber-200' },
+};
+
+const formatDate = (value?: string) => {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('en-GB').format(date);
+};
+
 const COLUMN_DEFS: Record<string, ColDef> = {
-  shipment: {
-    label: 'Quotation',
+  priority: {
+    label: 'Priority',
+    thClass: 'px-3 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-28 border-r border-border/40',
+    tdClass: 'px-3 py-4 border-r border-border/40',
+    /** Read-only fallback; list table uses ThreeStarRating inline instead */
+    renderContent: (s) => <span className="text-[12px] text-muted-foreground tabular-nums">{s.priority_rank ?? '—'}</span>,
+  },
+  issueDate: {
+    label: 'Issue Date',
+    thClass: 'px-3 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-28 border-r border-border/40',
+    tdClass: 'px-3 py-4 border-r border-border/40 text-[12px] font-semibold text-slate-700',
+    renderContent: (s) => <span>{formatDate(s.quote_date)}</span>,
+  },
+  quotationNo: {
+    label: 'Quotation No.',
     thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-40 border-r border-border/40',
     tdClass: 'px-4 py-4 border-r border-border/40 text-[12px] font-bold text-primary',
     renderContent: (s) => (
@@ -43,30 +65,93 @@ const COLUMN_DEFS: Record<string, ColDef> = {
       </div>
     )
   },
-  description: {
-    label: 'Overview',
+  salesPerson: {
+    label: 'Sales Person',
+    thClass: 'px-3 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-40 border-r border-border/40',
+    tdClass: 'px-3 py-4 border-r border-border/40 text-[12px] font-semibold text-slate-700',
+    renderContent: (s) => <span>{s.sales_person?.full_name || '—'}</span>,
+  },
+  customer: {
+    label: 'Customer',
+    thClass: 'px-3 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-44 border-r border-border/40',
+    tdClass: 'px-3 py-4 border-r border-border/40 text-[12px] font-semibold text-slate-700',
+    renderContent: (s) => <span>{s.shipments?.customers?.company_name || '—'}</span>,
+  },
+  billNo: {
+    label: 'BILL#',
+    thClass: 'px-3 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-36 border-r border-border/40',
+    tdClass: 'px-3 py-4 border-r border-border/40 text-[12px] text-slate-700',
+    renderContent: (s) => <span>{s.shipments?.bill_no || '—'}</span>,
+  },
+  cdNo: {
+    label: 'CD#',
+    thClass: 'px-3 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-36 border-r border-border/40',
+    tdClass: 'px-3 py-4 border-r border-border/40 text-[12px] text-slate-700',
+    renderContent: (s) => <span>{s.shipments?.customs_declaration_no || '—'}</span>,
+  },
+  services: {
+    label: 'Services',
     thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight border-r border-border/40',
     tdClass: 'px-4 py-4 border-r border-border/40',
     renderContent: (s) => {
       const items = s.sales_items || [];
-      const desc = items.length > 0 ? items[0].description : '—';
+      const chargeItems = s.sales_charge_items || [];
+      const serviceText = items.length > 0
+        ? items[0].description
+        : (chargeItems[0]?.charge_name || s.service_mode || '—');
+      const rowCount = items.length > 0 ? items.length : chargeItems.length;
       return (
-        <div className="flex flex-col max-w-xs xl:max-w-md">
-          <span className="text-[13px] font-bold text-foreground line-clamp-1">{desc}</span>
-          <span className="text-[11px] text-muted-foreground opacity-70 italic">{items.length} product(s)</span>
+        <div className="flex flex-col max-w-xs">
+          <span className="text-[13px] font-bold text-foreground line-clamp-1">{serviceText}</span>
+          <span className="text-[11px] text-muted-foreground opacity-70 italic">{rowCount} row(s)</span>
         </div>
       );
     }
   },
-  total: {
-    label: 'Total',
-    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-64 text-right',
-    tdClass: 'px-4 py-4 text-right font-black text-[14px] text-primary tabular-nums',
+  goods: {
+    label: 'Goods',
+    thClass: 'px-3 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-36 border-r border-border/40',
+    tdClass: 'px-3 py-4 border-r border-border/40 text-[12px] text-slate-700',
+    renderContent: (s) => <span>{s.goods || s.shipments?.commodity || '—'}</span>,
+  },
+  pol: {
+    label: 'POL',
+    thClass: 'px-3 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-28 border-r border-border/40',
+    tdClass: 'px-3 py-4 border-r border-border/40 text-[12px] text-slate-700',
+    renderContent: (s) => <span>{s.shipments?.pol || '—'}</span>,
+  },
+  pod: {
+    label: 'POD',
+    thClass: 'px-3 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-28 border-r border-border/40',
+    tdClass: 'px-3 py-4 border-r border-border/40 text-[12px] text-slate-700',
+    renderContent: (s) => <span>{s.shipments?.pod || '—'}</span>,
+  },
+  status: {
+    label: 'Status',
+    thClass: 'px-3 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-32 border-r border-border/40',
+    tdClass: 'px-3 py-4 border-r border-border/40',
     renderContent: (s) => {
-      const sum = (s.sales_items || []).reduce((acc, i) => acc + (i.total || 0), 0);
-      return <span>{new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(sum)} VND</span>;
-    }
-  }
+      const meta = QUOTATION_STATUS_META[s.status || 'draft'] || QUOTATION_STATUS_META.draft;
+      return <span className={clsx('px-2 py-1 rounded-lg border text-[11px] font-bold', meta.className)}>{meta.label}</span>;
+    },
+  },
+  validity: {
+    label: 'Validity',
+    thClass: 'px-3 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-44 border-r border-border/40',
+    tdClass: 'px-3 py-4 border-r border-border/40 text-[12px] text-slate-700',
+    renderContent: (s) => {
+      if (s.validity_from || s.validity_to) {
+        return <span>{formatDate(s.validity_from)} → {formatDate(s.validity_to)}</span>;
+      }
+      return <span>{formatDate(s.due_date)}</span>;
+    },
+  },
+  notes: {
+    label: 'Notes',
+    thClass: 'px-3 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight min-w-[200px]',
+    tdClass: 'px-3 py-4 text-[12px] text-slate-700',
+    renderContent: (s) => <span className="line-clamp-2">{s.notes || s.shipments?.note || '—'}</span>,
+  },
 };
 const DEFAULT_COL_ORDER = Object.keys(COLUMN_DEFS);
 
@@ -76,13 +161,13 @@ const SalesPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'list' | 'stats'>('list');
   const [salesItems, setSalesItems] = useState<Sales[]>([]);
   const [selectedSalesItems, setSelectedSalesItems] = useState<string[]>([]);
-  const [shipments, setShipments] = useState<(Shipment & { value: string, label: string })[]>([]);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ type: 'single' | 'bulk'; id?: string }>({ type: 'single' });
   const [isDeleting, setIsDeleting] = useState(false);
+  const [prioritySavingId, setPrioritySavingId] = useState<string | null>(null);
 
   // Search & Filters
   const [searchText, setSearchText] = useState('');
@@ -97,12 +182,6 @@ const SalesPage: React.FC = () => {
   const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_COL_ORDER);
   const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_COL_ORDER);
 
-  // Dialog State
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isClosing, setIsClosing] = useState(false);
-  const [mode, setMode] = useState<'add' | 'edit' | 'detail'>('add');
-  const [formState, setFormState] = useState<SalesFormState>(INITIAL_FORM_STATE);
-
   useEffect(() => {
     if (!activeDropdown) return;
     const handleClickOutside = (event: MouseEvent) => {
@@ -116,7 +195,6 @@ const SalesPage: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-    fetchShipmentOptions();
     fetchSuppliers();
     fetchExchangeRates();
   }, []);
@@ -144,18 +222,6 @@ const SalesPage: React.FC = () => {
     }
   };
 
-  const fetchShipmentOptions = async () => {
-    try {
-      const data: any = await shipmentService.getShipments(1, 100);
-      const shipmentsData = Array.isArray(data) ? data : data.data || [];
-      setShipments(shipmentsData.map((s: any) => ({
-        ...s, value: s.id,
-        label: `${s.code || '#' + s.id.slice(0, 8)} - ${s.customers?.company_name || 'No Customer'}`
-      })));
-    } catch (err) {
-      console.error('Failed to fetch shipments:', err);
-    }
-  };
   const fetchSuppliers = async () => {
     try {
       const data = await supplierService.getSuppliers();
@@ -165,71 +231,32 @@ const SalesPage: React.FC = () => {
     }
   };
 
-  const setFormField = <K extends keyof SalesFormState>(key: K, value: SalesFormState[K]) => {
-    setFormState(prev => ({ ...prev, [key]: value }));
-  };
-
   const handleOpenAdd = () => {
-    setFormState(INITIAL_FORM_STATE);
-    setMode('add');
-    setIsDialogOpen(true);
-  };
-
-  const setFormStateFromItem = (item: Sales) => {
-    setFormState({
-      id: item.id,
-      shipment_id: item.shipment_id,
-      items: item.sales_items?.map(si => ({
-        id: si.id,
-        description: si.description,
-        rate: si.rate,
-        quantity: si.quantity,
-        unit: si.unit,
-        currency: si.currency,
-        exchange_rate: si.exchange_rate,
-        tax_percent: si.tax_percent,
-      })) || [],
-      relatedShipment: item.shipments,
-    });
+    navigate('/financials/sales/new');
   };
 
   const handleOpenEdit = (item: Sales) => {
-    setFormStateFromItem(item);
-    setMode('edit');
-    setIsDialogOpen(true);
+    navigate(`/financials/sales/${item.id}/edit`);
   };
 
   const handleOpenDetail = (item: Sales) => {
-    setFormStateFromItem(item);
-    setMode('detail');
-    setIsDialogOpen(true);
+    navigate(`/financials/sales/${item.id}`);
   };
 
-  const handleCloseDialog = () => {
-    setIsClosing(true);
-    setTimeout(() => {
-      setIsDialogOpen(false);
-      setIsClosing(false);
-    }, 350);
-  };
-
-  const handleSave = async () => {
+  const handlePriorityChange = async (item: Sales, rank: number) => {
+    const prev = item.priority_rank ?? 1;
+    if (rank === prev) return;
+    setPrioritySavingId(item.id);
     try {
-      if (!formState.shipment_id) {
-        toastError('Please select a shipment');
-        return;
-      }
-      if (mode === 'edit' && formState.id) {
-        await salesService.updateSalesItem(formState.id, formState);
-      } else if (mode === 'add') {
-        await salesService.createSalesItem(formState);
-      }
-      handleCloseDialog();
-      fetchData();
-      toastSuccess(mode === 'edit' ? 'Sales item updated successfully' : 'Sales item created successfully');
-    } catch (err: any) {
-      console.error('Failed to save sales item:', err);
-      toastError(err instanceof Error ? err.message : (err?.message || 'Failed to save sales item. Please check your data.'));
+      await salesService.updateSalesItem(item.id, { priority_rank: rank });
+      setSalesItems((list) =>
+        list.map((row) => (row.id === item.id ? { ...row, priority_rank: rank } : row)),
+      );
+      toastSuccess('Priority saved');
+    } catch (err: unknown) {
+      toastError(err instanceof Error ? err.message : 'Could not update priority');
+    } finally {
+      setPrioritySavingId(null);
     }
   };
 
@@ -275,7 +302,13 @@ const SalesPage: React.FC = () => {
       const matchesText =
         item.sales_items?.some(i => i.description?.toLowerCase().includes(search)) ||
         item.shipment_id?.toLowerCase().includes(search) ||
-        item.no_doc?.toLowerCase().includes(search);
+        item.no_doc?.toLowerCase().includes(search) ||
+        item.shipments?.customers?.company_name?.toLowerCase().includes(search) ||
+        item.shipments?.bill_no?.toLowerCase().includes(search) ||
+        item.shipments?.customs_declaration_no?.toLowerCase().includes(search) ||
+        item.goods?.toLowerCase().includes(search) ||
+        item.notes?.toLowerCase().includes(search) ||
+        item.status?.toLowerCase().includes(search);
       if (!matchesText) return false;
     }
 
@@ -706,8 +739,25 @@ const SalesPage: React.FC = () => {
                           className="rounded border-border"
                         />
                       </td>
-                      {columnOrder.filter(id => visibleColumns.includes(id)).map(key => (
-                        <td key={key} className={COLUMN_DEFS[key].tdClass}>{COLUMN_DEFS[key].renderContent(item)}</td>
+                      {columnOrder.filter(id => visibleColumns.includes(id)).map((key) => (
+                        <td key={key} className={COLUMN_DEFS[key].tdClass}>
+                          {key === 'priority' ? (
+                            <div
+                              className="flex justify-start"
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => e.stopPropagation()}
+                            >
+                              <ThreeStarRating
+                                variant="inline"
+                                value={item.priority_rank ?? 1}
+                                disabled={prioritySavingId === item.id}
+                                onChange={(rank) => void handlePriorityChange(item, rank)}
+                              />
+                            </div>
+                          ) : (
+                            COLUMN_DEFS[key].renderContent(item)
+                          )}
+                        </td>
                       ))}
                       <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
@@ -1082,20 +1132,6 @@ const SalesPage: React.FC = () => {
           </div>
         </div>
         , document.body)}
-
-      {/* ADD/EDIT DIALOG */}
-      <SalesDialog
-        isOpen={isDialogOpen}
-        isClosing={isClosing}
-        mode={mode}
-        onClose={handleCloseDialog}
-        formState={formState}
-        setFormField={setFormField}
-        shipmentOptions={shipments}
-        exchangeRates={exchangeRates}
-        onSave={handleSave}
-        onEdit={() => setMode('edit')}
-      />
 
       {/* CONFIRMATION DIALOG */}
       <ConfirmDialog
