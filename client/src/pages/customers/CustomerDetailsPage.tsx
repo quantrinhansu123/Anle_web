@@ -197,19 +197,23 @@ const CustomerDetailsPage: React.FC = () => {
     setInfoForm(prev => ({ ...prev, [key]: value }));
   };
 
-  /** Persist a status change to the backend immediately (without needing edit mode). */
+  /** Persist a status change to the backend immediately (without needing edit mode).
+   *  Uses optimistic UI: updates the displayed status before awaiting the API, then reverts on failure. */
   const applyCustomerStatus = useCallback(async (next: CustomerStatus) => {
     if (!customer) return;
     const prev = normalizeStatus(customer.status);
     if (prev === next) return;
+    // Optimistic: update UI immediately
+    setCustomer(c => c ? { ...c, status: next } : c);
     try {
       setStatusSaving(true);
       await customerService.updateCustomer(customer.id, { status: next });
-      setCustomer(c => c ? { ...c, status: next } : c);
       const prevLabel = CUSTOMER_STATUS_STEPS.find(s => s.id === prev)?.label || prev;
       const nextLabel = CUSTOMER_STATUS_STEPS.find(s => s.id === next)?.label || next;
       toastSuccess(`Customer status changed from "${prevLabel}" to "${nextLabel}"`);
     } catch (err: unknown) {
+      // Revert on failure
+      setCustomer(c => c ? { ...c, status: prev } : c);
       toastError(getErrorMessage(err, 'Failed to update status'));
     } finally {
       setStatusSaving(false);

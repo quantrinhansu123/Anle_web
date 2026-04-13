@@ -697,14 +697,17 @@ const JobEditorPage: React.FC = () => {
     }
     const prev = workflow_status;
     if (prev === next) return;
+    // Optimistic: update UI immediately
+    setWorkflowStatus(next);
     setWorkflowSaving(true);
     try {
-      const job = await jobService.patchWorkflow(jobId, next);
-      setWorkflowStatus(job.workflow_status);
+      await jobService.patchWorkflow(jobId, next);
       const prevLabel = JOB_WORKFLOW_STEPS.find(s => s.id === prev)?.label || prev;
       const nextLabel = JOB_WORKFLOW_STEPS.find(s => s.id === next)?.label || next;
       toastOk(`Job status changed from "${prevLabel}" to "${nextLabel}"`);
     } catch (e: unknown) {
+      // Revert on failure
+      setWorkflowStatus(prev);
       toastErr(e instanceof Error ? e.message : 'Update failed');
     } finally {
       setWorkflowSaving(false);
