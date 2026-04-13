@@ -9,7 +9,7 @@ export interface ActionCardProps {
   title: string;
   description: string;
   href: string;
-  colorScheme: 'red' | 'green' | 'pink' | 'blue' | 'orange' | 'teal' | 'purple' | 'cyan' | 'emerald' | 'amber';
+  colorScheme: 'red' | 'green' | 'pink' | 'blue' | 'orange' | 'teal' | 'purple' | 'cyan' | 'emerald' | 'amber' | 'slate' | 'indigo';
 }
 
 const colorMap = {
@@ -24,6 +24,7 @@ const colorMap = {
   emerald: 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-md shadow-emerald-500/20',
   amber: 'bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-md shadow-amber-500/20',
   slate: 'bg-gradient-to-br from-slate-600 to-slate-700 text-white shadow-md shadow-slate-600/20',
+  indigo: 'bg-gradient-to-br from-indigo-500 to-indigo-700 text-white shadow-md shadow-indigo-500/20',
 };
 
 export const ActionCard: React.FC<ActionCardProps> = ({

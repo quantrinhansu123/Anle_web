@@ -280,8 +280,6 @@ const CustomerDetailsPage: React.FC = () => {
   const nextStep = CUSTOMER_STATUS_STEPS[activeIndex + 1];
   const isNew = customerStatus === 'new';
 
-  const workflowPrimary =
-    'inline-flex items-center justify-center min-h-9 px-4 py-2 rounded-lg bg-primary text-white text-[11px] font-bold uppercase tracking-wide shadow-sm shadow-primary/15 hover:bg-primary/90 transition-colors disabled:opacity-45 disabled:pointer-events-none';
   const workflowOutline =
     'inline-flex items-center justify-center min-h-9 px-4 py-2 rounded-lg border border-border bg-white text-slate-700 text-[11px] font-bold uppercase tracking-wide shadow-sm hover:bg-slate-50 transition-colors disabled:opacity-45 disabled:pointer-events-none';
   const workflowLink =

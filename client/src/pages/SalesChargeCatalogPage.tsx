@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   Plus, Search, Star, Loader2, Trash2, Edit, X, Check,
   ChevronLeft, ChevronRight, Filter, LayoutGrid, List,
-  FolderOpen, Heart
+  FolderOpen
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import {
@@ -651,11 +651,11 @@ const SalesChargeCatalogPage: React.FC = () => {
         isOpen={confirmDeleteOpen}
         title="Delete Charge"
         message="Are you sure you want to delete this charge? This action cannot be undone."
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
+        confirmText="Delete"
+        cancelText="Cancel"
         onConfirm={handleDelete}
-        onCancel={() => { setConfirmDeleteOpen(false); setDeletingId(null); }}
-        isLoading={isDeleting}
+        onClose={() => { setConfirmDeleteOpen(false); setDeletingId(null); }}
+        isProcessing={isDeleting}
       />
     </div>
   );
