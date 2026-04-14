@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { clsx } from 'clsx';
 import {
@@ -9,6 +9,7 @@ import {
   Trash2,
   XCircle,
   CreditCard,
+  ListPlus,
   Receipt,
 } from 'lucide-react';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
@@ -16,6 +17,11 @@ import { WorkflowStepper } from '../../components/ui/WorkflowStepper';
 import { useToastContext } from '../../contexts/ToastContext';
 import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 import { jobService } from '../../services/jobService';
+import { salesService } from '../../services/salesService';
+import { buildDnLineSeedsFromSales } from './mapQuotationToDebitNoteLines';
+import { fmsJobDebitNoteService } from '../../services/fmsJobDebitNoteService';
+import { fmsJobInvoiceService } from '../../services/fmsJobInvoiceService';
+import type { FmsJobDebitNoteLineDto } from '../../services/fmsJobDebitNoteService';
 import { FieldLabel, inputClass } from './tabs/blSharedHelpers';
 
 /* ------------------------------------------------------------------ */
@@ -40,6 +46,26 @@ interface ServiceLine {
   local_amount: number;
   vat_foreign: number;
   vat_local: number;
+}
+
+interface InvoiceDraftPayload {
+  fromDebitNoteId?: string;
+  fromDebitNoteNo: string;
+  customer: string;
+  description: string;
+  invoiceDate: string;
+  dueDate: string;
+  exchangeRate: string;
+  journal: string;
+  lines: Array<{
+    product: string;
+    description: string;
+    account: string;
+    quantity: number;
+    unit: string;
+    price: number;
+    tax: string;
+  }>;
 }
 
 const CURRENCIES = [
@@ -87,6 +113,52 @@ const emptyLine = (): ServiceLine => ({
   vat_foreign: 0,
   vat_local: 0,
 });
+
+function enrichLine(l: Partial<ServiceLine> & { id: string }): ServiceLine {
+  const qty = Number(l.qty ?? 1);
+  const rate = Number(l.rate ?? 0);
+  const exchange_rate = Number(l.exchange_rate ?? 1);
+  const tax = l.tax ?? '';
+  const taxRate =
+    tax === 'vat_10' ? 0.1 : tax === 'vat_8' ? 0.08 : tax === 'vat_added' ? 0.1 : 0;
+  const amtForeign = qty * rate;
+  const localAmt = amtForeign * exchange_rate;
+  const vatForeign = amtForeign * taxRate;
+  const vatLocal = localAmt * taxRate;
+  return {
+    id: l.id,
+    service_code: l.service_code ?? '',
+    fare: l.fare ?? '',
+    fare_type: l.fare_type ?? '',
+    fare_name: l.fare_name ?? '',
+    tax,
+    currency: l.currency ?? 'VND',
+    exchange_rate,
+    unit: l.unit ?? '',
+    qty,
+    rate,
+    amount_foreign: amtForeign,
+    local_amount: localAmt,
+    vat_foreign: vatForeign,
+    vat_local: vatLocal,
+  };
+}
+
+function linesToDto(lines: ServiceLine[]): FmsJobDebitNoteLineDto[] {
+  return lines.map((line, idx) => ({
+    sort_order: idx,
+    service_code: line.service_code || null,
+    fare: line.fare || null,
+    fare_type: line.fare_type || null,
+    fare_name: line.fare_name || null,
+    tax: line.tax || null,
+    currency: line.currency || null,
+    exchange_rate: line.exchange_rate,
+    unit: line.unit || null,
+    qty: line.qty,
+    rate: line.rate,
+  }));
+}
 
 /* ------------------------------------------------------------------ */
 /*  Stat card                                                          */
@@ -143,7 +215,7 @@ const fmtCurrency = (n: number, curr: string) => `${fmtNumber(n)} ${curr === 'VN
 const DebitNotePage: React.FC = () => {
   const navigate = useNavigate();
   const { id: jobId, dnId } = useParams<{ id: string; dnId?: string }>();
-  const { success: toastOk } = useToastContext();
+  const { success: toastOk, error: toastErr } = useToastContext();
   const { setCustomBreadcrumbs } = useBreadcrumb();
 
   /* DN fields */
@@ -233,9 +305,168 @@ const DebitNotePage: React.FC = () => {
 
   /* Payment */
   const [paidAmount, _setPaidAmount] = useState(0);
+  const [invoiceCount, setInvoiceCount] = useState(0);
+  const [paymentCount, setPaymentCount] = useState(0);
 
   /* Labels from job */
   const [masterJobLabel, setMasterJobLabel] = useState('');
+  const [quotationIdFromJob, setQuotationIdFromJob] = useState<string | null>(null);
+  const [importingQuotationLines, setImportingQuotationLines] = useState(false);
+
+  const buildDnPayload = useCallback((): Record<string, unknown> => {
+    return {
+      customer,
+      customer_display: customerDisplay,
+      shipper,
+      consignee,
+      salesman,
+      salesman_team: salesmanTeam,
+      sales_department: salesDepartment,
+      job_no: jobNo,
+      master_bl: masterBl,
+      house_bl: houseBl,
+      reference_no: referenceNo,
+      created_by: createdBy,
+      created_on: createdOn,
+      billing_date: billingDate,
+      due_date: dueDate,
+      exchange_rate: exchangeRate,
+      exchange_currency: exchangeCurrency,
+      remark,
+      bank,
+    };
+  }, [
+    bank,
+    billingDate,
+    consignee,
+    createdBy,
+    createdOn,
+    customer,
+    customerDisplay,
+    dueDate,
+    exchangeCurrency,
+    exchangeRate,
+    houseBl,
+    jobNo,
+    masterBl,
+    referenceNo,
+    remark,
+    salesDepartment,
+    salesman,
+    salesmanTeam,
+    shipper,
+  ]);
+
+  const persistSnapshot = useMemo(
+    () =>
+      JSON.stringify({
+        dnNo,
+        status,
+        payload: buildDnPayload(),
+        lines,
+      }),
+    [buildDnPayload, dnNo, lines, status],
+  );
+
+  const dnHydratedRef = useRef(false);
+  const omitDnAutosaveRef = useRef(true);
+  const [dnAutosaveEpoch, setDnAutosaveEpoch] = useState(0);
+
+  /* Load existing FMS debit note */
+  useEffect(() => {
+    if (!jobId || !dnId) {
+      dnHydratedRef.current = false;
+      return;
+    }
+    omitDnAutosaveRef.current = true;
+    dnHydratedRef.current = false;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const dn = await fmsJobDebitNoteService.get(jobId, dnId);
+        if (cancelled) return;
+        setDnNo(dn.no_doc);
+        setStatus((dn.status as DNStatus) || 'draft');
+        const p = (dn.payload || {}) as Record<string, unknown>;
+        if (typeof p.customer === 'string') setCustomer(p.customer);
+        if (typeof p.customer_display === 'string') setCustomerDisplay(p.customer_display);
+        else if (typeof p.customerDisplay === 'string') setCustomerDisplay(p.customerDisplay);
+        if (typeof p.shipper === 'string') setShipper(p.shipper);
+        if (typeof p.consignee === 'string') setConsignee(p.consignee);
+        if (typeof p.salesman === 'string') setSalesman(p.salesman);
+        if (typeof p.salesman_team === 'string') setSalesmanTeam(p.salesman_team);
+        if (typeof p.salesmanTeam === 'string') setSalesmanTeam(p.salesmanTeam);
+        if (typeof p.sales_department === 'string') setSalesDepartment(p.sales_department);
+        if (typeof p.job_no === 'string') setJobNo(p.job_no);
+        if (typeof p.master_bl === 'string') setMasterBl(p.master_bl);
+        if (typeof p.house_bl === 'string') setHouseBl(p.house_bl);
+        if (typeof p.reference_no === 'string') setReferenceNo(p.reference_no);
+        if (typeof p.created_by === 'string') setCreatedBy(p.created_by);
+        if (typeof p.created_on === 'string') setCreatedOn(p.created_on);
+        if (typeof p.billing_date === 'string') setBillingDate(p.billing_date);
+        if (typeof p.due_date === 'string') setDueDate(p.due_date);
+        if (typeof p.exchange_rate === 'string') setExchangeRate(p.exchange_rate);
+        if (typeof p.exchange_currency === 'string') setExchangeCurrency(p.exchange_currency);
+        if (typeof p.remark === 'string') setRemark(p.remark);
+        if (typeof p.bank === 'string') setBank(p.bank);
+
+        if (dn.lines && dn.lines.length > 0) {
+          const sorted = [...dn.lines].sort(
+            (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+          );
+          setLines(
+            sorted.map((row) =>
+              enrichLine({
+                id: row.id,
+                service_code: row.service_code ?? undefined,
+                fare: row.fare ?? undefined,
+                fare_type: row.fare_type ?? undefined,
+                fare_name: row.fare_name ?? undefined,
+                tax: row.tax ?? undefined,
+                currency: row.currency ?? undefined,
+                exchange_rate: row.exchange_rate ?? undefined,
+                unit: row.unit ?? undefined,
+                qty: row.qty ?? undefined,
+                rate: row.rate ?? undefined,
+              }),
+            ),
+          );
+        }
+        dnHydratedRef.current = true;
+        window.setTimeout(() => {
+          omitDnAutosaveRef.current = false;
+          setDnAutosaveEpoch((n) => n + 1);
+        }, 600);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'Failed to load debit note';
+        toastErr(msg);
+        dnHydratedRef.current = true;
+        omitDnAutosaveRef.current = false;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dnId, jobId, toastErr]);
+
+  /* Debounced autosave for persisted debit notes */
+  useEffect(() => {
+    if (!jobId || !dnId || !dnHydratedRef.current || omitDnAutosaveRef.current) return;
+    const t = window.setTimeout(() => {
+      void fmsJobDebitNoteService
+        .update(jobId, dnId, {
+          no_doc: dnNo,
+          status,
+          payload: buildDnPayload(),
+          lines: linesToDto(lines),
+        })
+        .catch((e: unknown) => {
+          const msg = e instanceof Error ? e.message : 'Autosave failed';
+          toastErr(msg);
+        });
+    }, 1200);
+    return () => window.clearTimeout(t);
+  }, [buildDnPayload, dnAutosaveEpoch, dnId, jobId, persistSnapshot, toastErr]);
 
   /* Fetch job data */
   useEffect(() => {
@@ -265,11 +496,57 @@ const DebitNotePage: React.FC = () => {
             : '',
         );
         setMasterBl(job.master_bl_number || '');
+        setQuotationIdFromJob(job.quotation_id || null);
       } catch {
         /* ignore */
       }
     })();
   }, [jobId]);
+
+  const handleImportLinesFromQuotation = useCallback(async () => {
+    if (!quotationIdFromJob) return;
+    setImportingQuotationLines(true);
+    try {
+      const sales = await salesService.getSalesItemById(quotationIdFromJob);
+      const seeds = buildDnLineSeedsFromSales(sales);
+      if (seeds.length === 0) {
+        toastErr('This quotation has no charge or service lines to import.');
+        return;
+      }
+      setLines(seeds.map((s) => enrichLine({ id: nextLineId(), ...s })));
+      toastOk(`Imported ${seeds.length} line(s) from quotation.`);
+    } catch (e: unknown) {
+      toastErr(e instanceof Error ? e.message : 'Failed to load quotation');
+    } finally {
+      setImportingQuotationLines(false);
+    }
+  }, [quotationIdFromJob, toastErr, toastOk]);
+
+  /* Stat cards: invoices and payments linked to this debit note */
+  useEffect(() => {
+    if (!jobId || !dnId) {
+      setInvoiceCount(0);
+      setPaymentCount(0);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const invoices = await fmsJobInvoiceService.list(jobId);
+        if (cancelled) return;
+        const linked = invoices.filter((inv) => inv.debit_note_id === dnId);
+        setInvoiceCount(linked.length);
+        setPaymentCount(linked.filter((inv) => inv.payment_status !== 'unpaid').length);
+      } catch {
+        if (cancelled) return;
+        setInvoiceCount(0);
+        setPaymentCount(0);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId, dnId, status]);
 
   /* Generate DN number */
   useEffect(() => {
@@ -294,14 +571,16 @@ const DebitNotePage: React.FC = () => {
         label: 'Sea House B/L',
       },
       {
-        path: `/shipping/jobs/${jobId || 'new'}/sea-house-bl/debit-note`,
+        path: dnId
+          ? `/shipping/jobs/${jobId || 'new'}/sea-house-bl/debit-note/${dnId}`
+          : `/shipping/jobs/${jobId || 'new'}/sea-house-bl/debit-note`,
         label: dnNo || 'Debit Note',
       },
     ]);
     return () => {
       setCustomBreadcrumbs(null);
     };
-  }, [jobId, masterJobLabel, dnNo, setCustomBreadcrumbs]);
+  }, [dnId, jobId, masterJobLabel, dnNo, setCustomBreadcrumbs]);
 
   /* Line helpers */
   const updateLine = (id: string, patch: Partial<ServiceLine>) => {
@@ -345,10 +624,102 @@ const DebitNotePage: React.FC = () => {
   /* Table horizontal scroll ref */
   const tableWrapRef = useRef<HTMLDivElement>(null);
 
+  const taxLabelForInvoice = (tax: string) => {
+    if (tax === 'vat_10' || tax === 'vat_added') return 'VAT 10%';
+    if (tax === 'vat_8') return 'VAT 8%';
+    if (tax === 'exempt') return 'Exempt';
+    return 'None';
+  };
+
+  const [invoiceSubmitting, setInvoiceSubmitting] = useState(false);
+
+  const handleCreateInvoice = async () => {
+    if (!jobId) {
+      toastErr('Missing job');
+      return;
+    }
+    const params = new URLSearchParams();
+    params.set('jobId', jobId);
+    if (jobNo) params.set('jobNo', jobNo);
+    if (dnNo) params.set('dnNo', dnNo);
+
+    const invoiceLines = lines.map((line) => ({
+      product: line.service_code,
+      description: line.fare_name || line.fare,
+      account: '5113 Service Revenue',
+      quantity: Number(line.qty || 0),
+      unit: line.unit,
+      price: Number(line.rate || 0),
+      tax: taxLabelForInvoice(line.tax),
+    }));
+
+    const invoiceDraft: InvoiceDraftPayload = {
+      fromDebitNoteId: dnId,
+      fromDebitNoteNo: dnNo,
+      customer: customerDisplay || customer,
+      description: remark,
+      invoiceDate: billingDate,
+      dueDate,
+      exchangeRate,
+      journal: 'Customer Invoices',
+      lines: invoiceLines,
+    };
+
+    setInvoiceSubmitting(true);
+    try {
+      const lineDtos = linesToDto(lines);
+      let realDnId = dnId;
+      if (!realDnId) {
+        const created = await fmsJobDebitNoteService.create(jobId, {
+          no_doc: dnNo || `DN-${Date.now().toString(36)}`,
+          status,
+          payload: buildDnPayload(),
+          lines: lineDtos,
+        });
+        realDnId = created.id;
+      } else {
+        await fmsJobDebitNoteService.update(jobId, realDnId, {
+          no_doc: dnNo,
+          status,
+          payload: buildDnPayload(),
+          lines: lineDtos,
+        });
+      }
+
+      const inv = await fmsJobInvoiceService.create(jobId, {
+        debit_note_id: realDnId,
+        number_series: 'INV',
+        status: 'draft',
+        grand_total: totalAmount,
+        lines: invoiceLines,
+        payload: {
+          customer: customerDisplay || customer,
+          description: remark,
+          invoice_date: billingDate,
+          due_date: dueDate,
+          exchange_rate: exchangeRate,
+          journal: 'Customer Invoices',
+        },
+      });
+
+      params.set('invoiceId', inv.id);
+      params.set('dnId', realDnId);
+
+      navigate(`/financials/invoicing${params.toString() ? `?${params.toString()}` : ''}`, {
+        state: { invoiceDraft },
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Could not create invoice';
+      toastErr(msg);
+    } finally {
+      setInvoiceSubmitting(false);
+    }
+  };
+
   return (
     <div className="animate-in fade-in duration-300 mx-auto flex w-full flex-col gap-4 px-0 pb-24 sm:px-1 md:pb-6">
       {/* ── Top bar ──────────────────────────────────────────────── */}
-      <div className="overflow-visible rounded-2xl border border-border bg-white shadow-sm shadow-slate-200/40">
+      <div className="relative overflow-visible rounded-2xl border border-border bg-white shadow-sm shadow-slate-200/40">
         <div className="flex flex-col gap-4 rounded-2xl bg-gradient-to-br from-white via-white to-slate-50/40 px-5 py-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6 lg:px-6">
           {/* Left: back + DN No */}
           <div className="flex items-center gap-3">
@@ -377,6 +748,28 @@ const DebitNotePage: React.FC = () => {
 
           {/* Right: Status stepper */}
           <div className="flex items-center gap-4 overflow-x-auto lg:shrink-0">
+            {quotationIdFromJob && jobId && !dnId ? (
+              <button
+                type="button"
+                onClick={() => void handleImportLinesFromQuotation()}
+                disabled={importingQuotationLines}
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-white px-4 text-[11px] font-bold uppercase tracking-wide text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-60"
+              >
+                <ListPlus size={14} />
+                {importingQuotationLines ? 'Loading…' : 'Import from quotation'}
+              </button>
+            ) : null}
+            {status === 'sent' && (
+              <button
+                type="button"
+                onClick={() => void handleCreateInvoice()}
+                disabled={invoiceSubmitting}
+                className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-[11px] font-bold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-60"
+              >
+                <Receipt size={14} />
+                {invoiceSubmitting ? 'Working…' : 'Create Invoice'}
+              </button>
+            )}
             <WorkflowStepper
               steps={[
                 { id: 'draft', label: 'Draft', icon: FileText },
@@ -403,26 +796,30 @@ const DebitNotePage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── Stat cards ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-2 xl:grid-cols-2">
-        <StatCard
-          icon={FileText}
-          label="Invoices"
-          value={0}
-          color="bg-blue-100 text-blue-600"
-        />
-        <StatCard
-          icon={CreditCard}
-          label="Payments"
-          value={0}
-          color="bg-emerald-100 text-emerald-600"
-        />
-      </div>
+      <div className="relative overflow-hidden rounded-2xl">
+        {status === 'invoiced' && (
+          <div className="pointer-events-none absolute right-[-58px] top-8 z-20 rotate-45 bg-emerald-500 px-20 py-2 text-[14px] font-black uppercase tracking-widest text-white shadow-lg">
+            PAID
+          </div>
+        )}
+        {/* ── Stat cards ───────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-2 xl:grid-cols-2">
+          <StatCard
+            icon={FileText}
+            label="Invoices"
+            value={invoiceCount}
+            color="bg-blue-100 text-blue-600"
+          />
+          <StatCard
+            icon={CreditCard}
+            label="Payments"
+            value={paymentCount}
+            color="bg-emerald-100 text-emerald-600"
+          />
+        </div>
 
-
-
-      {/* ── Party + Internal info ────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* ── Party + Internal info ────────────────────────────────── */}
+        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Party Information */}
         <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
           <div className="shrink-0 border-b border-border bg-slate-50/80 px-5 py-3">
@@ -559,6 +956,7 @@ const DebitNotePage: React.FC = () => {
               />
             </div>
           </div>
+        </div>
         </div>
       </div>
 

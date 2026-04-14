@@ -3,7 +3,7 @@
  * Adapted for react-day-picker v9, lucide-react icons, and this project's paths.
  */
 import React, { type FC, useState, useEffect, useRef } from 'react';
-import { Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp } from 'lucide-react';
 import { Button } from './button';
 import { Popover, PopoverContent, PopoverTrigger } from './popover';
 import { Calendar } from './calendar';
@@ -26,6 +26,8 @@ export interface DateRangePickerProps {
   align?: 'start' | 'center' | 'end';
   locale?: string;
   showCompare?: boolean;
+  /** Match ShipmentPage secondary filter pill (icon + label + chevron). */
+  triggerVariant?: 'default' | 'filterChip';
 }
 
 /** dd/MM/yyyy for trigger and compare line (fixed format). */
@@ -92,6 +94,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
   align = 'end',
   locale = 'en-US',
   showCompare = true,
+  triggerVariant = 'default',
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -396,24 +399,62 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
       }}
     >
       <PopoverTrigger asChild>
-        <Button size="lg" variant="outline" type="button" className="min-w-[200px] justify-between">
-          <div className="text-left">
-            <div className="py-1 text-[13px] font-semibold">
+        {triggerVariant === 'filterChip' ? (
+          <button
+            type="button"
+            className={cn(
+              'inline-flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all text-[12px] font-bold shadow-sm min-w-0 max-w-full',
+              isOpen
+                ? 'bg-primary/5 border-primary text-primary'
+                : 'bg-white border-border hover:bg-muted text-muted-foreground',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2',
+            )}
+          >
+            <CalendarDays
+              size={14}
+              className={cn('shrink-0', isOpen ? 'text-primary' : 'text-muted-foreground/50')}
+            />
+            <span className="truncate">
               {`${formatDateDMY(range.from)}${
                 range.to != null ? ` – ${formatDateDMY(range.to)}` : ''
               }`}
-            </div>
-            {rangeCompare != null && (
-              <div className="opacity-60 text-[11px] -mt-0.5">
-                vs. {formatDateDMY(rangeCompare.from)}
+            </span>
+            {rangeCompare != null && showCompare ? (
+              <span className="sr-only">
+                Compare {formatDateDMY(rangeCompare.from)}
                 {rangeCompare.to != null ? ` – ${formatDateDMY(rangeCompare.to)}` : ''}
+              </span>
+            ) : null}
+            <ChevronRight
+              size={14}
+              className={cn('ml-1 shrink-0 opacity-40 transition-transform', isOpen ? '-rotate-90' : 'rotate-90')}
+            />
+          </button>
+        ) : (
+          <Button
+            size="default"
+            variant="outline"
+            type="button"
+            className="h-10 min-h-10 min-w-[200px] justify-between rounded-full border-border/80 bg-muted/25 px-4 text-[13px] font-bold shadow-sm hover:bg-muted/40"
+          >
+            <div className="text-left min-w-0">
+              <div className="truncate text-[13px] font-bold leading-tight">
+                {`${formatDateDMY(range.from)}${
+                  range.to != null ? ` – ${formatDateDMY(range.to)}` : ''
+                }`}
               </div>
-            )}
-          </div>
-          <div className="pl-1 opacity-60 -mr-1">
-            {isOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-          </div>
-        </Button>
+              {rangeCompare != null && (
+                <div className="opacity-60 text-[11px] -mt-0.5">
+                  vs. {formatDateDMY(rangeCompare.from)}
+                  {rangeCompare.to != null ? ` – ${formatDateDMY(rangeCompare.to)}` : ''}
+                </div>
+              )}
+            </div>
+            <div className="pl-1 opacity-60 -mr-1">
+              {isOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+            </div>
+          </Button>
+        )}
       </PopoverTrigger>
       <PopoverContent
         align={align}

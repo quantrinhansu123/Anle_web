@@ -200,4 +200,35 @@ export class JobService {
     const { error } = await supabase.from('fms_jobs').delete().eq('id', id);
     if (error) throw error;
   }
+
+  async getSeaHouseBl(jobId: string): Promise<Record<string, unknown>> {
+    const job = await this.findById(jobId);
+    if (!job) throw new AppError('Job not found', 404);
+    const sd = (job.service_details ?? {}) as Record<string, unknown>;
+    const blob = sd.sea_house_bl;
+    if (blob && typeof blob === 'object' && !Array.isArray(blob)) {
+      return blob as Record<string, unknown>;
+    }
+    return {};
+  }
+
+  async patchSeaHouseBl(jobId: string, patch: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const job = await this.findById(jobId);
+    if (!job) throw new AppError('Job not found', 404);
+
+    const sd = { ...((job.service_details ?? {}) as Record<string, unknown>) };
+    const cur =
+      sd.sea_house_bl && typeof sd.sea_house_bl === 'object' && !Array.isArray(sd.sea_house_bl)
+        ? ({ ...(sd.sea_house_bl as Record<string, unknown>) } as Record<string, unknown>)
+        : {};
+    sd.sea_house_bl = { ...cur, ...patch };
+
+    const { error } = await supabase
+      .from('fms_jobs')
+      .update({ service_details: sd, updated_at: new Date().toISOString() })
+      .eq('id', jobId);
+
+    if (error) throw error;
+    return this.getSeaHouseBl(jobId);
+  }
 }

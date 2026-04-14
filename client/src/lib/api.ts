@@ -77,3 +77,66 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
 
   return result.data;
 }
+
+export type ApiPagination = {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+};
+
+/** For endpoints that respond with `{ success, data: T[], pagination }` (see `paginatedResponse` on the server). */
+export async function apiFetchPaginated<TItem>(
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<{ items: TItem[]; pagination: ApiPagination }> {
+  const url = `${BASE_URL}${endpoint}`;
+
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+  };
+
+  const token = localStorage.getItem('token');
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  if (!(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  const response = await fetch(url, {
+    ...options,
+    headers,
+  });
+
+  let result: any;
+  try {
+    result = await response.json();
+  } catch (e: any) {
+    result = { message: `Failed to parse response body: ${e.message}` };
+  }
+
+  if (!response.ok) {
+    let errorMessage = result.error?.message || result.message || 'API request failed';
+    if (result.errors && typeof result.errors === 'object') {
+      const fieldErrors = Object.entries(result.errors)
+        .map(([field, msgs]) => {
+          let fieldName = field.replace(/_/g, ' ');
+          fieldName = fieldName.charAt(0).toUpperCase() + fieldName.slice(1);
+          const msgStr = Array.isArray(msgs) ? msgs.join(', ') : String(msgs);
+          return `${fieldName}: ${msgStr}`;
+        })
+        .join(' • ');
+      if (fieldErrors) errorMessage = `Validation failed: ${fieldErrors}`;
+    }
+    throw new Error(errorMessage);
+  }
+
+  const pagination = result.pagination as ApiPagination | undefined;
+  if (!pagination || typeof pagination.total !== 'number') {
+    throw new Error('Invalid paginated API response');
+  }
+
+  return { items: (Array.isArray(result.data) ? result.data : []) as TItem[], pagination };
+}

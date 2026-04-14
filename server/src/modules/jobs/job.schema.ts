@@ -55,3 +55,6 @@ export const updateFmsJobSchema = jobBodySchema;
 export const patchJobWorkflowSchema = z.object({
   workflow_status: workflowEnum,
 });
+
+/** Sea House B/L blob merged into `fms_jobs.service_details.sea_house_bl`. */
+export const seaHouseBlPatchSchema = z.record(z.string(), z.any());

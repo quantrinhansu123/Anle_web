@@ -726,7 +726,24 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
         formState.relatedShipment || shipmentOptions.find((s) => s.value === formState.shipment_id);
       const payload = await buildJobCreatePayloadFromQuotation({ ...formState, relatedShipment: ship });
       const created = await jobService.createJob(payload);
-      toastSuccess('Job created from quotation');
+
+      try {
+        await salesService.updateSalesItem(formState.id, { status: 'converted' });
+        setFormField('status', 'converted');
+        onPersistedStatusChange?.('converted');
+      } catch (statusErr: unknown) {
+        const sm =
+          statusErr && typeof statusErr === 'object' && 'message' in statusErr
+            ? String((statusErr as { message?: unknown }).message ?? '')
+            : '';
+        toastError(
+          sm
+            ? `${sm} Job ${created.master_job_no} was created; set quotation to Converted manually if needed.`
+            : `Job ${created.master_job_no} was created, but the quotation could not be marked Converted.`,
+        );
+      }
+
+      toastSuccess(`Job ${created.master_job_no} created from quotation`);
       navigate(`/shipping/jobs/${created.id}/edit`, {
         state: {
           jobCreatedFromQuotation: true,
@@ -747,7 +764,15 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
     } finally {
       setCreatingJob(false);
     }
-  }, [formState, shipmentOptions, navigate, toastSuccess, toastError]);
+  }, [
+    formState,
+    onPersistedStatusChange,
+    shipmentOptions,
+    navigate,
+    setFormField,
+    toastSuccess,
+    toastError,
+  ]);
   const selectedShipment = formState.relatedShipment || shipmentOptions.find((s) => s.value === formState.shipment_id);
   const salesPersonOptions = employees.map((employee) => ({
     value: employee.id,

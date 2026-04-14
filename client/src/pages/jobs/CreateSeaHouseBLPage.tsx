@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { clsx } from 'clsx';
 import {
   Anchor,
   ChevronDown,
   ChevronLeft,
+  Pencil,
   DollarSign,
   FileText,
   Printer,
@@ -14,8 +15,19 @@ import {
 } from 'lucide-react';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { useToastContext } from '../../contexts/ToastContext';
+import {
+  buildSeaHouseBlBlobV1,
+  parseSeaHouseBlV1,
+} from './seaHouseBlPersistence';
 import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 import { jobService } from '../../services/jobService';
+import { salesService } from '../../services/salesService';
+import { fmsJobDebitNoteService } from '../../services/fmsJobDebitNoteService';
+import { fmsJobPaymentNoteService } from '../../services/fmsJobPaymentNoteService';
+import {
+  buildSeaHousePrefillFromSales,
+  seaHouseBlBlobHasContent,
+} from './mapQuotationToSeaHousePrefill';
 import UploadBOLDialog from './dialogs/UploadBOLDialog';
 import { HeaderTab, emptyHeaderState } from './tabs/HeaderTab';
 import type { HeaderTabState } from './tabs/HeaderTab';
@@ -151,7 +163,10 @@ function PlaceholderTab({ label }: { label: string }) {
 const CreateSeaHouseBLPage: React.FC = () => {
   const navigate = useNavigate();
   const { id: jobId } = useParams<{ id: string }>();
-  const { success: toastOk } = useToastContext();
+  const [searchParams] = useSearchParams();
+  const isViewMode = searchParams.get('mode') === 'view';
+  const fromHouseSeaBlList = searchParams.get('from') === 'house-sea-bl';
+  const { success: toastOk, error: toastErr } = useToastContext();
   const { setCustomBreadcrumbs } = useBreadcrumb();
 
   const [activeTab, setActiveTab] = useState<HBLTab>('header');
@@ -200,6 +215,11 @@ const CreateSeaHouseBLPage: React.FC = () => {
   const [incoterm, setIncoterm] = useState('');
   const [serviceTerm, setServiceTerm] = useState('');
   const [masterJobLabel, setMasterJobLabel] = useState('');
+  const [quotationLink, setQuotationLink] = useState<{ id: string; label: string } | null>(null);
+  const [debitNoteCount, setDebitNoteCount] = useState(0);
+  const [paymentNoteCount, setPaymentNoteCount] = useState(0);
+  const skipBlAutosaveRef = useRef(true);
+  const [blHydrateEpoch, setBlHydrateEpoch] = useState(0);
 
   /* Header tab state */
   const [headerState, setHeaderState] = useState<HeaderTabState>(emptyHeaderState);
@@ -221,41 +241,250 @@ const CreateSeaHouseBLPage: React.FC = () => {
   const patchFreight = (patch: Partial<FreightTabState>) =>
     setFreightState((prev) => ({ ...prev, ...patch }));
 
-  /* Auto-fetch job to populate Job No. */
+  const seaHousePersistKey = useMemo(
+    () =>
+      JSON.stringify({
+        hbl,
+        blType,
+        blReleaseStatus,
+        bound,
+        masterBl,
+        shipment,
+        switchBl,
+        loadType,
+        jobNo,
+        incoterm,
+        serviceTerm,
+        headerState,
+        containerState,
+        marksState,
+        freightState,
+      }),
+    [
+      hbl,
+      blType,
+      blReleaseStatus,
+      bound,
+      masterBl,
+      shipment,
+      switchBl,
+      loadType,
+      jobNo,
+      incoterm,
+      serviceTerm,
+      headerState,
+      containerState,
+      marksState,
+      freightState,
+    ],
+  );
+
+  /* Load job + saved Sea House B/L, or prefill from quotation when blob empty */
   useEffect(() => {
     if (!jobId) return;
+    skipBlAutosaveRef.current = true;
+    setHbl('');
+    setBlType('');
+    setBlReleaseStatus('');
+    setBound('');
+    setMasterBl('');
+    setShipment('');
+    setSwitchBl('');
+    setLoadType('');
+    setJobNo('');
+    setIncoterm('');
+    setServiceTerm('');
+    setMasterJobLabel('');
+    setQuotationLink(null);
+    setHeaderState(emptyHeaderState());
+    setContainerState(emptyContainerState());
+    setMarksState(emptyMarksDescriptionState());
+    setFreightState(emptyFreightState());
+    let cancelled = false;
     void (async () => {
       try {
-        const job = await jobService.getJob(jobId);
+        const [job, sea] = await Promise.all([
+          jobService.getJob(jobId),
+          jobService.getSeaHouseBl(jobId),
+        ]);
+        if (cancelled) return;
+
         const mjn = job.master_job_no || '';
-        setJobNo(mjn);
         setMasterJobLabel(mjn);
+
+        if (job.quotation_id) {
+          const qLabel =
+            job.quotation?.no_doc?.trim() ||
+            `Q-${job.quotation_id.slice(0, 8)}`;
+          setQuotationLink({ id: job.quotation_id, label: qLabel });
+        } else {
+          setQuotationLink(null);
+        }
+
+        const parsed = parseSeaHouseBlV1(sea);
+        if (parsed) {
+          const tb = parsed.topBar;
+          setHbl(tb.hbl);
+          setBlType(tb.blType);
+          setBlReleaseStatus(tb.blReleaseStatus);
+          setBound(tb.bound);
+          setMasterBl(tb.masterBl);
+          setShipment(tb.shipment);
+          setSwitchBl(tb.switchBl);
+          setLoadType(tb.loadType);
+          setJobNo(mjn);
+          setIncoterm(tb.incoterm);
+          setServiceTerm(tb.serviceTerm);
+          setHeaderState(parsed.header);
+          setContainerState(parsed.container);
+          setMarksState(parsed.marks);
+          setFreightState(parsed.freight);
+        } else {
+          setJobNo(mjn);
+          if (!seaHouseBlBlobHasContent(sea) && job.quotation_id) {
+            const sales = await salesService.getSalesItemById(job.quotation_id);
+            if (cancelled) return;
+            const { headerPatch, topBar } = buildSeaHousePrefillFromSales(sales);
+            setHeaderState((prev) => ({ ...prev, ...headerPatch }));
+            if (topBar.masterBl) setMasterBl(topBar.masterBl);
+            if (topBar.bound) setBound(topBar.bound);
+            if (topBar.incoterm) setIncoterm(topBar.incoterm);
+            if (topBar.loadType) setLoadType(topBar.loadType);
+            if (topBar.shipmentLabel) setShipment(topBar.shipmentLabel);
+            toastOk('Sea House B/L prefilled from quotation.');
+          }
+        }
       } catch {
         /* ignore – user can fill manually */
+      } finally {
+        window.setTimeout(() => {
+          if (!cancelled) {
+            skipBlAutosaveRef.current = false;
+            setBlHydrateEpoch((n) => n + 1);
+          }
+        }, 500);
       }
     })();
-  }, [jobId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId, toastOk]);
+
+  /* Debounced persist of full Sea House B/L blob */
+  useEffect(() => {
+    if (!jobId || skipBlAutosaveRef.current || isViewMode) return;
+    const t = window.setTimeout(() => {
+      void jobService
+        .patchSeaHouseBl(
+          jobId,
+          buildSeaHouseBlBlobV1({
+            topBar: {
+              hbl,
+              blType,
+              blReleaseStatus,
+              bound,
+              masterBl,
+              shipment,
+              switchBl,
+              loadType,
+              jobNo,
+              incoterm,
+              serviceTerm,
+            },
+            header: headerState,
+            container: containerState,
+            marks: marksState,
+            freight: freightState,
+          }),
+        )
+        .catch((e: unknown) => {
+          toastErr(e instanceof Error ? e.message : 'Could not save Sea House B/L');
+        });
+    }, 1400);
+    return () => window.clearTimeout(t);
+  }, [blHydrateEpoch, jobId, isViewMode, seaHousePersistKey, toastErr]);
 
   /* Set up custom breadcrumbs */
   useEffect(() => {
     const jobLabel = masterJobLabel || (jobId ? `Job ${jobId.slice(0, 8)}...` : 'New Job');
-    setCustomBreadcrumbs([
-      { path: '/shipping', label: 'Shipping' },
-      { path: '/shipping/jobs', label: 'Job Management' },
-      ...(jobId ? [{ path: `/shipping/jobs/${jobId}/edit`, label: jobLabel }] : []),
-      { path: `/shipping/jobs/${jobId || 'new'}/sea-house-bl`, label: 'Sea House B/L' },
-    ]);
+    const detailQs = new URLSearchParams();
+    if (isViewMode) detailQs.set('mode', 'view');
+    if (fromHouseSeaBlList) detailQs.set('from', 'house-sea-bl');
+    const detailQuery = detailQs.toString();
+    const detailPath = `/shipping/jobs/${jobId || 'new'}/sea-house-bl${detailQuery ? `?${detailQuery}` : ''}`;
+
+    if (fromHouseSeaBlList) {
+      const modeSuffix = isViewMode ? ' · View' : ' · Edit';
+      const tailBase =
+        masterJobLabel.trim() !== ''
+          ? masterJobLabel
+          : jobId
+            ? `Job ${jobId.slice(0, 8)}…`
+            : 'Sea House B/L';
+      const tail = `${tailBase}${modeSuffix}`;
+      setCustomBreadcrumbs([
+        { path: '/shipping', label: 'Shipping' },
+        { path: '/shipping/house-sea-bl', label: 'House Sea B/L' },
+        { path: detailPath, label: tail },
+      ]);
+    } else {
+      const blLabel = isViewMode ? 'Sea House B/L (View)' : 'Sea House B/L';
+      setCustomBreadcrumbs([
+        { path: '/shipping', label: 'Shipping' },
+        { path: '/shipping/jobs', label: 'Job Management' },
+        ...(jobId ? [{ path: `/shipping/jobs/${jobId}/edit`, label: jobLabel }] : []),
+        { path: `/shipping/jobs/${jobId || 'new'}/sea-house-bl`, label: blLabel },
+      ]);
+    }
 
     return () => {
       setCustomBreadcrumbs(null);
     };
-  }, [jobId, masterJobLabel, setCustomBreadcrumbs]);
+  }, [jobId, fromHouseSeaBlList, isViewMode, masterJobLabel, setCustomBreadcrumbs]);
+
+  useEffect(() => {
+    if (!jobId) {
+      setDebitNoteCount(0);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const dns = await fmsJobDebitNoteService.list(jobId);
+        if (!cancelled) setDebitNoteCount(dns.length);
+      } catch {
+        if (!cancelled) setDebitNoteCount(0);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId]);
+
+  useEffect(() => {
+    if (!jobId) {
+      setPaymentNoteCount(0);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const items = await fmsJobPaymentNoteService.list(jobId);
+        if (!cancelled) setPaymentNoteCount(items.length);
+      } catch {
+        if (!cancelled) setPaymentNoteCount(0);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId]);
 
   /* Stat counts (placeholder) */
   const stats = {
     expenses: 0,
-    paymentNotes: 0,
-    debitNotes: 0,
+    paymentNotes: paymentNoteCount,
+    debitNotes: debitNoteCount,
     dcNotes: 0,
   };
 
@@ -278,29 +507,59 @@ const CreateSeaHouseBLPage: React.FC = () => {
               <ChevronLeft size={22} />
             </button>
             <div className="min-w-0">
-              <h1 className="truncate text-xl font-black tracking-tight text-slate-900 lg:text-2xl">
-                Create Sea House B/L
-              </h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="truncate text-xl font-black tracking-tight text-slate-900 lg:text-2xl">
+                  {isViewMode ? 'Sea House B/L' : 'Create Sea House B/L'}
+                </h1>
+                {isViewMode ? (
+                  <span className="shrink-0 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
+                    View only
+                  </span>
+                ) : null}
+              </div>
               <p className="mt-1 truncate text-[13px] font-medium text-muted-foreground">
                 {masterJobLabel ? masterJobLabel : jobId ? `Job ${jobId.slice(0, 8)}…` : 'New Sea House Bill of Lading'}
               </p>
+              {quotationLink ? (
+                <p className="mt-1.5 text-[12px] font-medium text-muted-foreground">
+                  From quotation{' '}
+                  <Link
+                    to={`/financials/sales/${quotationLink.id}`}
+                    className="text-primary font-bold hover:underline"
+                  >
+                    {quotationLink.label}
+                  </Link>
+                </p>
+              ) : null}
             </div>
           </div>
 
           {/* ── Toolbar buttons ──────────────────────────────────── */}
           <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
+            {isViewMode && jobId ? (
+              <button
+                type="button"
+                onClick={() => navigate(`/shipping/jobs/${jobId}/sea-house-bl?from=house-sea-bl`)}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-primary bg-primary px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-primary-foreground shadow-sm transition-all hover:opacity-95"
+              >
+                <Pencil size={15} />
+                Edit
+              </button>
+            ) : null}
             <button
               type="button"
+              disabled={isViewMode}
               onClick={() => toastOk('Create Master — coming soon')}
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-teal-300 bg-teal-50 px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-teal-700 shadow-sm transition-all hover:bg-teal-100 hover:border-teal-400"
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-teal-300 bg-teal-50 px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-teal-700 shadow-sm transition-all hover:bg-teal-100 hover:border-teal-400 disabled:pointer-events-none disabled:opacity-40"
             >
               <Ship size={15} />
               Create Master
             </button>
             <button
               type="button"
+              disabled={isViewMode}
               onClick={() => setShowUploadDialog(true)}
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-indigo-300 bg-indigo-50 px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-indigo-700 shadow-sm transition-all hover:bg-indigo-100 hover:border-indigo-400"
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-indigo-300 bg-indigo-50 px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-indigo-700 shadow-sm transition-all hover:bg-indigo-100 hover:border-indigo-400 disabled:pointer-events-none disabled:opacity-40"
             >
               <Upload size={15} />
               Upload BOL
@@ -343,12 +602,20 @@ const CreateSeaHouseBLPage: React.FC = () => {
           value={stats.expenses}
           color="bg-emerald-100 text-emerald-600"
         />
-        <StatCard
-          icon={FileText}
-          label="Payment Notes"
-          value={stats.paymentNotes}
-          color="bg-blue-100 text-blue-600"
-        />
+        <div
+          className="cursor-pointer transition-transform hover:scale-[1.02]"
+          onClick={() => {
+            if (!jobId) return;
+            navigate(`/shipping/jobs/${jobId}/sea-house-bl/payment-note`);
+          }}
+        >
+          <StatCard
+            icon={FileText}
+            label="Payment Notes"
+            value={stats.paymentNotes}
+            color="bg-blue-100 text-blue-600"
+          />
+        </div>
         <div
           className="cursor-pointer transition-transform hover:scale-[1.02]"
           onClick={() => navigate(`/shipping/jobs/${jobId}/sea-house-bl/debit-note`)}
@@ -375,7 +642,8 @@ const CreateSeaHouseBLPage: React.FC = () => {
             B/L Details
           </h2>
         </div>
-        <div className="p-4 flex flex-col gap-3">
+        <fieldset disabled={isViewMode} className="min-w-0 border-0 p-0 m-0">
+          <div className="p-4 flex flex-col gap-3">
           {/* Row 1 */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <div>
@@ -495,7 +763,8 @@ const CreateSeaHouseBLPage: React.FC = () => {
               />
             </div>
           </div>
-        </div>
+          </div>
+        </fieldset>
       </div>
 
       {/* ── Content tabs ──────────────────────────────────────────── */}
@@ -520,19 +789,21 @@ const CreateSeaHouseBLPage: React.FC = () => {
         </div>
 
         {/* Tab content */}
-        <div className="min-h-0 min-w-0">
-          {activeTab === 'header' ? (
-            <HeaderTab state={headerState} onChange={patchHeader} />
-          ) : activeTab === 'container' ? (
-            <ContainerTab state={containerState} onChange={patchContainer} />
-          ) : activeTab === 'marks' ? (
-            <MarksDescriptionTab state={marksState} onChange={patchMarks} />
-          ) : activeTab === 'freight' ? (
-            <FreightTab state={freightState} onChange={patchFreight} />
-          ) : (
-            <PlaceholderTab label="Tracking" />
-          )}
-        </div>
+        <fieldset disabled={isViewMode} className="min-w-0 border-0 p-0 m-0">
+          <div className="min-h-0 min-w-0">
+            {activeTab === 'header' ? (
+              <HeaderTab state={headerState} onChange={patchHeader} />
+            ) : activeTab === 'container' ? (
+              <ContainerTab state={containerState} onChange={patchContainer} />
+            ) : activeTab === 'marks' ? (
+              <MarksDescriptionTab state={marksState} onChange={patchMarks} />
+            ) : activeTab === 'freight' ? (
+              <FreightTab state={freightState} onChange={patchFreight} />
+            ) : (
+              <PlaceholderTab label="Tracking" />
+            )}
+          </div>
+        </fieldset>
       </div>
 
       {/* Upload BOL dialog */}

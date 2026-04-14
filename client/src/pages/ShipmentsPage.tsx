@@ -918,7 +918,7 @@ const ShipmentsPage: React.FC = () => {
                     setFilterSearch('');
                   }}
                   className={clsx(
-                    "flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-[12px] font-bold shadow-sm",
+                    "flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all text-[12px] font-bold shadow-sm",
                     activeDropdown === 'mode' || selectedModes.length > 0
                       ? "bg-primary/5 border-primary text-primary"
                       : "bg-white border-border hover:bg-muted text-muted-foreground"
@@ -954,7 +954,7 @@ const ShipmentsPage: React.FC = () => {
                     setFilterSearch('');
                   }}
                   className={clsx(
-                    "flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-[12px] font-bold shadow-sm",
+                    "flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all text-[12px] font-bold shadow-sm",
                     activeDropdown === 'customer' || selectedCustomers.length > 0
                       ? "bg-primary/5 border-primary text-primary"
                       : "bg-white border-border hover:bg-muted text-muted-foreground"
@@ -990,7 +990,7 @@ const ShipmentsPage: React.FC = () => {
                     setFilterSearch('');
                   }}
                   className={clsx(
-                    "flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-[12px] font-bold shadow-sm",
+                    "flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all text-[12px] font-bold shadow-sm",
                     'port' === activeDropdown || selectedRoutes.length > 0
                       ? "bg-primary/5 border-primary text-primary"
                       : "bg-white border-border hover:bg-muted text-muted-foreground"
@@ -1134,7 +1134,7 @@ const ShipmentsPage: React.FC = () => {
                 <button
                   onClick={() => { setActiveDropdown(activeDropdown === 'mode' ? null : 'mode'); setFilterSearch(''); }}
                   className={clsx(
-                    'flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-[12px] font-bold',
+                    'flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all text-[12px] font-bold',
                     activeDropdown === 'mode' || selectedModes.length > 0
                       ? 'bg-primary/5 border-primary text-primary shadow-sm'
                       : 'bg-white border-border hover:bg-muted text-muted-foreground',
@@ -1165,7 +1165,7 @@ const ShipmentsPage: React.FC = () => {
                 <button
                   onClick={() => { setActiveDropdown(activeDropdown === 'customer' ? null : 'customer'); setFilterSearch(''); }}
                   className={clsx(
-                    'flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-[12px] font-bold',
+                    'flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all text-[12px] font-bold',
                     activeDropdown === 'customer' || selectedCustomers.length > 0
                       ? 'bg-primary/5 border-primary text-primary shadow-sm'
                       : 'bg-white border-border hover:bg-muted text-muted-foreground',
@@ -1196,7 +1196,7 @@ const ShipmentsPage: React.FC = () => {
                 <button
                   onClick={() => { setActiveDropdown(activeDropdown === 'port' ? null : 'port'); setFilterSearch(''); }}
                   className={clsx(
-                    'flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-[12px] font-bold',
+                    'flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all text-[12px] font-bold',
                     activeDropdown === 'port' || selectedRoutes.length > 0
                       ? 'bg-primary/5 border-primary text-primary shadow-sm'
                       : 'bg-white border-border hover:bg-muted text-muted-foreground',

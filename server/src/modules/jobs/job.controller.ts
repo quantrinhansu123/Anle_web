@@ -66,4 +66,22 @@ export const jobController = {
       next(err);
     }
   },
+
+  async getSeaHouseBl(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await service.getSeaHouseBl(req.params.id);
+      res.json(successResponse(data, 'OK'));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async patchSeaHouseBl(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await service.patchSeaHouseBl(req.params.id, req.body as Record<string, unknown>);
+      res.json(successResponse(data, 'Sea House B/L updated'));
+    } catch (err) {
+      next(err);
+    }
+  },
 };

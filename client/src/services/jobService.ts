@@ -1,8 +1,11 @@
-import { apiFetch } from '../lib/api';
+import { apiFetch, apiFetchPaginated } from '../lib/api';
 import type { FmsJob, JobUpsertPayload, JobWorkflowStatus } from '../pages/jobs/types';
 
 export const jobService = {
   getJobs: (page = 1, limit = 200) => apiFetch<FmsJob[]>(`/jobs?page=${page}&limit=${limit}`),
+
+  listJobsPaginated: (page = 1, limit = 50) =>
+    apiFetchPaginated<FmsJob>(`/jobs?page=${page}&limit=${limit}`),
 
   getJob: (id: string) => apiFetch<FmsJob>(`/jobs/${id}`),
 
@@ -27,5 +30,13 @@ export const jobService = {
   deleteJob: (id: string) =>
     apiFetch<null>(`/jobs/${id}`, {
       method: 'DELETE',
+    }),
+
+  getSeaHouseBl: (jobId: string) => apiFetch<Record<string, unknown>>(`/jobs/${jobId}/sea-house-bl`),
+
+  patchSeaHouseBl: (jobId: string, patch: Record<string, unknown>) =>
+    apiFetch<Record<string, unknown>>(`/jobs/${jobId}/sea-house-bl`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
     }),
 };

@@ -26,11 +26,26 @@ import HoadonAnle from './pages/sales/HoadonAnle';
 import SalesEditorPage from './pages/sales/SalesEditorPage';
 import SalesChargeCatalogPage from './pages/SalesChargeCatalogPage';
 import PlaceholderPage from './pages/PlaceholderPage';
+import InventoryOverviewPage from './pages/inventory/InventoryOverviewPage';
+import InventoryStockReportPage from './pages/inventory/InventoryStockReportPage';
+import SalaryAdvancesPage from './pages/SalaryAdvancesPage';
+import CustomerExpensesPage from './pages/CustomerExpensesPage';
+import AccountingDashboardPage from './pages/AccountingDashboardPage';
+import BalanceSheetPage from './pages/financials/BalanceSheetPage';
+import ProfitLossPage from './pages/financials/ProfitLossPage';
+import CashFlowPage from './pages/financials/CashFlowPage';
+import ReceivableAgingPage from './pages/financials/ReceivableAgingPage';
 import FmsDashboardPage from './pages/shipping/FmsDashboardPage';
+import BusinessDashboardPage from './pages/shipping/BusinessDashboardPage';
 import JobPage from './pages/JobPage';
 import JobEditorPage from './pages/jobs/JobEditorPage';
 import CreateSeaHouseBLPage from './pages/jobs/CreateSeaHouseBLPage';
+import HouseSeaBlListPage from './pages/jobs/HouseSeaBlListPage';
 import DebitNotePage from './pages/jobs/DebitNotePage';
+import PaymentNotePage from './pages/jobs/PaymentNotePage';
+import InvoicingPage from './pages/InvoicingPage';
+import InvoicesManagementPage from './pages/InvoicesManagementPage';
+import JobProfitByPerformanceDatePage from './pages/reports/JobProfitByPerformanceDatePage';
 import LoginPage from './pages/auth/LoginPage';
 import { AuthProvider } from './contexts/AuthContext';
 import { BreadcrumbProvider } from './contexts/BreadcrumbContext';
@@ -58,7 +73,9 @@ function App() {
                 <Route path="/hr" element={<ModulePage />} />
                 <Route path="/finance" element={<ModulePage />} />
                 <Route path="/productivity" element={<ModulePage />} />
+                <Route path="/reports" element={<ModulePage />} />
                 <Route path="/system" element={<ModulePage />} />
+                <Route path="/inventory" element={<ModulePage />} />
 
                 {/* Existing Routes */}
                 <Route path="/shipments/information" element={<ShipmentsPage />} />
@@ -67,6 +84,10 @@ function App() {
                 <Route path="/shipping/jobs/:id/sea-house-bl" element={<CreateSeaHouseBLPage />} />
                 <Route path="/shipping/jobs/:id/sea-house-bl/debit-note" element={<DebitNotePage />} />
                 <Route path="/shipping/jobs/:id/sea-house-bl/debit-note/:dnId" element={<DebitNotePage />} />
+                <Route path="/shipping/jobs/:id/sea-house-bl/payment-note" element={<PaymentNotePage />} />
+                <Route path="/shipping/jobs/:id/sea-house-bl/payment-note/:pnId" element={<PaymentNotePage />} />
+                <Route path="/reports/job-profit-by-performance-date" element={<JobProfitByPerformanceDatePage />} />
+                <Route path="/shipping/house-sea-bl" element={<HouseSeaBlListPage />} />
                 <Route path="/shipping/jobs" element={<JobPage />} />
                 <Route path="/operations/jobs" element={<Navigate to="/shipping/jobs" replace />} />
                 <Route path="/customers/directory" element={<CustomerPage />} />
@@ -92,7 +113,8 @@ function App() {
                 <Route path="/system/image-gallery" element={<ImageGalleryPage />} />
 
                 {/* Placeholder Routes */}
-                <Route path="/inventory" element={<PlaceholderPage />} />
+                <Route path="/inventory/overview" element={<InventoryOverviewPage />} />
+                <Route path="/inventory/stock" element={<InventoryStockReportPage />} />
                 <Route path="/fleet" element={<PlaceholderPage />} />
                 <Route path="/crm" element={<PlaceholderPage />} />
                 <Route path="/contacts/directory" element={<PlaceholderPage />} />
@@ -101,15 +123,21 @@ function App() {
                 <Route path="/link-tracker" element={<PlaceholderPage />} />
                 <Route path="/projects" element={<PlaceholderPage />} />
                 <Route path="/elearning" element={<PlaceholderPage />} />
-                <Route path="/financials/invoicing" element={<PlaceholderPage />} />
-                <Route path="/financials/expenses" element={<PlaceholderPage />} />
-                <Route path="/financials/advances" element={<PlaceholderPage />} />
+                <Route path="/financials/accounting-dashboard" element={<AccountingDashboardPage />} />
+                <Route path="/financials/balance-sheet" element={<BalanceSheetPage />} />
+                <Route path="/financials/profit-loss" element={<ProfitLossPage />} />
+                <Route path="/financials/cash-flow" element={<CashFlowPage />} />
+                <Route path="/financials/receivable-aging" element={<ReceivableAgingPage />} />
+                <Route path="/financials/invoices" element={<InvoicesManagementPage />} />
+                <Route path="/financials/invoicing" element={<InvoicingPage />} />
+                <Route path="/financials/expenses" element={<CustomerExpensesPage />} />
+                <Route path="/financials/advances" element={<SalaryAdvancesPage />} />
                 <Route path="/discuss" element={<PlaceholderPage />} />
                 <Route path="/calendar" element={<PlaceholderPage />} />
                 <Route path="/activity-dashboard" element={<PlaceholderPage />} />
                 <Route path="/my-dashboard" element={<PlaceholderPage />} />
                 <Route path="/shipping/dashboard-fms" element={<FmsDashboardPage />} />
-                <Route path="/shipping/business-dashboard" element={<PlaceholderPage />} />
+                <Route path="/shipping/business-dashboard" element={<BusinessDashboardPage />} />
                 <Route path="/apps" element={<PlaceholderPage />} />
                 <Route path="/system/job-queue" element={<PlaceholderPage />} />
                 <Route path="/system/mass-activities" element={<PlaceholderPage />} />

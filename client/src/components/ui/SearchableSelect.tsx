@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Check, ChevronDown, X } from "lucide-react"
+import { Check, ChevronDown, ChevronRight, X } from "lucide-react"
 
 import { cn } from "../../lib/utils"
 import {
@@ -39,6 +39,10 @@ interface SearchableSelectProps {
   hideClearIcon?: boolean
   /** Link dưới danh sách (ví dụ mở dialog tra cứu đầy đủ) */
   footerAction?: SearchableSelectFooterAction
+  /** Giống nút filter secondary trên ShipmentsPage (pill + chevron phải). */
+  variant?: "default" | "filterChip"
+  /** Icon trái khi variant = filterChip */
+  leadingIcon?: React.ReactNode
 }
 
 export function SearchableSelect({
@@ -53,6 +57,8 @@ export function SearchableSelect({
   hideSearch = false,
   hideClearIcon = false,
   footerAction,
+  variant = "default",
+  leadingIcon,
 }: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false)
 
@@ -64,16 +70,31 @@ export function SearchableSelect({
         <button
           disabled={disabled}
           className={cn(
-            "flex h-10 w-full items-center justify-between rounded-xl border border-border/80 bg-muted/10 px-4 py-2 text-[13px] font-medium transition-all hover:bg-muted/20 focus:outline-none focus:ring-2 focus:ring-primary/10",
-            open && "border-primary ring-2 ring-primary/5",
-            !selectedOption && "text-muted-foreground/60",
-            className
+            variant === "filterChip"
+              ? cn(
+                  "inline-flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all text-[12px] font-bold shadow-sm w-auto min-w-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2",
+                  open
+                    ? "bg-primary/5 border-primary text-primary"
+                    : "bg-white border-border hover:bg-muted text-muted-foreground",
+                  !selectedOption && "text-muted-foreground/60",
+                )
+              : cn(
+                  "flex h-10 w-full items-center justify-between rounded-full border border-border/80 bg-white px-4 text-[13px] font-bold shadow-sm transition-all hover:bg-muted/15 focus:outline-none focus:ring-2 focus:ring-primary/10",
+                  open && "border-primary ring-2 ring-primary/5",
+                  !selectedOption && "text-muted-foreground/60",
+                ),
+            className,
           )}
         >
+          {variant === "filterChip" && leadingIcon ? (
+            <span className={cn("shrink-0", open ? "text-primary" : "text-muted-foreground/50")}>
+              {leadingIcon}
+            </span>
+          ) : null}
           <span className="truncate">
             {selectedOption ? selectedOption.label : placeholder}
           </span>
-          <div className="flex items-center gap-1.5 ml-2">
+          <div className={cn("flex items-center gap-1.5 shrink-0", variant === "filterChip" ? "ml-1" : "ml-2")}>
             {value && !disabled && !hideClearIcon && (
               <X
                 size={14}
@@ -84,13 +105,20 @@ export function SearchableSelect({
                 }}
               />
             )}
-            <ChevronDown
-              size={16}
-              className={cn(
-                "text-muted-foreground/40 transition-transform duration-200",
-                open && "rotate-180"
-              )}
-            />
+            {variant === "filterChip" ? (
+              <ChevronRight
+                size={14}
+                className={cn("opacity-40 transition-transform", open ? "-rotate-90" : "rotate-90")}
+              />
+            ) : (
+              <ChevronDown
+                size={16}
+                className={cn(
+                  "text-muted-foreground/40 transition-transform duration-200",
+                  open && "rotate-180",
+                )}
+              />
+            )}
           </div>
         </button>
       </PopoverTrigger>

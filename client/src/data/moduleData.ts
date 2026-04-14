@@ -1,11 +1,11 @@
 import {
-  FileText, FileSignature,
+  FileText, FileSignature, Anchor,
   Users,
   BadgeDollarSign, CreditCard,
-  Truck, Handshake, Package, ShoppingCart, Palette, Building2, ImageIcon,
-  Calendar, Activity, LayoutDashboard, Database, Zap, Mail, Link as LinkIcon, Briefcase, GraduationCap, Grid,
-  MessageSquare, Banknote, Coins, AppWindow,
-  Bot, Shield, UserCircle, BarChart3, ClipboardList
+  Truck, Handshake, Package, ShoppingCart, Palette, Building2, ImageIcon, Boxes,
+  Calendar, Activity, LayoutDashboard, LayoutGrid, Database, Zap, Mail, Link as LinkIcon, Briefcase, GraduationCap, Grid,
+  MessageSquare, Banknote, Coins, AppWindow, Receipt,
+  Bot, Shield, UserCircle, BarChart3, ClipboardList, Scale, LineChart, ArrowRightLeft, CalendarRange,
 } from 'lucide-react';
 import type { ModuleCardProps } from '../components/ui/ModuleCard';
 
@@ -18,18 +18,40 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
         { icon: BarChart3, title: 'Business Dashboard', description: 'Business metrics and transportation performance.', colorScheme: 'emerald', path: '/shipping/business-dashboard' },
         { icon: BadgeDollarSign, title: 'Sales', description: 'Quotes, orders, and service rates.', colorScheme: 'amber', path: '/financials/sales' },
         { icon: ClipboardList, title: 'Job Management', description: 'Job board: HBL, master code, PIC, operators, and priority.', colorScheme: 'blue', path: '/shipping/jobs' },
+        { icon: Anchor, title: 'House Sea B/L', description: 'Table of house B/L: MBL, HBL, containers, parties, schedule, and operators.', colorScheme: 'cyan', path: '/shipping/house-sea-bl' },
         { icon: Package, title: 'Transport Services', description: 'Manage freight charge catalog and transport services.', colorScheme: 'slate', path: '/financials/sales-charges' },
         { icon: CreditCard, title: 'Payment Management', description: 'Payment requests and cost flow.', colorScheme: 'teal', path: '/financials/payment-requests' },
         { icon: FileText, title: 'Debit Notes', description: 'Customer debit notes and credit-note handling.', colorScheme: 'blue', path: '/financials/debit-notes' },
       ]
     }
   ],
+  '/inventory': [
+    {
+      section: 'Inventory',
+      items: [
+        {
+          icon: LayoutGrid,
+          title: 'Overview',
+          description: 'Receipts, internal transfers, deliveries, and returns by location.',
+          colorScheme: 'emerald',
+          path: '/inventory/overview',
+        },
+        {
+          icon: Boxes,
+          title: 'Stock on hand',
+          description: 'Quantities, valuation, and availability by warehouse and category.',
+          colorScheme: 'slate',
+          path: '/inventory/stock',
+        },
+      ],
+    },
+  ],
   '/operations': [
     {
       section: 'Logistics & Supply Chain',
       items: [
         { icon: Package, title: 'Shipments', description: 'General shipment data and specifications.', colorScheme: 'slate', path: '/shipments/information' },
-        { icon: Database, title: 'Inventory', description: 'Manage stock, warehouses, and product tracking.', colorScheme: 'emerald', path: '/inventory' },
+        { icon: Database, title: 'Inventory', description: 'Stock, warehouses, overview, and operations hub.', colorScheme: 'emerald', path: '/inventory' },
         { icon: Truck, title: 'Fleet', description: 'Manage vehicles, contracts, and costs.', colorScheme: 'slate', path: '/fleet' },
       ]
     },
@@ -81,16 +103,78 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
     {
       section: 'Accounting',
       items: [
+        {
+          icon: LayoutDashboard,
+          title: 'Accounting dashboard',
+          description: 'Overview of invoices, payables, and cash flow.',
+          colorScheme: 'blue',
+          path: '/financials/accounting-dashboard',
+        },
+        {
+          icon: Receipt,
+          title: 'Invoices',
+          description: 'Browse, filter, and open customer invoices across jobs.',
+          colorScheme: 'slate',
+          path: '/financials/invoices',
+        },
         { icon: FileText, title: 'Invoicing', description: 'Create and manage customer invoices.', colorScheme: 'teal', path: '/financials/invoicing' },
+        {
+          icon: Scale,
+          title: 'Balance sheet',
+          description: 'B01-DN style: line items, codes, balances — view and export.',
+          colorScheme: 'emerald',
+          path: '/financials/balance-sheet',
+        },
+        {
+          icon: LineChart,
+          title: 'Profit and loss',
+          description: 'B02-DN style income statement: revenue, costs, and net profit.',
+          colorScheme: 'purple',
+          path: '/financials/profit-loss',
+        },
+        {
+          icon: ArrowRightLeft,
+          title: 'Statement of cash flows',
+          description: 'B03-DN: operating, investing, and financing cash movements.',
+          colorScheme: 'cyan',
+          path: '/financials/cash-flow',
+        },
+        {
+          icon: CalendarRange,
+          title: 'Accounts receivable aging',
+          description: 'Open A/R by partner and bucket (1–30, 31–60, …) as of a date.',
+          colorScheme: 'amber',
+          path: '/financials/receivable-aging',
+        },
       ]
     },
     {
       section: 'Expense Management',
       items: [
-        { icon: Banknote, title: 'Expenses', description: 'Record and track company expenses.', colorScheme: 'orange', path: '/financials/expenses' },
-        { icon: Coins, title: 'Advances', description: 'Manage employee cash advances and claims.', colorScheme: 'cyan', path: '/financials/advances' },
+        {
+          icon: Banknote,
+          title: 'Customer expenses',
+          description: 'Record and reconcile customer-related expenses and reimbursements.',
+          colorScheme: 'orange',
+          path: '/financials/expenses',
+        },
+        { icon: Coins, title: 'Salary advances', description: 'Employee salary advance requests.', colorScheme: 'cyan', path: '/financials/advances' },
       ]
     }
+  ],
+  '/reports': [
+    {
+      section: 'Reports',
+      items: [
+        {
+          icon: BarChart3,
+          title: 'Job Profit by Performance Date',
+          description: 'Sell, buy, VAT, and margin by job scoped to performance date.',
+          colorScheme: 'emerald',
+          path: '/reports/job-profit-by-performance-date',
+        },
+      ],
+    },
   ],
   '/productivity': [
     {

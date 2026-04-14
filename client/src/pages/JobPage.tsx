@@ -5,7 +5,7 @@ import {
   ChevronLeft, Search, Plus, List, Edit, Trash2, RefreshCcw,
   BarChart2, Briefcase, ChevronRight, X, Filter,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
 import { FilterDropdown } from '../components/ui/FilterDropdown';
 import { ColumnSettings } from '../components/ui/ColumnSettings';
@@ -76,6 +76,28 @@ const COLUMN_DEFS: Record<string, ColDef> = {
       'px-3 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight min-w-[18rem] w-[32%] border-r border-border/40',
     tdClass: 'px-3 py-4 border-r border-border/40 text-[12px] font-semibold text-slate-700 min-w-[18rem]',
     renderContent: (row) => <span>{row.customers?.company_name || '—'}</span>,
+  },
+  quotation: {
+    label: 'Quotation',
+    thClass:
+      'px-3 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-36 border-r border-border/40',
+    tdClass: 'px-3 py-4 border-r border-border/40 text-[12px]',
+    renderContent: (row) => {
+      if (!row.quotation_id) {
+        return <span className="text-muted-foreground">—</span>;
+      }
+      const label = row.quotation?.no_doc?.trim() || `Q-${row.quotation_id.slice(0, 8)}`;
+      return (
+        <Link
+          to={`/financials/sales/${row.quotation_id}`}
+          onClick={(e) => e.stopPropagation()}
+          className="font-semibold text-primary hover:underline"
+          title="Open quotation"
+        >
+          {label}
+        </Link>
+      );
+    },
   },
   workflow: {
     label: 'Workflow',
@@ -165,6 +187,8 @@ const JobPage: React.FC = () => {
         row.customers?.company_name,
         row.bound,
         row.workflow_status,
+        row.quotation_id,
+        row.quotation?.no_doc,
       ]
         .filter(Boolean)
         .join(' ')
@@ -313,7 +337,7 @@ const JobPage: React.FC = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={15} />
               <input
                 type="text"
-                placeholder="Search jobs..."
+                placeholder="Search job, customer, quotation…"
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
                 className="w-full pl-9 pr-8 py-2 bg-muted/20 border border-border rounded-xl text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 text-slate-900"
@@ -367,6 +391,15 @@ const JobPage: React.FC = () => {
                       <span className="text-[10px] font-black text-primary uppercase opacity-70">{row.master_job_no}</span>
                       <p className="text-[14px] font-bold text-slate-900">{row.customers?.company_name || 'No customer'}</p>
                       <p className="text-[11px] text-muted-foreground mt-1 line-clamp-1">{row.services || '—'}</p>
+                      {row.quotation_id ? (
+                        <Link
+                          to={`/financials/sales/${row.quotation_id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="mt-1 inline-block text-[10px] font-bold uppercase tracking-wide text-primary hover:underline"
+                        >
+                          {row.quotation?.no_doc?.trim() || `Q-${row.quotation_id.slice(0, 8)}`}
+                        </Link>
+                      ) : null}
                     </div>
                     <div onClick={(e) => e.stopPropagation()} className="shrink-0">
                       <ThreeStarRating
@@ -397,7 +430,7 @@ const JobPage: React.FC = () => {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
                   <input
                     type="text"
-                    placeholder="Search master no., customer, services..."
+                    placeholder="Search master no., customer, services, quotation…"
                     value={searchText}
                     onChange={(e) => setSearchText(e.target.value)}
                     className="w-full pl-10 pr-8 py-1.5 bg-muted/20 border border-border rounded-xl text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 text-slate-900"
