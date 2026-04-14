@@ -40,6 +40,7 @@ import BusinessDashboardPage from './pages/shipping/BusinessDashboardPage';
 import JobPage from './pages/JobPage';
 import JobEditorPage from './pages/jobs/JobEditorPage';
 import CreateSeaHouseBLPage from './pages/jobs/CreateSeaHouseBLPage';
+import ArrivalNoticePage from './pages/jobs/ArrivalNoticePage';
 import HouseSeaBlListPage from './pages/jobs/HouseSeaBlListPage';
 import DebitNotePage from './pages/jobs/DebitNotePage';
 import PaymentNotePage from './pages/jobs/PaymentNotePage';
@@ -82,6 +83,7 @@ function App() {
                 <Route path="/shipping/jobs/new" element={<JobEditorPage />} />
                 <Route path="/shipping/jobs/:id/edit" element={<JobEditorPage />} />
                 <Route path="/shipping/jobs/:id/sea-house-bl" element={<CreateSeaHouseBLPage />} />
+                <Route path="/shipping/jobs/:id/arrival-notice" element={<ArrivalNoticePage />} />
                 <Route path="/shipping/jobs/:id/sea-house-bl/debit-note" element={<DebitNotePage />} />
                 <Route path="/shipping/jobs/:id/sea-house-bl/debit-note/:dnId" element={<DebitNotePage />} />
                 <Route path="/shipping/jobs/:id/sea-house-bl/payment-note" element={<PaymentNotePage />} />

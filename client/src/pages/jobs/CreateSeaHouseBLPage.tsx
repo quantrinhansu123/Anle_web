@@ -187,6 +187,7 @@ const CreateSeaHouseBLPage: React.FC = () => {
   }, [printDropdownOpen]);
 
   const PRINT_OPTIONS = [
+    'Arrival Notice',
     'Delivery Request',
     'HAWB',
     'Proof Of Delivery',
@@ -197,10 +198,17 @@ const CreateSeaHouseBLPage: React.FC = () => {
     'Manifest XLSX',
   ];
 
-  const handlePrintOption = useCallback((option: string) => {
-    setPrintDropdownOpen(false);
-    toastOk(`Print: ${option} — coming soon`);
-  }, [toastOk]);
+  const handlePrintOption = useCallback(
+    (option: string) => {
+      setPrintDropdownOpen(false);
+      if (option === 'Arrival Notice' && jobId) {
+        navigate(`/shipping/jobs/${jobId}/arrival-notice`);
+        return;
+      }
+      toastOk(`Print: ${option} — coming soon`);
+    },
+    [toastOk, navigate, jobId],
+  );
 
   /* Top form fields */
   const [hbl, setHbl] = useState('');
