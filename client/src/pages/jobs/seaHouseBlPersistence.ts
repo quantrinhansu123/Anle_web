@@ -99,21 +99,21 @@ export function parseSeaHouseBlV1(blob: unknown): {
       ...containerDefaults,
       ...(blob.container as unknown as ContainerTabState),
       volumeInfoRows: Array.isArray((blob.container as { volumeInfoRows?: unknown }).volumeInfoRows)
-        ? ([...(blob.container as ContainerTabState).volumeInfoRows] as ContainerTabState['volumeInfoRows'])
+        ? ([...(blob.container as unknown as ContainerTabState).volumeInfoRows] as ContainerTabState['volumeInfoRows'])
         : containerDefaults.volumeInfoRows,
       containerRows: Array.isArray((blob.container as { containerRows?: unknown }).containerRows)
-        ? ([...(blob.container as ContainerTabState).containerRows] as ContainerTabState['containerRows'])
+        ? ([...(blob.container as unknown as ContainerTabState).containerRows] as ContainerTabState['containerRows'])
         : containerDefaults.containerRows,
     };
     const marksDefaults = emptyMarksDescriptionState();
-    const marksRaw = blob.marks as MarksDescriptionTabState;
+    const marksRaw = blob.marks as unknown as MarksDescriptionTabState;
     const marks: MarksDescriptionTabState = {
       ...marksDefaults,
       ...marksRaw,
       sellingLines: Array.isArray(marksRaw.sellingLines) ? [...marksRaw.sellingLines] : marksDefaults.sellingLines,
     };
     const freightDefaults = emptyFreightState();
-    const freightRaw = blob.freight as FreightTabState;
+    const freightRaw = blob.freight as unknown as FreightTabState;
     const freight: FreightTabState = {
       ...freightDefaults,
       ...freightRaw,
