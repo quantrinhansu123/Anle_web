@@ -2,7 +2,7 @@ import { supabase } from '../../config/supabase';
 import { CreateSalesDto, UpdateSalesDto } from './sales.types';
 import { AppError } from '../../middlewares/error.middleware';
 
-const SALES_SELECT = '*, sales_items(*), sales_charge_items(*), shipments(*, customers(*), suppliers(*)), sales_person:employees(*)';
+const SALES_SELECT = '*, sales_items(*), sales_charge_items(*), shipments!sales_shipment_id_fkey(*, customers(*), suppliers(*)), sales_person:employees(*)';
 
 const HEADER_FIELDS: Array<keyof CreateSalesDto> = [
   'shipment_id',

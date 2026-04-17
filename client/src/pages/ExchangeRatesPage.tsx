@@ -159,8 +159,8 @@ const ExchangeRatesPage: React.FC = () => {
             <thead className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm shadow-[0_1px_0_rgba(0,0,0,0.05)]">
               <tr>
                 <th className="px-6 py-3 text-left text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight border-b border-border/40 w-16">Actions</th>
-                <th className="px-6 py-3 text-left text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight border-b border-border/40">Loại tiền</th>
-                <th className="px-6 py-3 text-left text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight border-b border-border/40">Tỷ giá (VNĐ)</th>
+                <th className="px-6 py-3 text-left text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight border-b border-border/40">Currency</th>
+                <th className="px-6 py-3 text-left text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight border-b border-border/40">Exchange Rate (VND)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60 bg-white font-inter">

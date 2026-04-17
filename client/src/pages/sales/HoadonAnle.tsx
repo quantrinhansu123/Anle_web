@@ -50,31 +50,31 @@ const COPY: Record<
   }
 > = {
   vi: {
-    docTitle: 'Báo giá dịch vụ logistics',
-    generalInfo: 'Thông tin chung',
-    refNo: 'Mã Báo Giá',
-    customer: 'Khách hàng',
-    service: 'Dịch vụ',
-    commodities: 'Mặt hàng',
-    volume: 'Khối lượng',
-    term: 'Điều kiện',
-    responsible: 'Người phụ trách',
-    logisticsDept: 'Phòng Logistics',
+    docTitle: 'Logistics Service Quotation',
+    generalInfo: 'General Info',
+    refNo: 'Quotation No',
+    customer: 'Customer',
+    service: 'Service',
+    commodities: 'Commodity',
+    volume: 'Volume',
+    term: 'Term',
+    responsible: 'PIC',
+    logisticsDept: 'Logistics Dept',
     pol: 'Cảng đi',
     pod: 'Cảng đến',
-    etd: 'Ngày tàu chạy',
-    eta: 'Ngày tàu đến',
-    vessel: 'Tên tàu/ Số chuyến',
-    currencyLabel: 'Đơn vị tiền tệ',
-    progress: 'Tiến độ xử lý',
+    etd: 'ETD',
+    eta: 'ETA',
+    vessel: 'Vessel/Voyage',
+    currencyLabel: 'Currency Unit',
+    progress: 'Progress',
     colDesc: '',
     colRate: 'Đơn Giá',
     colQty: 'Số lượng',
     colUnit: 'Đơn vị tính',
     colTotal: 'Tổng',
-    emptyRows: 'Chưa có dòng phí / báo giá chi tiết.',
-    totalPrefix: 'Tổng :',
-    datePrefix: 'Ngày',
+    emptyRows: 'No charge lines / detailed quotation.',
+    totalPrefix: 'Total:',
+    datePrefix: 'Date',
   },
   en: {
     docTitle: 'Logistics service quotation',
@@ -485,7 +485,7 @@ export const QuotationDocumentBody = forwardRef<HTMLDivElement, QuotationDocumen
             <img src={quotationLogoSrc()} alt="ANLE-SCM Logo" />
           </div>
           <div className="qp-company">
-            <p className="qp-co">CÔNG TY TNHH ANLE-SCM</p>
+            <p className="qp-co">COMPANY LTD ANLE-SCM</p>
             <p>0519055056</p>
             <p>MGM@ANLE-SCM.COM</p>
             <p>ANLE-SCM.COM/HOME</p>
@@ -626,7 +626,7 @@ export const QuotationDocumentBody = forwardRef<HTMLDivElement, QuotationDocumen
         {/* ── Page 2: Terms & Conditions + Confirmation ── */}
         <div className="qp-page-break">
           <div className="qp-section">
-            <h2 className="qp-section-title">ĐIỀU KHOẢN VÀ ĐIỀU KIỆN</h2>
+            <h2 className="qp-section-title">TERMS AND CONDITIONS</h2>
             <div className="qp-terms-box">
               {termsConditions.map((term, idx) => (
                 <div key={idx} className="qp-term-item">
@@ -669,21 +669,21 @@ export const QuotationDocumentBody = forwardRef<HTMLDivElement, QuotationDocumen
           </div>
 
           <div className="qp-section">
-            <h2 className="qp-section-title">XÁC NHẬN BÁO GIÁ</h2>
+            <h2 className="qp-section-title">QUOTATION CONFIRMATION</h2>
             <table className="qp-confirm-table">
               <thead>
                 <tr>
                   <th style={{ width: '34%' }}>&nbsp;</th>
-                  <th style={{ width: '33%' }}>Người phụ trách</th>
-                  <th style={{ width: '33%' }}>Khách Hàng</th>
+                  <th style={{ width: '33%' }}>PIC</th>
+                  <th style={{ width: '33%' }}>Customer</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <td>
-                    <p className="qp-confirm-company">CÔNG TY TNHH<br />ANLE-SCM</p>
-                    <p className="qp-confirm-info"><u>Địa Chỉ</u>: Số 1L, Đường 7L, Tân Thuận, Thành Phố Hồ Chí Minh</p>
-                    <p className="qp-confirm-info"><u>Điện Thoại</u>: 0962787877</p>
+                    <p className="qp-confirm-company">COMPANY LTD<br />ANLE-SCM</p>
+                    <p className="qp-confirm-info"><u>Address</u>: Số 1L, Đường 7L, Tân Thuận, Thành Phố Hồ Chí Minh</p>
+                    <p className="qp-confirm-info"><u>Phone</u>: 0962787877</p>
                     <p className="qp-confirm-info">Website: anle-scm.com</p>
                   </td>
                   <td className="qp-confirm-sig-cell"></td>

@@ -8,6 +8,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   JWT_SECRET: z.string().default('super-secret-key-change-me-in-production'),
   JWT_EXPIRY: z.string().default('24h'),
+  WEBHOOK_URL: z.string().url().optional(),
 });
 
 export const env = envSchema.parse(process.env);

@@ -4,8 +4,14 @@ import {
   Ship, X, User, Mail, Phone, MapPin, Calendar,
   FileText, Plus, Edit, ChevronRight, Hash, Package,
   Anchor, Plane, Tag, Info, Barcode,
-  CheckCircle2, XCircle, Loader2, Trash2
+  CheckCircle2, XCircle, Loader2, Trash2,
+  DollarSign, Truck, Clock, AlertTriangle
 } from 'lucide-react';
+import CostControlTab from '../tabs/CostControlTab';
+import TransportTab from '../tabs/TransportTab';
+import TrackingTab from '../tabs/TrackingTab';
+import IncidentsTab from '../tabs/IncidentsTab';
+import AgentsTab from '../tabs/AgentsTab';
 import { clsx } from 'clsx';
 import { SearchableSelect } from '../../../components/ui/SearchableSelect';
 import { DateInput } from '../../../components/ui/DateInput';
@@ -112,6 +118,9 @@ const ShipmentDialog: React.FC<Props> = ({
     && is_agent_booked,
   );
 
+  type DialogTab = 'info' | 'cost' | 'transport' | 'tracking' | 'incidents' | 'agents';
+  const [dialogTab, setDialogTab] = useState<DialogTab>('info');
+
   const [newDocType, setNewDocType] = useState<CreateShipmentDocumentDto['doc_type']>('commercial_invoice');
   const [newDocStatus, setNewDocStatus] = useState<CreateShipmentDocumentDto['status']>('draft');
   const [newDocNumber, setNewDocNumber] = useState('');
@@ -190,8 +199,113 @@ const ShipmentDialog: React.FC<Props> = ({
           </button>
         </div>
 
+        {/* Tab Navigation — only for existing shipments in detail  */}
+        {isDetailMode && formState.id && (
+          <div className="flex items-center gap-1 px-6 py-2 bg-white border-b border-border shrink-0">
+            <button
+              onClick={() => setDialogTab('info')}
+              className={clsx(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold transition-all',
+                dialogTab === 'info'
+                  ? 'bg-primary/5 text-primary ring-1 ring-primary/20'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              )}
+            >
+              <Info size={14} />
+              Info & Compliance
+            </button>
+            <button
+              onClick={() => setDialogTab('cost')}
+              className={clsx(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold transition-all',
+                dialogTab === 'cost'
+                  ? 'bg-primary/5 text-primary ring-1 ring-primary/20'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              )}
+            >
+              <DollarSign size={14} />
+              Cost Control
+            </button>
+            <button
+              onClick={() => setDialogTab('transport')}
+              className={clsx(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold transition-all',
+                dialogTab === 'transport'
+                  ? 'bg-primary/5 text-primary ring-1 ring-primary/20'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              )}
+            >
+              <Truck size={14} />
+              Transport
+            </button>
+            <button
+              onClick={() => setDialogTab('tracking')}
+              className={clsx(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold transition-all',
+                dialogTab === 'tracking'
+                  ? 'bg-primary/5 text-primary ring-1 ring-primary/20'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              )}
+            >
+              <Clock size={14} />
+              Timeline
+            </button>
+            <button
+              onClick={() => setDialogTab('incidents')}
+              className={clsx(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold transition-all',
+                dialogTab === 'incidents'
+                  ? 'bg-primary/5 text-primary ring-1 ring-primary/20'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              )}
+            >
+              <AlertTriangle size={14} />
+              Incidents
+            </button>
+            <button
+              onClick={() => setDialogTab('agents')}
+              className={clsx(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold transition-all',
+                dialogTab === 'agents'
+                  ? 'bg-primary/5 text-primary ring-1 ring-primary/20'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              )}
+            >
+              <User size={14} />
+              Agents
+            </button>
+          </div>
+        )}
+
         {/* Scrollable Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+
+        {/* Tab: Cost Control */}
+        {dialogTab === 'cost' && isDetailMode && formState.id && (
+          <CostControlTab shipmentId={formState.id} />
+        )}
+
+        {/* Tab: Transport */}
+        {dialogTab === 'transport' && isDetailMode && formState.id && (
+          <TransportTab shipmentId={formState.id} />
+        )}
+
+        {/* Tab: Tracking Timeline */}
+        {dialogTab === 'tracking' && isDetailMode && formState.id && (
+          <TrackingTab shipmentId={formState.id} />
+        )}
+
+        {/* Tab: Incidents */}
+        {dialogTab === 'incidents' && isDetailMode && formState.id && (
+          <IncidentsTab shipmentId={formState.id} />
+        )}
+
+        {/* Tab: Agents */}
+        {dialogTab === 'agents' && isDetailMode && formState.id && (
+          <AgentsTab shipmentId={formState.id} />
+        )}
+
+        {dialogTab === 'info' && (<>
 
           {/* SECTION 1: CUSTOMER INFORMATION */}
           <div className="bg-white rounded-2xl border border-blue-100 shadow-sm overflow-hidden">
@@ -1214,6 +1328,7 @@ const ShipmentDialog: React.FC<Props> = ({
               </div>
             </div>
           </div>
+        </>)}
         </div>
 
         {/* Footer */}

@@ -35,9 +35,9 @@ export class CustomsClearanceService {
       is_phytosanitary_ready: isPhytosanitaryReady,
     };
 
-    // Auto-progress to customs_ready when booking is completed and customs gates pass.
+    // Auto-progress to customs_cleared when booking is completed and customs gates pass.
     if (isHsConfirmed && isPhytosanitaryReady && shipment?.status === 'booked') {
-      patch.status = 'customs_ready';
+      patch.status = 'customs_cleared';
     }
 
     const { error: updateError } = await supabase

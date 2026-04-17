@@ -1,10 +1,12 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { X, User, Briefcase, Mail, Phone, MapPin, Lock, Camera, Loader2, Plus, ChevronRight } from 'lucide-react';
+import { X, User, Briefcase, Mail, Phone, MapPin, Lock, Camera, Loader2, Plus, ChevronRight, Banknote, Users } from 'lucide-react';
 import { clsx } from 'clsx';
 import { apiFetch } from '../../../lib/api';
 import type { Employee } from '../../../services/employeeService';
 import { useToastContext } from '../../../contexts/ToastContext';
+import { departmentService, type Department, type Team } from '../../../services/departmentService';
+import { SearchableSelect } from '../../../components/ui/SearchableSelect';
 
 interface EmployeeDialogProps {
   isOpen: boolean;
@@ -30,6 +32,35 @@ const EmployeeDialog: React.FC<EmployeeDialogProps> = ({
   const { error } = useToastContext();
   const [isUploading, setIsUploading] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  
+  const [departments, setDepartments] = React.useState<Department[]>([]);
+  const [teams, setTeams] = React.useState<Team[]>([]);
+  const [allTeams, setAllTeams] = React.useState<Team[]>([]);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      loadData();
+    }
+  }, [isOpen]);
+
+  const loadData = async () => {
+    try {
+      const depts = await departmentService.getDepartments();
+      setDepartments(depts);
+      const teams = await departmentService.getTeams();
+      setAllTeams(teams);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  React.useEffect(() => {
+    if (formState.department_code) {
+      setTeams(allTeams.filter(t => t.department_code === formState.department_code));
+    } else {
+      setTeams([]);
+    }
+  }, [formState.department_code, allTeams]);
 
   if (!isOpen && !isClosing) return null;
 
@@ -167,37 +198,95 @@ const EmployeeDialog: React.FC<EmployeeDialogProps> = ({
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              {/* Department */}
               <div className="space-y-1.5">
                 <label className="text-[12px] font-bold text-slate-700 flex items-center gap-2">
                   <Briefcase size={14} className="text-primary/60" />
                   Department
                 </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Sales"
-                  value={formState.department || ''}
-                  onChange={(e) => setFormField('department', e.target.value)}
+                <SearchableSelect
+                  options={departments.map(d => ({ value: d.code, label: d.name }))}
+                  value={formState.department_code || ''}
+                  onValueChange={(val) => {
+                    setFormField('department_code', val);
+                    setFormField('team_code', ''); 
+                  }}
                   disabled={isDetailMode}
-                  className="w-full px-4 py-2 bg-white border border-border rounded-xl text-[13px] font-bold focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all disabled:opacity-70"
+                  placeholder="Select Department"
+                  hideSearch={true}
                 />
               </div>
 
-              {/* Position */}
+              {/* Team */}
+              <div className="space-y-1.5">
+                <label className="text-[12px] font-bold text-slate-700 flex items-center gap-2">
+                  <Users size={14} className="text-primary/60" />
+                  Team
+                </label>
+                <SearchableSelect
+                  options={teams.map(t => ({ value: t.code, label: t.name }))}
+                  value={formState.team_code || ''}
+                  onValueChange={(val) => setFormField('team_code', val)}
+                  disabled={isDetailMode || !formState.department_code}
+                  placeholder="Select Team"
+                  hideSearch={true}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[12px] font-bold text-slate-700 flex items-center gap-2">
+                  <Lock size={14} className="text-primary/60" />
+                  System Role
+                </label>
+                <SearchableSelect
+                  options={[
+                    { value: 'staff', label: 'Staff' },
+                    { value: 'senior_staff', label: 'Senior Staff' },
+                    { value: 'manager', label: 'Manager' },
+                    { value: 'director', label: 'Director' },
+                    { value: 'ceo', label: 'CEO' },
+                    { value: 'admin', label: 'Admin' },
+                  ]}
+                  value={formState.role || 'staff'}
+                  onValueChange={(val) => setFormField('role', val)}
+                  disabled={isDetailMode}
+                  hideSearch={true}
+                />
+              </div>
+
+              {/* Position (General Title) */}
               <div className="space-y-1.5">
                 <label className="text-[12px] font-bold text-slate-700 flex items-center gap-2">
                   <User size={14} className="text-primary/60" />
-                  Position
+                  General Position
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Manager"
+                  placeholder="e.g. Senior Accountant"
                   value={formState.position || ''}
                   onChange={(e) => setFormField('position', e.target.value)}
                   disabled={isDetailMode}
                   className="w-full px-4 py-2 bg-white border border-border rounded-xl text-[13px] font-bold focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all disabled:opacity-70"
                 />
               </div>
+            </div>
+
+            {/* Spending Limit */}
+            <div className="space-y-1.5">
+              <label className="text-[12px] font-bold text-slate-700 flex items-center gap-2">
+                <Banknote size={14} className="text-primary/60" />
+                Spending Limit (VND)
+              </label>
+              <input
+                type="number"
+                placeholder="0"
+                value={formState.spending_limit || 0}
+                onChange={(e) => setFormField('spending_limit', Number(e.target.value))}
+                disabled={isDetailMode}
+                className="w-full px-4 py-2 bg-white border border-border rounded-xl text-[13px] font-bold focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all disabled:opacity-70"
+              />
+              <p className="text-[10px] text-muted-foreground italic">Employees cannot create payment requests exceeding this amount without approval.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

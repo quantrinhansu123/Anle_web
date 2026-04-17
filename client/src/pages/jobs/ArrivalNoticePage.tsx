@@ -170,7 +170,7 @@ function buildChargeRows(sales: Sales | null): ArrivalChargeRow[] {
     const lineTotalForeign = exVat + (exVat * vat) / 100;
     const desc =
       c.charge_group === 'on_behalf'
-        ? `Chi Hộ — ${chargeLineLabel(c)}`
+        ? `Paid on behalf — ${chargeLineLabel(c)}`
         : chargeLineLabel(c);
     return {
       code: ztrim(c.freight_code) || '—',
@@ -340,8 +340,8 @@ export const ArrivalNoticeDocumentBody = forwardRef<HTMLDivElement, ArrivalNotic
     const fillers = Math.max(0, minRows - data.chargeRows.length);
     const rateLabel =
       data.refRateVnd != null
-        ? `Tỉ giá: VND ${formatMoneyVnd(data.refRateVnd)} / 1 ${data.refRateCurrency}`
-        : 'Tỉ giá: —';
+        ? `Exchange rate: VND ${formatMoneyVnd(data.refRateVnd)} / 1 ${data.refRateCurrency}`
+        : 'Exchange rate: —';
 
     return (
       <div ref={ref} className="an-root">
@@ -352,7 +352,7 @@ export const ArrivalNoticeDocumentBody = forwardRef<HTMLDivElement, ArrivalNotic
             <img src={quotationLogoSrc()} alt="ANLE-SCM Logo" />
           </div>
           <div className="an-company">
-            <p className="an-co">CÔNG TY TNHH ANLE-SCM</p>
+            <p className="an-co">COMPANY LTD ANLE-SCM</p>
             <p>0519055056</p>
             <p>MGM@ANLE-SCM.COM</p>
             <p>ANLE-SCM.COM/HOME</p>
@@ -361,58 +361,58 @@ export const ArrivalNoticeDocumentBody = forwardRef<HTMLDivElement, ArrivalNotic
         </header>
 
         <div className="an-band">
-          <div className="an-band-left">THÔNG BÁO HÀNG ĐẾN</div>
+          <div className="an-band-left">ARRIVAL NOTICE</div>
           <div className="an-band-mid">ANLE-SUPPLY CHAIN MANAGEMENT</div>
           <div className="an-band-right">{data.docDateLabel}</div>
         </div>
 
         <div className="an-to-wrap">
           <div className="an-to-accent" aria-hidden />
-          <div className="an-to-label">GỬI ĐẾN</div>
+          <div className="an-to-label">TO</div>
           <div className="an-to-body">{data.toAddress}</div>
         </div>
 
-        <h2 className="an-section-title">THÔNG TIN LÔ HÀNG</h2>
+        <h2 className="an-section-title">SHIPMENT INFORMATION</h2>
         <div className="an-grid">
           <div className="an-grid-r1">
             <div className="an-cell">
-              <div className="an-cell-label">BÊN GỬI</div>
+              <div className="an-cell-label">SHIPPER</div>
               <div className="an-cell-val">{data.shipper}</div>
             </div>
             <div className="an-cell">
-              <div className="an-cell-label">VẬN ĐƠN CHÍNH</div>
+              <div className="an-cell-label">MASTER B/L</div>
               <div className="an-cell-val">{data.masterBl}</div>
             </div>
             <div className="an-cell">
-              <div className="an-cell-label">VẬN ĐƠN PHỤ</div>
+              <div className="an-cell-label">HOUSE B/L</div>
               <div className="an-cell-val">{data.houseBl}</div>
             </div>
           </div>
           <div className="an-grid-r2">
             <div className="an-cell">
-              <div className="an-cell-label">CẢNG ĐI</div>
+              <div className="an-cell-label">POL</div>
               <div className="an-cell-val">{data.pol}</div>
             </div>
             <div className="an-cell">
-              <div className="an-cell-label">CẢNG ĐẾN</div>
+              <div className="an-cell-label">POD</div>
               <div className="an-cell-val">{data.pod}</div>
             </div>
           </div>
           <div className="an-grid-r3">
             <div className="an-cell">
-              <div className="an-cell-label">NƠI NHẬN HÀNG</div>
+              <div className="an-cell-label">PLACE OF RECEIPT</div>
               <div className="an-cell-val">{data.placeOfReceipt}</div>
             </div>
             <div className="an-cell">
-              <div className="an-cell-label">NGÀY CẬP</div>
+              <div className="an-cell-label">ARRIVAL DATE</div>
               <div className="an-cell-val">{data.arrivalDate}</div>
             </div>
             <div className="an-cell">
-              <div className="an-cell-label">TÀU</div>
+              <div className="an-cell-label">VESSEL</div>
               <div className="an-cell-val">{data.vessel}</div>
             </div>
             <div className="an-cell">
-              <div className="an-cell-label">CHUYẾN</div>
+              <div className="an-cell-label">VOYAGE</div>
               <div className="an-cell-val">{data.voyage}</div>
             </div>
           </div>
@@ -421,11 +421,11 @@ export const ArrivalNoticeDocumentBody = forwardRef<HTMLDivElement, ArrivalNotic
         <table className="an-cargo">
           <thead>
             <tr>
-              <th style={{ width: '14%' }}>KÝ MÃ HIỆU</th>
-              <th style={{ width: '16%' }}>SỐ LƯỢNG VÀ LOẠI KIỆN</th>
-              <th style={{ width: '38%' }}>MÔ TẢ HÀNG HÓA</th>
-              <th style={{ width: '16%' }}>TRỌNG LƯỢNG</th>
-              <th style={{ width: '16%' }}>THỂ TÍCH</th>
+              <th style={{ width: '14%' }}>MARKS</th>
+              <th style={{ width: '16%' }}>QTY & KIND OF PKGS</th>
+              <th style={{ width: '38%' }}>DESCRIPTION OF GOODS</th>
+              <th style={{ width: '16%' }}>WEIGHT</th>
+              <th style={{ width: '16%' }}>VOLUME</th>
             </tr>
           </thead>
           <tbody>
@@ -449,14 +449,14 @@ export const ArrivalNoticeDocumentBody = forwardRef<HTMLDivElement, ArrivalNotic
         <table className="an-charges">
           <thead>
             <tr>
-              <th style={{ width: '9%' }}>MÃ</th>
-              <th style={{ width: '28%' }}>MÔ TẢ DỊCH VỤ</th>
-              <th style={{ width: '9%' }}>SỐ LƯỢNG</th>
-              <th style={{ width: '8%' }}>ĐVT</th>
-              <th style={{ width: '11%' }}>ĐƠN GIÁ</th>
-              <th style={{ width: '9%' }}>TIỀN TỆ</th>
+              <th style={{ width: '9%' }}>CODE</th>
+              <th style={{ width: '28%' }}>DESCRIPTION OF CHARGES</th>
+              <th style={{ width: '9%' }}>QTY</th>
+              <th style={{ width: '8%' }}>UNIT</th>
+              <th style={{ width: '11%' }}>UNIT PRICE</th>
+              <th style={{ width: '9%' }}>CURRENCY</th>
               <th style={{ width: '7%' }}>VAT</th>
-              <th style={{ width: '19%' }}>THÀNH TIỀN</th>
+              <th style={{ width: '19%' }}>AMOUNT</th>
             </tr>
           </thead>
           <tbody>
@@ -489,28 +489,28 @@ export const ArrivalNoticeDocumentBody = forwardRef<HTMLDivElement, ArrivalNotic
 
         <div className="an-footer">
           <div>
-            <div className="an-bank-title">THÔNG TIN CHUYỂN KHOẢN</div>
+            <div className="an-bank-title">BANKING INFORMATION</div>
             <div className="an-bank">
-              <p>Vietcombank - Ngân Hàng TMCP Ngoại Thương Việt Nam</p>
+              <p>Vietcombank - Joint Stock Commercial Bank for Foreign Trade of Vietnam</p>
               <p>
-                <strong>Tên TK:</strong> CONG TY TNHH ANLE-SCM
+                <strong>Account Name:</strong> CONG TY TNHH ANLE-SCM
               </p>
               <p>
-                <strong>Số TK:</strong> 1061963391
+                <strong>Account No:</strong> 1061963391
               </p>
             </div>
           </div>
           <div className="an-totals">
             <div className="an-totals-row">
-              <span className="an-l">Tạm tính</span>
+              <span className="an-l">Subtotal</span>
               <span className="an-v">VND {formatMoneyVnd(subtotalVnd)}</span>
             </div>
             <div className="an-totals-row">
-              <span className="an-l">Thuế VAT</span>
+              <span className="an-l">VAT</span>
               <span className="an-v">VND {formatMoneyVnd(vatVnd)}</span>
             </div>
             <div className="an-totals-row">
-              <span className="an-l">Tổng cộng</span>
+              <span className="an-l">Total</span>
               <span className="an-v">VND {formatMoneyVnd(totalVnd)}</span>
             </div>
             <div className="an-totals-row">
@@ -642,27 +642,27 @@ const ArrivalNoticePage: React.FC = () => {
   const handleExportExcel = useCallback(() => {
     if (!vm) return;
     const rows: (string | number)[][] = [
-      ['THÔNG BÁO HÀNG ĐẾN', vm.masterJobNo],
-      ['Ngày', vm.docDateLabel],
-      ['GỬI ĐẾN', vm.toAddress],
+      ['ARRIVAL NOTICE', vm.masterJobNo],
+      ['Date', vm.docDateLabel],
+      ['TO', vm.toAddress],
       [],
-      ['BÊN GỬI', vm.shipper],
-      ['VẬN ĐƠN CHÍNH', vm.masterBl],
-      ['VẬN ĐƠN PHỤ', vm.houseBl],
-      ['CẢNG ĐI', vm.pol],
-      ['CẢNG ĐẾN', vm.pod],
-      ['NƠI NHẬN HÀNG', vm.placeOfReceipt],
-      ['NGÀY CẬP', vm.arrivalDate],
-      ['TÀU', vm.vessel],
-      ['CHUYẾN', vm.voyage],
+      ['SHIPPER', vm.shipper],
+      ['MASTER B/L', vm.masterBl],
+      ['HOUSE B/L', vm.houseBl],
+      ['POL', vm.pol],
+      ['POD', vm.pod],
+      ['PLACE OF RECEIPT', vm.placeOfReceipt],
+      ['ARRIVAL DATE', vm.arrivalDate],
+      ['VESSEL', vm.vessel],
+      ['VOYAGE', vm.voyage],
       [],
-      ['KÝ MÃ HIỆU', vm.marks],
-      ['SỐ LƯỢNG VÀ LOẠI KIỆN', vm.packages],
-      ['MÔ TẢ HÀNG HÓA', vm.goodsDescription],
-      ['TRỌNG LƯỢNG', vm.weight],
-      ['THỂ TÍCH', vm.volume],
+      ['MARKS', vm.marks],
+      ['QTY & KIND OF PKGS', vm.packages],
+      ['DESCRIPTION OF GOODS', vm.goodsDescription],
+      ['WEIGHT', vm.weight],
+      ['VOLUME', vm.volume],
       [],
-      ['MÃ', 'MÔ TẢ DỊCH VỤ', 'SỐ LƯỢNG', 'ĐVT', 'ĐƠN GIÁ', 'TIỀN TỆ', 'VAT %', 'THÀNH TIỀN'],
+      ['CODE', 'DESCRIPTION OF CHARGES', 'QTY', 'UNIT', 'UNIT PRICE', 'CURRENCY', 'VAT %', 'AMOUNT'],
     ];
     for (const r of vm.chargeRows) {
       rows.push([
@@ -677,9 +677,9 @@ const ArrivalNoticePage: React.FC = () => {
       ]);
     }
     rows.push([]);
-    rows.push(['Tạm tính (VND)', subtotalVnd]);
-    rows.push(['Thuế VAT (VND)', vatVnd]);
-    rows.push(['Tổng cộng (VND)', totalVnd]);
+    rows.push(['Subtotal (VND)', subtotalVnd]);
+    rows.push(['VAT (VND)', vatVnd]);
+    rows.push(['Total (VND)', totalVnd]);
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -717,7 +717,7 @@ const ArrivalNoticePage: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="animate-spin text-primary" size={40} />
-          <p className="text-[13px] font-bold text-muted-foreground animate-pulse">Đang tải thông báo hàng đến…</p>
+          <p className="text-[13px] font-bold text-muted-foreground animate-pulse">Loading arrival notice...</p>
         </div>
       </div>
     );
@@ -730,14 +730,14 @@ const ArrivalNoticePage: React.FC = () => {
           <div className="w-16 h-16 bg-red-100/50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
             <Printer size={32} />
           </div>
-          <h3 className="text-lg font-bold text-slate-900 mb-2">Không tìm thấy job</h3>
-          <p className="text-[13px] text-muted-foreground mb-6">Không thể tải dữ liệu job hoặc job không tồn tại.</p>
+          <h3 className="text-lg font-bold text-slate-900 mb-2">Job not found</h3>
+          <p className="text-[13px] text-muted-foreground mb-6">Cannot load job data or job does not exist.</p>
           <button
             type="button"
             onClick={() => navigate(-1)}
             className="w-full py-2 bg-primary text-white font-bold rounded-xl active:scale-95 transition-all"
           >
-            Quay lại
+            Back
           </button>
         </div>
       </div>
@@ -753,7 +753,7 @@ const ArrivalNoticePage: React.FC = () => {
           className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-border hover:bg-gray-50 transition-all font-bold text-[13px]"
         >
           <ArrowLeft size={16} />
-          Quay lại
+          Back
         </button>
         <div className="relative" ref={exportMenuRef}>
           <button
@@ -763,7 +763,7 @@ const ArrivalNoticePage: React.FC = () => {
             className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg shadow-md hover:bg-primary/90 transition-all font-bold text-[13px] disabled:opacity-60"
           >
             {exportBusy ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
-            In / xuất
+            Print / Export
             <ChevronsDown size={16} className="opacity-90" />
           </button>
           {exportMenuOpen ? (
@@ -773,14 +773,14 @@ const ArrivalNoticePage: React.FC = () => {
                 className="w-full text-left px-4 py-2.5 text-[13px] font-semibold text-slate-800 hover:bg-slate-50"
                 onClick={handleExportExcel}
               >
-                Lưu Excel
+                Save as Excel
               </button>
               <button
                 type="button"
                 className="w-full text-left px-4 py-2.5 text-[13px] font-semibold text-slate-800 hover:bg-slate-50"
                 onClick={() => void handleExportPdf()}
               >
-                Lưu PDF
+                Save as PDF
               </button>
               <button
                 type="button"

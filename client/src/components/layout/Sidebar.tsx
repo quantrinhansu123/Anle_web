@@ -7,6 +7,7 @@ import { Loader2, Building2 } from 'lucide-react';
 import { getDirectPath } from '../../data/moduleData';
 import { systemSettingsService } from '../../services/systemSettingsService';
 import type { SystemSettings } from '../../types/systemSettings';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -30,6 +31,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
     };
     fetchSettings();
   }, []);
+
+  const { user } = usePermissions();
 
   const companyLogo = settings?.logo_url;
   const companyName = settings?.company_name || 'Anle Logistics';
@@ -93,16 +96,23 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   
         {/* Navigation Links */}
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-2 custom-scrollbar flex flex-col items-stretch">
-          {sidebarMenu.map((item) => (
-            <NavItem 
-              key={item.path} 
-              item={{ ...item, path: getDirectPath(item.path) }} 
-              isOpen={isOpen} 
-              onClick={() => {
-                if (window.innerWidth < 1024) setIsOpen(false);
-              }} 
-            />
-          ))}
+          {sidebarMenu
+            .filter(item => {
+              if (user?.role === 'ceo' || user?.role === 'admin' || user?.position === 'Admin' || user?.department_code === 'bod') return true;
+              if (item.requiredRoles && !item.requiredRoles.includes(user?.role || '')) return false;
+              if (item.requiredDepartments && !item.requiredDepartments.includes(user?.department_code || '')) return false;
+              return true;
+            })
+            .map((item) => (
+              <NavItem 
+                key={item.path} 
+                item={{ ...item, path: getDirectPath(item.path) }} 
+                isOpen={isOpen} 
+                onClick={() => {
+                  if (window.innerWidth < 1024) setIsOpen(false);
+                }} 
+              />
+            ))}
   
           <div className="my-4 border-t border-border w-full"></div>
   

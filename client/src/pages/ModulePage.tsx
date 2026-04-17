@@ -6,6 +6,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { moduleData } from '../data/moduleData';
 import { sidebarMenu } from '../data/sidebarMenu';
 import { useBookmarks } from '../hooks/useBookmarks';
+import { usePermissions } from '../hooks/usePermissions';
 
 const ModulePage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'all' | 'bookmarks'>('all');
@@ -13,6 +14,7 @@ const ModulePage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { isBookmarked } = useBookmarks();
+  const { user } = usePermissions();
 
   const data = moduleData[location.pathname] || [];
   const currentItem = sidebarMenu.find(item => item.path === location.pathname);
@@ -83,7 +85,13 @@ const ModulePage: React.FC = () => {
 
       {/* Content Area */}
       {activeTab === 'bookmarks' ? (() => {
-        const bookmarkedItems = data.flatMap(s => s.items).filter(item => item.path && isBookmarked(item.path));
+        const bookmarkedItems = data.flatMap(s => s.items).filter(item => {
+          if (!item.path || !isBookmarked(item.path)) return false;
+          if (user?.role === 'ceo' || user?.role === 'admin' || user?.position === 'Admin' || user?.department_code === 'bod') return true;
+          if (item.requiredRoles && !item.requiredRoles.includes(user?.role || '')) return false;
+          if (item.requiredDepartments && !item.requiredDepartments.includes(user?.department_code || '')) return false;
+          return true;
+        });
 
         if (bookmarkedItems.length === 0) {
           return (
@@ -108,11 +116,17 @@ const ModulePage: React.FC = () => {
       })() : data.length > 0 ? (
         <div className="space-y-8">
           {data.map((section, idx) => {
-            // Filter items by search query
-            const filteredItems = section.items.filter(item => 
-              item.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-              item.description.toLowerCase().includes(searchQuery.toLowerCase())
-            );
+            // Filter items by search query and permissions
+            const filteredItems = section.items.filter(item => {
+              const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                   item.description.toLowerCase().includes(searchQuery.toLowerCase());
+              if (!matchesSearch) return false;
+              
+              if (user?.role === 'ceo' || user?.role === 'admin' || user?.position === 'Admin' || user?.department_code === 'bod') return true;
+              if (item.requiredRoles && !item.requiredRoles.includes(user?.role || '')) return false;
+              if (item.requiredDepartments && !item.requiredDepartments.includes(user?.department_code || '')) return false;
+              return true;
+            });
 
             if (filteredItems.length === 0) return null;
 

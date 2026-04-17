@@ -68,6 +68,10 @@ const shipmentBaseSchema = z.object({
   is_agent_booked: z.boolean().optional(),
   pod_confirmed_at: z.string().datetime().optional().nullable(),
   cost_locked_at: z.string().datetime().optional().nullable(),
+  quotation_id: z.string().uuid().optional().nullable(),
+  contract_id: z.string().uuid().optional().nullable(),
+  planned_cost: z.record(z.any()).optional().nullable(),
+  actual_cost: z.record(z.any()).optional().nullable(),
 });
 
 const shipmentBusinessRuleRefine = (data: any, ctx: z.RefinementCtx) => {

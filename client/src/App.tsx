@@ -47,7 +47,9 @@ import PaymentNotePage from './pages/jobs/PaymentNotePage';
 import InvoicingPage from './pages/InvoicingPage';
 import InvoicesManagementPage from './pages/InvoicesManagementPage';
 import JobProfitByPerformanceDatePage from './pages/reports/JobProfitByPerformanceDatePage';
+import ShipmentSOPPage from './pages/shipments/ShipmentSOPPage';
 import LoginPage from './pages/auth/LoginPage';
+import ApprovalsPage from './pages/ApprovalsPage';
 import { AuthProvider } from './contexts/AuthContext';
 import { BreadcrumbProvider } from './contexts/BreadcrumbContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -80,6 +82,8 @@ function App() {
 
                 {/* Existing Routes */}
                 <Route path="/shipments/information" element={<ShipmentsPage />} />
+                <Route path="/shipments/sop/new" element={<ShipmentSOPPage />} />
+                <Route path="/shipments/sop/:id" element={<ShipmentSOPPage />} />
                 <Route path="/shipping/jobs/new" element={<JobEditorPage />} />
                 <Route path="/shipping/jobs/:id/edit" element={<JobEditorPage />} />
                 <Route path="/shipping/jobs/:id/sea-house-bl" element={<CreateSeaHouseBLPage />} />
@@ -97,7 +101,11 @@ function App() {
                 <Route path="/suppliers/directory" element={<SupplierPage />} />
                 <Route path="/suppliers/directory/:id" element={<SupplierDetailsPage />} />
                 <Route path="/employees/candidates" element={<PlaceholderPage />} />
-                <Route path="/employees/directory" element={<EmployeesPage />} />
+                <Route path="/employees/directory" element={
+                  <ProtectedRoute requiredRoles={['ceo', 'director', 'manager']}>
+                    <EmployeesPage />
+                  </ProtectedRoute>
+                } />
                 <Route path="/employees/directory/:id" element={<EmployeeDetailsPage />} />
                 <Route path="/contracts/directory" element={<ContractsPage />} />
                 <Route path="/financials/sales" element={<SalesPage />} />
@@ -108,6 +116,7 @@ function App() {
                 <Route path="/financials/sales-charges" element={<SalesChargeCatalogPage />} />
                 <Route path="/financials/purchasing" element={<PurchasingPage />} />
                 <Route path="/financials/po-approvals" element={<POApprovalsPage />} />
+                <Route path="/financials/approvals" element={<ApprovalsPage />} />
                 <Route path="/financials/payment-requests" element={<PaymentRequestsPage />} />
                 <Route path="/financials/debit-notes" element={<DebitNotesPage />} />
                 <Route path="/system/exchange-rates" element={<ExchangeRatesPage />} />

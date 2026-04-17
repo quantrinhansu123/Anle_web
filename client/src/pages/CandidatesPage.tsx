@@ -988,7 +988,7 @@ const CandidatesPage: React.FC = () => {
                 )}
               >
                 <Filter size={14} className={clsx(activeDropdown === 'source' || selectedSources.length > 0 ? "text-primary" : "text-muted-foreground/50")} />
-                Nguồn
+                Source
                 {selectedSources.length > 0 && (
                   <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
                     {selectedSources.length}
@@ -1005,7 +1005,7 @@ const CandidatesPage: React.FC = () => {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-dashed border-red-300 text-red-500 text-[12px] font-bold hover:bg-red-50 transition-all"
               >
                 <X size={13} />
-                Xóa bộ lọc
+                Clear filters
               </button>
             )}
           </div>
@@ -1034,7 +1034,7 @@ const CandidatesPage: React.FC = () => {
               {filteredCandidates.length === 0 ? (
                 <tr>
                   <td colSpan={2 + visibleColumns.length} className="py-16 text-center text-[13px] text-muted-foreground italic">
-                    Không tìm thấy kết quả phù hợp
+                    No matching results found
                   </td>
                 </tr>
               ) : filteredCandidates.map((candidate) => (
@@ -1242,7 +1242,7 @@ const CandidatesPage: React.FC = () => {
 
         {/* Charts row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
-          {/* PieChart – Theo trạng thái */}
+          {/* PieChart – By status */}
           <div className="bg-white rounded-2xl border border-border shadow-sm p-5">
             <div className="flex items-center gap-2 mb-4">
               <TagIcon size={15} className="text-primary" />
@@ -1285,7 +1285,7 @@ const CandidatesPage: React.FC = () => {
             })()}
           </div>
 
-          {/* BarChart – Theo vị trí */}
+          {/* BarChart – By position */}
           <div className="bg-white rounded-2xl border border-border shadow-sm p-5">
             <div className="flex items-center gap-2 mb-4">
               <Briefcase size={15} className="text-primary" />
@@ -1319,7 +1319,7 @@ const CandidatesPage: React.FC = () => {
             })()}
           </div>
 
-          {/* BarChart – Theo nguồn */}
+          {/* BarChart – By source */}
           <div className="bg-white rounded-2xl border border-border shadow-sm p-5">
             <div className="flex items-center gap-2 mb-4">
               <Filter size={15} className="text-primary" />
@@ -1356,7 +1356,7 @@ const CandidatesPage: React.FC = () => {
 
         {/* Detail tables row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
-          {/* Table – Theo trạng thái */}
+          {/* Table – By status */}
           <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
             <div className="px-5 py-3 border-b border-border bg-muted/5 flex items-center gap-2">
               <TagIcon size={14} className="text-primary" />
@@ -1385,7 +1385,7 @@ const CandidatesPage: React.FC = () => {
             </table>
           </div>
 
-          {/* Table – Theo vị trí */}
+          {/* Table – By position */}
           <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
             <div className="px-5 py-3 border-b border-border bg-muted/5 flex items-center gap-2">
               <Briefcase size={14} className="text-primary" />
@@ -1416,7 +1416,7 @@ const CandidatesPage: React.FC = () => {
             </table>
           </div>
 
-          {/* Table – Theo nguồn */}
+          {/* Table – By source */}
           <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
             <div className="px-5 py-3 border-b border-border bg-muted/5 flex items-center gap-2">
               <Filter size={14} className="text-primary" />

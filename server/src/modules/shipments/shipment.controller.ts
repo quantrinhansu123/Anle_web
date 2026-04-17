@@ -81,4 +81,41 @@ export const ShipmentController = {
       next(err);
     }
   },
+
+  async getAllowedTransitions(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await service.getAllowedTransitions(req.params.id);
+      res.json(successResponse(result));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async getRunGates(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await service.getRunGates(req.params.id);
+      res.json(successResponse(result));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async getFeasibility(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await service.getFeasibilityApprovals(req.params.id);
+      res.json(successResponse(result));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async updateFeasibility(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = (req as any).user?.id;
+      const result = await service.updateFeasibilityApproval(req.params.id, req.body, userId);
+      res.json(successResponse(result, 'Feasibility updated'));
+    } catch (err) {
+      next(err);
+    }
+  },
 };

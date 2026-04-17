@@ -7,7 +7,7 @@ export const employeeService = {
   async getAll() {
     const { data, error } = await supabase
       .from('employees')
-      .select('*')
+      .select('*, departments:department_code(name, name_vi), teams:team_code(name, name_vi)')
       .order('full_name', { ascending: true });
 
     if (error) throw new AppError(error.message, 400);
@@ -56,18 +56,30 @@ export const employeeService = {
       phone,
       address,
       password,
-      avatar_url
+      avatar_url,
+      role,
+      department_code,
+      team_code,
+      manager_id,
+      is_active,
+      spending_limit
     } = dto;
 
     const insertData: any = {
       full_name,
-      team,
-      department,
+      team, // legacy
+      department, // legacy
       position,
       email,
       phone,
       address,
-      avatar_url
+      avatar_url,
+      role,
+      department_code,
+      team_code,
+      manager_id,
+      is_active,
+      spending_limit
     };
 
     if (password) {
@@ -95,18 +107,30 @@ export const employeeService = {
       phone,
       address,
       password,
-      avatar_url
+      avatar_url,
+      role,
+      department_code,
+      team_code,
+      manager_id,
+      is_active,
+      spending_limit
     } = dto;
 
     const updateData: any = {
       full_name,
-      team,
-      department,
+      team, // legacy
+      department, // legacy
       position,
       email,
       phone,
       address,
-      avatar_url
+      avatar_url,
+      role,
+      department_code,
+      team_code,
+      manager_id,
+      is_active,
+      spending_limit
     };
 
     if (password) {

@@ -5,9 +5,13 @@ export interface User {
   id: string;
   full_name: string;
   email: string;
-  department?: string;
+  department?: string; // Legacy
   position?: string;
   avatar_url?: string;
+  role?: string;
+  department_code?: string;
+  team_code?: string;
+  spending_limit?: number;
 }
 
 interface AuthContextType {

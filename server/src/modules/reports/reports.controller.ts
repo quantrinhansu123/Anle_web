@@ -56,4 +56,29 @@ export const reportsController = {
       next(err);
     }
   },
+
+  async shipmentProfitLoss(req: Request, res: Response, next: NextFunction) {
+    try {
+      const page = clampInt(Number(firstQueryParam(req.query.page)) || 1, 1, 1_000_000);
+      const limit = clampInt(Number(firstQueryParam(req.query.limit)) || 50, 1, 200);
+      const status = typeof firstQueryParam(req.query.status) === 'string'
+        ? String(firstQueryParam(req.query.status))
+        : undefined;
+
+      const { rows, total } = await reportsService.shipmentProfitLoss({ page, limit, status });
+      const totalPages = Math.ceil(total / limit) || 0;
+
+      res.json(
+        successResponse(
+          {
+            rows,
+            pagination: { total, page, limit, totalPages },
+          },
+          'OK',
+        ),
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
 };

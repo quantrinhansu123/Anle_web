@@ -43,6 +43,10 @@ export interface Shipment {
   shipment_ready_to_run?: boolean;
   pod_confirmed_at?: string | null;
   cost_locked_at?: string | null;
+  quotation_id?: string | null;
+  contract_id?: string | null;
+  planned_cost?: any;
+  actual_cost?: any;
   created_at: string;
   // Joined fields (customers(*) từ API)
   customers?: {
@@ -85,6 +89,8 @@ export interface CreateShipmentDto {
   is_agent_booked?: boolean;
   pod_confirmed_at?: string | null;
   cost_locked_at?: string | null;
+  quotation_id?: string | null;
+  contract_id?: string | null;
 }
 
 export interface UpdateShipmentDto extends Partial<CreateShipmentDto> {}
@@ -102,7 +108,7 @@ export interface ShipmentFormState extends CreateShipmentDto {
   id?: string;
   isNewCustomer?: boolean;
   newCustomer?: {
-    company_name: string;
+    company_name?: string;
     code?: string;
     email?: string;
     phone?: string;
@@ -112,8 +118,8 @@ export interface ShipmentFormState extends CreateShipmentDto {
   isNewSupplier?: boolean;
   isEditingSupplier?: boolean;
   newSupplier?: {
-    id: string;
-    company_name: string;
+    id?: string;
+    company_name?: string;
     email?: string;
     phone?: string;
     address?: string;

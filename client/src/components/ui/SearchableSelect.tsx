@@ -37,11 +37,11 @@ interface SearchableSelectProps {
   disabled?: boolean
   hideSearch?: boolean
   hideClearIcon?: boolean
-  /** Link dưới danh sách (ví dụ mở dialog tra cứu đầy đủ) */
+  /** Link under the list (e.g. open full lookup dialog) */
   footerAction?: SearchableSelectFooterAction
-  /** Giống nút filter secondary trên ShipmentsPage (pill + chevron phải). */
+  /** Like secondary filter button on ShipmentsPage (pill + chevron phải). */
   variant?: "default" | "filterChip"
-  /** Icon trái khi variant = filterChip */
+  /** Left icon when variant = filterChip */
   leadingIcon?: React.ReactNode
 }
 

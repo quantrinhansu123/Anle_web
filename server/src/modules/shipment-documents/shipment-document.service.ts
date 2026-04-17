@@ -1,7 +1,9 @@
 import { supabase } from '../../config/supabase';
+import { AppError } from '../../middlewares/error.middleware';
 import type {
   CreateShipmentDocumentDto,
   ShipmentDocument,
+  ShipmentDocumentStatus,
   ShipmentDocumentType,
   UpdateShipmentDocumentDto,
 } from './shipment-document.types';
@@ -14,7 +16,68 @@ const REQUIRED_DOC_TYPES: ShipmentDocumentType[] = [
 
 const READY_STATUSES = new Set(['verified', 'issued']);
 
+/**
+ * Document types that require shipment-level cross-checks before verification.
+ * Per SOP Section II.1: block issuance if HS code / Incoterms / commodity are wrong or missing.
+ */
+const CROSS_CHECK_DOC_TYPES = new Set<ShipmentDocumentType>([
+  'commercial_invoice',
+  'packing_list',
+  'sales_contract',
+  'co_form_e',
+  'bill_of_lading',
+]);
+
 export class ShipmentDocumentService {
+  /**
+   * SOP Cross-check: Before verifying/issuing certain document types,
+   * validate that the parent shipment has required fields set.
+   * - commodity must be non-empty
+   * - hs_code must be non-empty
+   * - term (incoterms) must be non-empty
+   * - is_hs_confirmed must be true (customs has confirmed the HS code)
+   */
+  private async assertCrossCheck(
+    shipmentId: string,
+    docType: ShipmentDocumentType,
+    newStatus: ShipmentDocumentStatus,
+  ): Promise<void> {
+    // Only check when moving to verified or issued
+    if (!READY_STATUSES.has(newStatus)) return;
+    // Only check for document types that require cross-validation
+    if (!CROSS_CHECK_DOC_TYPES.has(docType)) return;
+
+    const { data: shipment, error } = await supabase
+      .from('shipments')
+      .select('commodity, hs_code, term, is_hs_confirmed')
+      .eq('id', shipmentId)
+      .single();
+
+    if (error) throw error;
+    if (!shipment) throw new AppError('Shipment not found for cross-check', 404);
+
+    const issues: string[] = [];
+
+    if (!shipment.commodity || shipment.commodity.trim() === '') {
+      issues.push('Commodity/product name is missing on the shipment');
+    }
+    if (!shipment.hs_code || shipment.hs_code.trim() === '') {
+      issues.push('HS code is missing on the shipment');
+    }
+    if (!shipment.term || shipment.term.trim() === '') {
+      issues.push('Incoterms is missing on the shipment');
+    }
+    if (!shipment.is_hs_confirmed) {
+      issues.push('HS code has not been confirmed by Customs team');
+    }
+
+    if (issues.length > 0) {
+      throw new AppError(
+        `Cannot ${newStatus === 'verified' ? 'verify' : 'issue'} ${docType}: ${issues.join('; ')}`,
+        400,
+      );
+    }
+  }
   private async syncShipmentDocsReady(shipmentId: string): Promise<void> {
     const { data, error } = await supabase
       .from('shipment_documents')
@@ -105,6 +168,13 @@ export class ShipmentDocumentService {
   }
 
   async update(id: string, dto: UpdateShipmentDocumentDto): Promise<ShipmentDocument> {
+    // If status is changing to verified/issued, run SOP cross-check first
+    if (dto.status && READY_STATUSES.has(dto.status)) {
+      const current = await this.findById(id);
+      if (!current) throw new AppError('Document not found', 404);
+      await this.assertCrossCheck(current.shipment_id, current.doc_type, dto.status);
+    }
+
     const { data, error } = await supabase
       .from('shipment_documents')
       .update(dto)

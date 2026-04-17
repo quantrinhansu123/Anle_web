@@ -12,6 +12,14 @@ export interface Employee {
   password?: string;
   avatar_url?: string;
   created_at?: string;
+  role?: string;
+  department_code?: string;
+  team_code?: string;
+  manager_id?: string;
+  is_active?: boolean;
+  spending_limit?: number;
+  departments?: { name: string; name_vi: string };
+  teams?: { name: string; name_vi: string };
   shipments?: any[];
   contracts?: any[];
 }

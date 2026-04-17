@@ -22,12 +22,15 @@ import { useToastContext } from '../contexts/ToastContext';
 // --- CONFIGURATION ---
 const INITIAL_FORM_STATE: Partial<Employee> = {
   full_name: '',
-  department: '',
+  department_code: '',
+  team_code: '',
+  role: 'staff',
   position: '',
   email: '',
   phone: '',
   address: '',
-  avatar_url: ''
+  avatar_url: '',
+  spending_limit: 0
 };
 
 type ColDef = { label: string; thClass: string; tdClass: string; renderContent: (e: Employee) => React.ReactNode };
@@ -58,10 +61,31 @@ const COLUMN_DEFS: Record<string, ColDef> = {
     thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-40 border-r border-border/40',
     tdClass: 'px-4 py-4 border-r border-border/40',
     renderContent: (e) => (
-      <div className="flex items-center gap-2">
-        <Briefcase size={12} className="text-primary/60" />
-        <span className="text-[12px] font-medium text-slate-600">{e.department || '—'}</span>
+      <div className="flex flex-col gap-0.5">
+        <div className="flex items-center gap-2">
+          <Briefcase size={12} className="text-primary/60" />
+          <span className="text-[12px] font-bold text-slate-700">{e.departments?.name || e.department_code || '—'}</span>
+        </div>
+        {e.teams && (
+          <span className="text-[10px] text-muted-foreground ml-5">{e.teams.name}</span>
+        )}
       </div>
+    )
+  },
+  role: {
+    label: 'Role',
+    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-32 border-r border-border/40',
+    tdClass: 'px-4 py-4 border-r border-border/40',
+    renderContent: (e) => (
+      <span className={clsx(
+        "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border",
+        e.role === 'ceo' || e.role === 'admin' ? "bg-purple-50 text-purple-600 border-purple-200" :
+        e.role === 'director' ? "bg-blue-50 text-blue-600 border-blue-200" :
+        e.role === 'manager' ? "bg-amber-50 text-amber-600 border-amber-200" :
+        "bg-slate-50 text-slate-600 border-slate-200"
+      )}>
+        {e.role || 'staff'}
+      </span>
     )
   },
   position: {
@@ -256,7 +280,7 @@ const EmployeesPage: React.FC = () => {
       if (!matchesText) return false;
     }
 
-    if (selectedDepartments.length > 0 && e.department && !selectedDepartments.includes(e.department)) return false;
+    if (selectedDepartments.length > 0 && e.department_code && !selectedDepartments.includes(e.department_code)) return false;
     if (selectedPositions.length > 0 && e.position && !selectedPositions.includes(e.position)) return false;
 
     return true;
@@ -270,7 +294,7 @@ const EmployeesPage: React.FC = () => {
     setSelectedEmployees(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
-  const departments = Array.from(new Set(employees.map(e => e.department).filter(Boolean))) as string[];
+  const departments = Array.from(new Set(employees.map(e => e.department_code).filter(Boolean))) as string[];
   const positions = Array.from(new Set(employees.map(e => e.position).filter(Boolean))) as string[];
 
   return (

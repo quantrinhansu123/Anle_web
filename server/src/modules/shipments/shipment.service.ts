@@ -1,23 +1,38 @@
 import { supabase } from '../../config/supabase';
 import { AppError } from '../../middlewares/error.middleware';
+import { calculateDelayHours } from '../../utils/sla.utils';
+import { NotificationService } from '../notifications/notification.service';
+import { ShipmentCostService } from '../shipment-costs/shipment-cost.service';
 import type {
   CreateShipmentDto,
   Shipment,
   ShipmentReadinessResult,
   ShipmentStatus,
   UpdateShipmentDto,
+  AllowedTransitionsResult,
+  BlockedTransition,
+  RunGatesResult,
+  RunGateItem,
+  FeasibilityApproval,
+  FeasibilityDepartment,
+  FeasibilityStatus,
+  UpdateFeasibilityDto,
 } from './shipment.types';
 
+const notificationService = new NotificationService();
+const shipmentCostService = new ShipmentCostService();
+
 const STATUS_TRANSITIONS: Record<ShipmentStatus, ShipmentStatus[]> = {
-  draft: ['feasibility_checked', 'cancelled'],
-  feasibility_checked: ['planned', 'cancelled'],
-  planned: ['docs_ready', 'cancelled'],
+  draft: ['feasibility_check', 'cancelled'],
+  feasibility_check: ['draft', 'approved', 'cancelled'], // can rollback to draft
+  approved: ['cost_locked', 'cancelled'],
+  cost_locked: ['docs_ready', 'cancelled'],
   docs_ready: ['booked', 'cancelled'],
-  booked: ['customs_ready', 'cancelled'],
-  customs_ready: ['in_transit', 'cancelled'],
+  booked: ['docs_ready', 'customs_cleared', 'cancelled'], // rollback allowed
+  customs_cleared: ['booked', 'in_transit', 'cancelled'],
   in_transit: ['delivered', 'cancelled'],
-  delivered: ['cost_closed'],
-  cost_closed: [],
+  delivered: ['completed', 'cancelled'],
+  completed: [],
   cancelled: [],
 };
 
@@ -35,16 +50,22 @@ export class ShipmentService {
 
   private getMissingRunGates(item: Shipment): string[] {
     const missing: string[] = [];
+    if (!item.contract_id) missing.push('contract_ok');
     if (!item.is_docs_ready) missing.push('docs_ready');
     if (!item.is_hs_confirmed) missing.push('hs_confirmed');
-    if (!item.is_phytosanitary_ready) missing.push('phytosanitary_ready');
+    if (!item.is_phytosanitary_ready) missing.push('phytosanitary');
     if (!item.is_cost_locked) missing.push('cost_locked');
-    if (!item.is_truck_booked) missing.push('truck_booked');
+    if (!item.is_truck_booked && !item.transport_air && !item.transport_sea) missing.push('truck_booked'); 
     if (!item.is_agent_booked) missing.push('agent_booked');
     return missing;
   }
 
-  private assertStatusGates(next: ShipmentStatus, current: Shipment) {
+  private async assertStatusGates(next: ShipmentStatus, current: Shipment) {
+    if (next === 'cost_locked') {
+      if (!current.planned_cost || Object.keys(current.planned_cost).length === 0) {
+        throw new AppError('Cannot lock cost without planned cost data.', 400);
+      }
+    }
     if (next === 'in_transit') {
       const missing = this.getMissingRunGates(current);
       if (missing.length > 0) {
@@ -55,12 +76,17 @@ export class ShipmentService {
       }
     }
 
-    if (next === 'cost_closed') {
+    if (next === 'completed') {
       if (!current.pod_confirmed_at) {
-        throw new AppError('Cannot close shipment cost before POD confirmation', 400);
+        throw new AppError('Cannot complete shipment before POD confirmation', 400);
       }
       if (!current.is_cost_locked) {
-        throw new AppError('Cannot close shipment cost before cost is locked', 400);
+        throw new AppError('Cannot complete shipment before planned costs are locked', 400);
+      }
+      // SOP requires actual cost reconciliation before completion
+      const reconciled = await shipmentCostService.allCostsReconciled(current.id);
+      if (!reconciled) {
+        throw new AppError('Cannot complete shipment before all actual costs are reconciled', 400);
       }
     }
   }
@@ -171,6 +197,11 @@ export class ShipmentService {
       throw new AppError('Shipment not found', 404);
     }
 
+    // OCC Check
+    if (dto.version !== undefined && current.version !== undefined && dto.version !== current.version) {
+      throw new AppError('Concurrency Conflict: This shipment was modified by another user. Please refresh and try again.', 409);
+    }
+
     const patch: UpdateShipmentDto = { ...dto };
 
     if (typeof dto.is_cost_locked === 'boolean' && dto.is_cost_locked && !current.is_cost_locked) {
@@ -180,18 +211,97 @@ export class ShipmentService {
     if (dto.status) {
       const currentStatus = current.status ?? 'draft';
       this.assertCanTransition(currentStatus, dto.status);
-      this.assertStatusGates(dto.status, { ...current, ...patch });
+      await this.assertStatusGates(dto.status, { ...current, ...patch });
     }
+
+    patch.version = (current.version ?? 1) + 1;
 
     const { data, error } = await supabase
       .from('shipments')
       .update(patch)
       .eq('id', id)
+      // Force safe guard at DB level if possible, but our select checking helps 
       .select()
       .single();
 
     if (error) throw error;
+
+    // ─── Side Effects on Status Change ────────────────────────────
+    if (dto.status && dto.status !== current.status) {
+       // Log the change
+       await supabase.from('shipment_logs').insert({
+         shipment_id: id,
+         action: 'status_change',
+         from_value: current.status,
+         to_value: dto.status,
+         note: 'Status transitioned via API'
+       });
+
+       // Dispatch notification (non-blocking)
+       notificationService.notifyOnStatusChange(
+         id,
+         current.status ?? 'draft',
+         dto.status,
+         current.code,
+       ).catch(err => console.error('Failed to notify status change:', err));
+
+       // Vendor KPI update on completion or cancellation
+       if ((dto.status === 'completed' || dto.status === 'cancelled') && current.supplier_id) {
+         // Merge dto status so updateVendorKpi knows the final status
+         this.updateVendorKpi({ ...current, status: dto.status }).catch(err => 
+           console.error('Failed to update vendor KPI:', err)
+         );
+       }
+    }
+
     return data;
+  }
+
+  /**
+   * Update supplier KPI metrics when a shipment is completed.
+   */
+  private async updateVendorKpi(shipment: Shipment): Promise<void> {
+    const supplierId = shipment.supplier_id;
+    if (!supplierId) return;
+
+    // Calculate on-time delivery
+    const delayHours = calculateDelayHours(shipment.eta);
+    const isOnTime = delayHours <= 2; // Within 2 hours tolerance = on-time
+
+    // Calculate cost variance
+    let costVariance = 0;
+    if (shipment.planned_cost && shipment.actual_cost) {
+      const calcTotal = (cost: any) => {
+        if (typeof cost === 'number') return cost;
+        if (!cost) return 0;
+        return (cost.trucking || 0) + (cost.agent || 0) + (cost.customs || 0) + (cost.other || 0);
+      };
+      const planned = calcTotal(shipment.planned_cost);
+      const actual = calcTotal(shipment.actual_cost);
+      costVariance = actual - planned;
+    }
+
+    // Get current supplier KPI
+    const { data: supplier } = await supabase
+      .from('suppliers')
+      .select('completed_shipments, on_time_shipments, total_delay_hours, total_cost_variance')
+      .eq('id', supplierId)
+      .single();
+
+    const completedShipments = (supplier?.completed_shipments ?? 0) + 1;
+    const onTimeShipments = (supplier?.on_time_shipments ?? 0) + (isOnTime ? 1 : 0);
+    const totalDelayHours = (supplier?.total_delay_hours ?? 0) + delayHours;
+    const totalCostVariance = (supplier?.total_cost_variance ?? 0) + costVariance;
+
+    await supabase
+      .from('suppliers')
+      .update({
+        completed_shipments: completedShipments,
+        on_time_shipments: onTimeShipments,
+        total_delay_hours: totalDelayHours,
+        total_cost_variance: totalCostVariance,
+      })
+      .eq('id', supplierId);
   }
 
   async updateStatus(id: string, status: ShipmentStatus): Promise<Shipment> {
@@ -205,5 +315,145 @@ export class ShipmentService {
       .eq('id', id);
 
     if (error) throw error;
+  }
+
+  // ─── ALLOWED TRANSITIONS (FE must not hardcode) ───────────────
+  async getAllowedTransitions(id: string): Promise<AllowedTransitionsResult> {
+    const item = await this.findById(id);
+    if (!item) throw new AppError('Shipment not found', 404);
+
+    const currentStatus = (item.status ?? 'draft') as ShipmentStatus;
+    const candidates = STATUS_TRANSITIONS[currentStatus] ?? [];
+    const allowed: ShipmentStatus[] = [];
+    const blocked: BlockedTransition[] = [];
+
+    for (const next of candidates) {
+      try {
+        await this.assertStatusGates(next, item);
+        allowed.push(next);
+      } catch (err: any) {
+        blocked.push({ status: next, reason: err.message || 'Blocked' });
+      }
+    }
+
+    return { current_status: currentStatus, allowed, blocked };
+  }
+
+  // ─── RUN GATES (Pre-flight checklist from BE) ─────────────────
+  async getRunGates(id: string): Promise<RunGatesResult> {
+    const item = await this.findById(id);
+    if (!item) throw new AppError('Shipment not found', 404);
+
+    const missing: RunGateItem[] = [];
+
+    if (!item.contract_id) missing.push({ key: 'contract_ok', message: 'Contract not linked' });
+    if (!item.is_docs_ready) missing.push({ key: 'docs_ready', message: 'Documents not ready' });
+    if (!item.is_hs_confirmed) missing.push({ key: 'hs_confirmed', message: 'HS Code not confirmed' });
+    if (!item.is_phytosanitary_ready) missing.push({ key: 'phytosanitary', message: 'Phytosanitary not ready' });
+    if (!item.is_cost_locked) missing.push({ key: 'cost_locked', message: 'Cost not locked' });
+    if (!item.is_truck_booked && !item.transport_air && !item.transport_sea) {
+      missing.push({ key: 'truck_booked', message: 'Truck not booked' });
+    }
+    if (!item.is_agent_booked) missing.push({ key: 'agent_booked', message: 'Agent not booked' });
+
+    return { can_run: missing.length === 0, missing };
+  }
+
+  // ─── FEASIBILITY APPROVALS ────────────────────────────────────
+  async getFeasibilityApprovals(shipmentId: string): Promise<FeasibilityApproval[]> {
+    const { data, error } = await supabase
+      .from('shipment_feasibility_approvals')
+      .select(`
+        *,
+        employee:employees!approved_by (
+          full_name
+        )
+      `)
+      .eq('shipment_id', shipmentId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      // Simple fallback without explicit fkey link
+      const { data: fb, error: fbErr } = await supabase
+        .from('shipment_feasibility_approvals')
+        .select('*, employees(full_name)')
+        .eq('shipment_id', shipmentId)
+        .order('created_at', { ascending: true });
+      
+      if (fbErr) {
+        const { data: raw } = await supabase.from('shipment_feasibility_approvals').select('*').eq('shipment_id', shipmentId);
+        return raw || [];
+      }
+      return (fb || []).map((r: any) => ({
+        ...r,
+        approved_by: r.employees?.full_name || r.employees?.[0]?.full_name || r.approved_by
+      }));
+    }
+
+    return (data ?? []).map((row: any) => ({
+      ...row,
+      approved_by: row.employee?.full_name || (Array.isArray(row.employee) ? row.employee[0]?.full_name : null) || row.approved_by
+    }));
+  }
+
+  async updateFeasibilityApproval(
+    shipmentId: string,
+    dto: UpdateFeasibilityDto,
+    userId?: string,
+  ): Promise<FeasibilityApproval> {
+    // Guard: only allow updates during feasibility_check status
+    const shipment = await this.findById(shipmentId);
+    if (!shipment) throw new AppError('Shipment not found', 404);
+    if (shipment.status !== 'feasibility_check' && shipment.status !== 'draft') {
+      throw new AppError(
+        `Cannot update feasibility after approval stage. Current status: ${shipment.status}`,
+        400,
+      );
+    }
+
+    // Upsert: UNIQUE(shipment_id, department) ensures no duplicates
+    const now = new Date().toISOString();
+    const upsertData: any = {
+      shipment_id: shipmentId,
+      department: dto.department,
+      status: dto.status,
+      note: dto.note || null,
+      updated_at: now,
+    };
+
+    if (dto.status === 'approved' || dto.status === 'rejected') {
+      upsertData.approved_by = userId || null;
+      upsertData.approved_at = now;
+    }
+
+    const { data, error } = await supabase
+      .from('shipment_feasibility_approvals')
+      .upsert(upsertData, { onConflict: 'shipment_id,department' })
+      .select(`
+        *,
+        employee:employees!approved_by (
+          full_name
+        )
+      `)
+      .single();
+
+    if (error) throw error;
+    
+    const mapped = {
+      ...data,
+      approved_by: data.employee?.full_name || (Array.isArray(data.employee) ? data.employee[0]?.full_name : null) || data.approved_by
+    };
+
+    // Log the action
+    await supabase.from('shipment_logs').insert({
+      shipment_id: shipmentId,
+      action: 'approval',
+      from_value: dto.department,
+      to_value: dto.status,
+      performed_by: userId || null,
+      note: dto.note || `Feasibility ${dto.department} → ${dto.status}`,
+    });
+
+    return mapped;
   }
 }

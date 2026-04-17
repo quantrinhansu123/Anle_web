@@ -13,7 +13,14 @@ export const authMiddleware = (req: Request, res: Response, _next: NextFunction)
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, env.JWT_SECRET);
+    const decoded = jwt.verify(token, env.JWT_SECRET) as {
+      id: string;
+      email: string;
+      role?: string;
+      department_code?: string;
+      position?: string;
+      spending_limit?: number;
+    };
     (req as any).user = decoded;
     _next();
   } catch (err) {

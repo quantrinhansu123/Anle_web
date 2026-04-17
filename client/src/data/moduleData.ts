@@ -16,12 +16,12 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
       items: [
         { icon: LayoutDashboard, title: 'Dashboard FMS', description: 'Freight operations and shipment overview.', colorScheme: 'blue', path: '/shipping/dashboard-fms' },
         { icon: BarChart3, title: 'Business Dashboard', description: 'Business metrics and transportation performance.', colorScheme: 'emerald', path: '/shipping/business-dashboard' },
-        { icon: BadgeDollarSign, title: 'Sales', description: 'Quotes, orders, and service rates.', colorScheme: 'amber', path: '/financials/sales' },
-        { icon: ClipboardList, title: 'Job Management', description: 'Job board: HBL, master code, PIC, operators, and priority.', colorScheme: 'blue', path: '/shipping/jobs' },
-        { icon: Anchor, title: 'House Sea B/L', description: 'Table of house B/L: MBL, HBL, containers, parties, schedule, and operators.', colorScheme: 'cyan', path: '/shipping/house-sea-bl' },
-        { icon: Package, title: 'Transport Services', description: 'Manage freight charge catalog and transport services.', colorScheme: 'slate', path: '/financials/sales-charges' },
-        { icon: CreditCard, title: 'Payment Management', description: 'Payment requests and cost flow.', colorScheme: 'teal', path: '/financials/payment-requests' },
-        { icon: FileText, title: 'Debit Notes', description: 'Customer debit notes and credit-note handling.', colorScheme: 'blue', path: '/financials/debit-notes' },
+        { icon: BadgeDollarSign, title: 'Sales', description: 'Quotes, orders, and service rates.', colorScheme: 'amber', path: '/financials/sales', requiredDepartments: ['sales', 'finance', 'bod'] },
+        { icon: ClipboardList, title: 'Job Management', description: 'Job board: HBL, master code, PIC, operators, and priority.', colorScheme: 'blue', path: '/shipping/jobs', requiredDepartments: ['logistics', 'finance', 'bod'] },
+        { icon: Anchor, title: 'House Sea B/L', description: 'Table of house B/L: MBL, HBL, containers, parties, schedule, and operators.', colorScheme: 'cyan', path: '/shipping/house-sea-bl', requiredDepartments: ['logistics', 'finance', 'bod'] },
+        { icon: Package, title: 'Transport Services', description: 'Manage freight charge catalog and transport services.', colorScheme: 'slate', path: '/financials/sales-charges', requiredDepartments: ['logistics', 'finance', 'bod'] },
+        { icon: CreditCard, title: 'Payment Management', description: 'Payment requests and cost flow.', colorScheme: 'teal', path: '/financials/payment-requests', requiredDepartments: ['finance', 'bod'] },
+        { icon: FileText, title: 'Debit Notes', description: 'Customer debit notes and credit-note handling.', colorScheme: 'blue', path: '/financials/debit-notes', requiredDepartments: ['finance', 'bod'] },
       ]
     }
   ],
@@ -58,9 +58,9 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
     {
       section: 'Trading',
       items: [
-        { icon: ShoppingCart, title: 'Purchasing', description: 'Manage purchasing items and costs.', colorScheme: 'orange', path: '/financials/purchasing' },
-        { icon: FileSignature, title: 'Contracts', description: 'Comprehensive list of all shipping contracts.', colorScheme: 'slate', path: '/contracts/directory' },
-        { icon: FileText, title: 'Pending Approvals', description: 'Review and approve pending purchase orders.', colorScheme: 'teal', path: '/financials/po-approvals' },
+        { icon: ShoppingCart, title: 'Purchasing', description: 'Manage purchasing items and costs.', colorScheme: 'orange', path: '/financials/purchasing', requiredDepartments: ['procurement', 'finance', 'bod'] },
+        { icon: FileSignature, title: 'Contracts', description: 'Comprehensive list of all shipping contracts.', colorScheme: 'slate', path: '/contracts/directory', requiredDepartments: ['sales', 'procurement', 'finance', 'bod'] },
+        { icon: FileText, title: 'Pending Approvals', description: 'Review and approve pending purchase orders.', colorScheme: 'teal', path: '/financials/po-approvals', requiredRoles: ['ceo', 'director', 'manager'] },
       ]
     }
   ],
@@ -145,6 +145,14 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
           description: 'Open A/R by partner and bucket (1–30, 31–60, …) as of a date.',
           colorScheme: 'amber',
           path: '/financials/receivable-aging',
+        },
+        {
+          icon: ClipboardList,
+          title: 'Approval Requests',
+          description: 'Manage and review pending approval workflow requests.',
+          colorScheme: 'purple',
+          path: '/financials/approvals',
+          requiredRoles: ['ceo', 'director', 'manager']
         },
       ]
     },

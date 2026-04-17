@@ -7,10 +7,10 @@ export interface ThreeStarRatingProps {
   onChange: (value: number) => void;
   disabled?: boolean;
   label?: string;
-  /** Icon sao cạnh label (vd. Customer Rating) */
+  /** Star icon next to label (vd. Customer Rating) */
   showStarInLabel?: boolean;
   labelClassName?: string;
-  /** framed: khung nền như dialog khách hàng; inline: chỉ hàng sao */
+  /** framed: framed background like customer dialog; inline: only star row */
   variant?: 'framed' | 'inline';
   className?: string;
 }

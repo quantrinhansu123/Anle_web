@@ -291,16 +291,7 @@ const ShipmentsPage: React.FC = () => {
 
   // --- ACTIONS ---
   const handleOpenAdd = () => {
-    setDialogReadiness(null);
-    setShipmentDocuments([]);
-    setCustomsClearances([]);
-    setFormState({
-      ...INITIAL_FORM_STATE,
-      pic: user ? { full_name: user.full_name } : undefined
-    });
-    setIsEditMode(false);
-    setIsDetailMode(false);
-    setIsDialogOpen(true);
+    navigate('/shipments/sop/new');
   };
 
   const handleOpenEdit = (shipment: Shipment) => {
@@ -319,18 +310,7 @@ const ShipmentsPage: React.FC = () => {
     setIsDialogOpen(true);
   };
   const handleOpenDetail = (shipment: Shipment) => {
-    setFormState({
-      ...shipment,
-      isNewCustomer: false,
-      isNewSupplier: false,
-      newCustomer: { company_name: '' },
-      newSupplier: { id: '', company_name: '' }
-    });
-    setIsEditMode(false);
-    setIsDetailMode(true);
-    setIsDialogOpen(true);
-    void handleRefreshReadiness(shipment.id);
-    void handleRefreshCompliance(shipment.id);
+    navigate(`/shipments/sop/${shipment.id}`);
   };
 
   const handleRefreshCompliance = async (shipmentId?: string) => {
@@ -558,7 +538,7 @@ const ShipmentsPage: React.FC = () => {
 
       if (formState.isNewSupplier) {
         const newSupp = await supplierService.createSupplier({
-          id: formState.newSupplier.id,
+          id: formState.newSupplier.id as string,
           company_name: formState.newSupplier.company_name,
           email: formState.newSupplier.email,
           phone: formState.newSupplier.phone,
@@ -628,7 +608,7 @@ const ShipmentsPage: React.FC = () => {
           return;
         }
         const newSupp = await supplierService.createSupplier({
-          id: formState.newSupplier.id,
+          id: formState.newSupplier.id as string,
           company_name: formState.newSupplier.company_name,
           email: formState.newSupplier.email,
           phone: formState.newSupplier.phone,

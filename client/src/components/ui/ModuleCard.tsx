@@ -10,6 +10,8 @@ export interface ModuleCardProps {
   description: string;
   colorScheme: 'red' | 'green' | 'pink' | 'blue' | 'orange' | 'teal' | 'purple' | 'cyan' | 'emerald' | 'amber' | 'slate';
   path?: string;
+  requiredRoles?: string[];
+  requiredDepartments?: string[];
 }
 
 const colorMap = {
@@ -81,7 +83,7 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
         >
           <Star size={15} fill={isFav ? "currentColor" : "none"} />
         </button>
-        <button className="text-muted-foreground/30 hover:text-primary transition-colors" title="Hướng dẫn sử dụng">
+        <button className="text-muted-foreground/30 hover:text-primary transition-colors" title="User Guide">
           <HelpCircle size={15} />
         </button>
       </div>

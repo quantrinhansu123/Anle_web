@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Bell, Clock, Calendar, CheckCheck, Trash2, ChevronRight, 
-  Info, AlertTriangle, CheckCircle2, Home, PanelLeft, 
+  Clock, Calendar, Home, PanelLeft, 
   PanelLeftClose, User, Settings, LogOut, ChevronDown 
 } from 'lucide-react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
@@ -9,60 +8,9 @@ import { sidebarMenu, extraMenuItems } from '../../data/sidebarMenu';
 import { moduleData } from '../../data/moduleData';
 import { clsx } from 'clsx';
 import { useTheme } from '../../context/ThemeContext';
-import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 import { useAuth } from '../../contexts/AuthContext';
-
-interface Notification {
-  id: string;
-  title: string;
-  description: string;
-  time: string;
-  type: 'info' | 'warning' | 'success';
-  isRead: boolean;
-}
-
-const mockNotifications: Notification[] = [
-  {
-    id: '1',
-    title: 'Welcome back',
-    description: 'This is a sample notification. You can mark as read or delete individual alerts.',
-    time: '2 mins ago',
-    type: 'info',
-    isRead: false,
-  },
-  {
-    id: '2',
-    title: 'System Update',
-    description: 'A new version is ready. Please refresh the page when convenient.',
-    time: '1 hour ago',
-    type: 'success',
-    isRead: false,
-  },
-  {
-    id: '3',
-    title: 'Shipment Approved',
-    description: 'Ocean freight FCL-8829 has been approved for dispatch.',
-    time: '3 hours ago',
-    type: 'success',
-    isRead: false,
-  },
-  {
-    id: '4',
-    title: 'Scheduled Maintenance',
-    description: 'System maintenance scheduled from 23:00 to 02:00 tonight.',
-    time: '5 hours ago',
-    type: 'warning',
-    isRead: false,
-  },
-  {
-    id: '5',
-    title: 'Pending Invoice',
-    description: 'January billing for Client X is overdue. Due date: 15/02.',
-    time: '1 day ago',
-    type: 'warning',
-    isRead: true,
-  }
-];
+import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
+import NotificationBell from '../NotificationBell';
 
 interface TopbarProps {
   sidebarOpen: boolean;
@@ -71,11 +19,7 @@ interface TopbarProps {
 
 const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
   const [time, setTime] = useState(new Date());
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
-  const notificationDropdownRef = useRef<HTMLDivElement>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -85,10 +29,6 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
 
   const defaultAvatar = "https://ui-avatars.com/api/?name=Admin&background=random&color=random";
   const userAvatar = user?.avatar_url || avatar || defaultAvatar;
-
-  const unreadCount = notifications.filter(n => !n.isRead).length;
-  const displayNotifications = isExpanded ? notifications : notifications.slice(0, 5);
-  const hasMore = notifications.length > 5;
 
   // Enhanced breadcrumb logic
   const getLabel = (path: string) => {
@@ -215,10 +155,6 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (notificationDropdownRef.current && !notificationDropdownRef.current.contains(event.target as Node)) {
-        setShowNotifications(false);
-        setIsExpanded(false);
-      }
       if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
         setShowUserDropdown(false);
       }
@@ -238,35 +174,6 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
       month: 'long', 
       day: 'numeric' 
     });
-  };
-
-  const markAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, isRead: true })));
-  };
-
-  const clearAll = () => {
-    setNotifications([]);
-  };
-
-  const markAsRead = (id: string) => {
-    setNotifications(notifications.map(n => n.id === id ? { ...n, isRead: true } : n));
-  };
-
-  const getIcon = (type: Notification['type']) => {
-    switch (type) {
-      case 'info': return <Info size={18} className="text-blue-500" />;
-      case 'warning': return <AlertTriangle size={18} className="text-amber-500" />;
-      case 'success': return <CheckCircle2 size={18} className="text-emerald-500" />;
-    }
-  };
-
-  const getTypeStyles = (type: Notification['type'], isRead: boolean) => {
-    if (isRead) return '';
-    switch (type) {
-      case 'info': return 'border-l-4 border-l-blue-500 bg-blue-500/10';
-      case 'warning': return 'border-l-4 border-l-amber-500 bg-amber-500/10';
-      case 'success': return 'border-l-4 border-l-emerald-500 bg-emerald-500/10';
-    }
   };
 
   return (
@@ -295,7 +202,7 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
             Home
           </Link>
 
-          {breadcrumbs.map((crumb, idx) => (
+          {breadcrumbs.map((crumb: { path: string; label: string }, idx: number) => (
             <React.Fragment key={crumb.path}>
               <span className="text-muted-foreground/40 font-light">
                 <svg width="5" height="8" viewBox="0 0 6 10" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -335,131 +242,13 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
         </div>
 
         {/* Notifications */}
-        <div className="relative" ref={notificationDropdownRef}>
-          <button
-            onClick={() => {
-              setShowNotifications(!showNotifications);
-              setShowUserDropdown(false);
-            }}
-            className={clsx(
-              "relative p-2 text-muted-foreground hover:bg-accent rounded-full transition-colors",
-              showNotifications && "bg-accent text-primary"
-            )}
-          >
-            <Bell size={20} />
-            {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-4 h-4 bg-primary text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-card">
-                {unreadCount}
-              </span>
-            )}
-          </button>
-
-          {/* Dropdown */}
-          {showNotifications && (
-            <div className="absolute right-0 mt-2 w-[350px] bg-card rounded-xl shadow-xl border border-border overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right">
-              {/* Header */}
-              <div className="p-3 border-b border-border flex items-center justify-between bg-card sticky top-0 z-10">
-                <div className="flex items-center gap-2">
-                  <Bell size={16} className="text-primary" />
-                  <h3 className="font-bold text-foreground text-[13px]">Notifications</h3>
-                  {unreadCount > 0 && (
-                    <span className="bg-primary/10 text-primary text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                      {unreadCount}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-0.5">
-                  <button
-                    onClick={markAllAsRead}
-                    className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-md transition-colors"
-                    title="Mark all as read"
-                  >
-                    <CheckCheck size={16} />
-                  </button>
-                  <button
-                    onClick={clearAll}
-                    className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                    title="Clear all"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-
-              {/* List */}
-              <div className={clsx(
-                "overflow-y-auto custom-scrollbar transition-all duration-300",
-                isExpanded ? "max-h-[400px]" : "max-h-[350px]"
-              )}>
-                {notifications.length > 0 ? (
-                  <div className="divide-y divide-border/50">
-                    {displayNotifications.map((notification) => (
-                      <div
-                        key={notification.id}
-                        onClick={() => markAsRead(notification.id)}
-                        className={clsx(
-                          "p-3 transition-colors cursor-pointer hover:bg-muted/30 relative",
-                          getTypeStyles(notification.type, notification.isRead)
-                        )}
-                      >
-                        <div className="flex gap-2.5">
-                          <div className={clsx(
-                            "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
-                            notification.type === 'info' && "bg-blue-50",
-                            notification.type === 'warning' && "bg-amber-50",
-                            notification.type === 'success' && "bg-emerald-50"
-                          )}>
-                            {getIcon(notification.type)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2 mb-0.5">
-                              <h4 className={clsx(
-                                "font-bold text-[13px] leading-tight transition-colors truncate",
-                                notification.isRead ? "text-foreground/70" : "text-primary"
-                              )}>
-                                {notification.title}
-                              </h4>
-                              {!notification.isRead && (
-                                <span className="w-1.5 h-1.5 bg-primary rounded-full shrink-0 mt-1" />
-                              )}
-                            </div>
-                            <p className="text-[12px] text-muted-foreground leading-snug mb-0.5 line-clamp-1">
-                                {notification.description}
-                            </p>
-                            <span className="text-[10px] text-muted-foreground/50">{notification.time}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-8 flex flex-col items-center justify-center text-muted-foreground">
-                    <Bell size={32} className="mb-2 opacity-20" />
-                    <p className="text-[12px]">No notifications</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Footer */}
-              {hasMore && (
-                <button
-                  onClick={() => setIsExpanded(!isExpanded)}
-                  className="w-full p-2.5 text-center text-[12px] font-bold text-primary hover:bg-primary/5 border-t border-border transition-colors flex items-center justify-center gap-1"
-                >
-                  {isExpanded ? 'Show less' : 'View all notifications'}
-                  <ChevronRight size={14} className={clsx("transition-transform", isExpanded && "rotate-90")} />
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+        <NotificationBell />
 
         {/* User Profile */}
         <div className="relative" ref={userDropdownRef}>
           <div 
             onClick={() => {
               setShowUserDropdown(!showUserDropdown);
-              setShowNotifications(false);
             }}
             className={clsx(
               "flex items-center gap-3 pl-2 sm:pl-4 sm:border-l border-border cursor-pointer group transition-all duration-200",

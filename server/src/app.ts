@@ -30,7 +30,17 @@ import customerExpenseRoutes from './modules/customer-expenses/customer-expense.
 import accountingDashboardRoutes from './modules/accounting-dashboard/accounting-dashboard.routes';
 import { uploadController } from './modules/upload/upload.controller';
 import authRoutes from './modules/auth/auth.routes';
+import departmentRoutes from './modules/departments/department.routes';
 import { authMiddleware } from './middlewares/auth.middleware';
+import { authorize } from './middlewares/authorize.middleware';
+import shipmentCostRoutes from './modules/shipment-costs/shipment-cost.routes';
+import transportBookingRoutes from './modules/transport-bookings/transport-booking.routes';
+import shipmentTrackingRoutes from './modules/shipment-tracking/shipment-tracking.routes';
+import shipmentIncidentRoutes from './modules/shipment-incidents/shipment-incident.routes';
+import shippingAgentRoutes from './modules/shipping-agents/shipping-agent.routes';
+import approvalRequestRoutes from './modules/approval-requests/approval-request.routes';
+import notificationRoutes from './modules/notifications/notification.routes';
+import { departmentAccess } from './middlewares/authorize.middleware';
 
 const app = express();
 
@@ -58,11 +68,13 @@ app.use(`${v1}/jobs`, jobRoutes);
 app.use(`${v1}/fms-dashboard`, fmsDashboardRoutes);
 app.use(`${v1}/business-dashboard`, businessDashboardRoutes);
 app.use(`${v1}/reports`, reportsRoutes);
-app.use(`${v1}/sales`, salesRoutes);
+app.use(`${v1}/sales`, departmentAccess('sales', 'bod'), salesRoutes);
 app.use(`${v1}/sales-charge-catalog`, salesChargeCatalogRoutes);
 app.use(`${v1}/sales-unit-catalog`, salesUnitCatalogRoutes);
-app.use(`${v1}/purchasing`, purchasingRoutes);
-app.use(`${v1}/employees`, employeeRoutes);
+app.use(`${v1}/purchasing`, departmentAccess('procurement', 'bod'), purchasingRoutes);
+app.use(`${v1}/employees`, authorize('ceo', 'director', 'manager'), employeeRoutes);
+app.use(`${v1}/departments`, departmentRoutes);
+app.use(`${v1}/approval-requests`, approvalRequestRoutes);
 app.use(`${v1}/contracts`, contractRoutes);
 app.use(`${v1}/payment-requests`, paymentRequestRoutes);
 app.use(`${v1}/salary-advance-requests`, salaryAdvanceRequestRoutes);
@@ -72,6 +84,12 @@ app.use(`${v1}/debit-notes`, debitNoteRoutes);
 app.use(`${v1}/exchange-rates`, exchangeRateRoutes);
 app.use(`${v1}/shipment-documents`, shipmentDocumentRoutes);
 app.use(`${v1}/customs-clearances`, customsClearanceRoutes);
+app.use(`${v1}/shipment-costs`, shipmentCostRoutes);
+app.use(`${v1}/transport-bookings`, transportBookingRoutes);
+app.use(`${v1}/shipment-tracking`, shipmentTrackingRoutes);
+app.use(`${v1}/shipment-incidents`, shipmentIncidentRoutes);
+app.use(`${v1}/shipping-agents`, shippingAgentRoutes);
+app.use(`${v1}/notifications`, notificationRoutes);
 app.use(`${v1}/upload`, uploadRoutes);
 
 // Catch-all 404 handler

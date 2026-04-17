@@ -3,7 +3,12 @@ import { User } from '@supabase/supabase-js';
 declare global {
   namespace Express {
     interface Request {
-      user?: User;
+      user?: {
+        id: string;
+        email: string;
+        role?: string;
+        department_code?: string;
+      };
     }
   }
 }

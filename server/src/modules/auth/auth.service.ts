@@ -36,7 +36,14 @@ export const authService = {
 
     // Generate token
     const token = jwt.sign(
-      { id: employee.id, email: employee.email },
+      { 
+        id: employee.id, 
+        email: employee.email,
+        role: employee.role,
+        department_code: employee.department_code,
+        position: employee.position,
+        spending_limit: employee.spending_limit
+      },
       env.JWT_SECRET,
       { expiresIn: env.JWT_EXPIRY as any }
     );
