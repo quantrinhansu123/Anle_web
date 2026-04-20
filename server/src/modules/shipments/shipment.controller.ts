@@ -118,4 +118,41 @@ export const ShipmentController = {
       next(err);
     }
   },
+
+  async getBlLines(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await service.getBlLines(req.params.id);
+      res.json(successResponse(data));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async replaceBlLines(req: Request, res: Response, next: NextFunction) {
+    try {
+      await service.replaceBlLines(req.params.id, req.body);
+      const data = await service.getBlLines(req.params.id);
+      res.json(successResponse(data, 'B/L lines updated'));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async getSeaHouseBl(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await service.getSeaHouseBl(req.params.id);
+      res.json(successResponse(data, 'OK'));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async patchSeaHouseBl(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await service.patchSeaHouseBl(req.params.id, req.body as Record<string, unknown>);
+      res.json(successResponse(data, 'Sea House B/L updated'));
+    } catch (err) {
+      next(err);
+    }
+  },
 };

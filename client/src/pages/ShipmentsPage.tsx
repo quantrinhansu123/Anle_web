@@ -7,9 +7,9 @@ import {
   ChevronRight, Ship, Plane, Truck,
   MapPin, RefreshCcw,
   TrendingUp, Users, CheckCircle2,
-  User as UserIcon, Eye
+  User as UserIcon, Eye, Briefcase, Star, Tag, FileText
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { clsx } from 'clsx';
 import { shipmentService } from '../services/shipmentService';
 import { customerService, type Customer } from '../services/customerService';
@@ -27,8 +27,9 @@ import {
 } from '../services/customsClearanceService';
 import { FilterDropdown } from '../components/ui/FilterDropdown';
 import { ColumnSettings } from '../components/ui/ColumnSettings';
+import { ThreeStarRating } from '../components/ui/ThreeStarRating';
 import { useAuth } from '../contexts/AuthContext';
-import type { Shipment, ShipmentFormState, ShipmentReadinessResult } from './shipments/types';
+import type { Shipment, ShipmentFormState, ShipmentReadinessResult, JobBound } from './shipments/types';
 import ShipmentDialog from './shipments/dialogs/ShipmentDialog';
 import { useToastContext } from '../contexts/ToastContext';
 import {
@@ -95,11 +96,20 @@ const getShipmentStatusKey = (shipment: Shipment): keyof typeof statusConfig => 
   return 'in_transit';
 };
 
-const transportConfig: Record<string, { label: string; icon: any; color: string }> = {
+const transportConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   'sea': { label: 'Ocean Freight', icon: Ship, color: 'text-blue-500' },
   'air': { label: 'Air Freight', icon: Plane, color: 'text-indigo-500' },
   'land': { label: 'Land Freight', icon: Truck, color: 'text-orange-500' },
 };
+
+const BOUND_META: Record<JobBound, { label: string; className: string }> = {
+  import: { label: 'Import', className: 'bg-sky-50 text-sky-800 border-sky-200' },
+  export: { label: 'Export', className: 'bg-amber-50 text-amber-800 border-amber-200' },
+  domestic: { label: 'Domestic', className: 'bg-violet-50 text-violet-800 border-violet-200' },
+  transit: { label: 'Transit', className: 'bg-slate-50 text-slate-700 border-slate-200' },
+};
+
+const BOUND_FILTER_IDS: JobBound[] = ['import', 'export', 'domestic', 'transit'];
 
 type ColDef = { label: string; thClass: string; tdClass: string; renderContent: (s: Shipment) => React.ReactNode };
 const COLUMN_DEFS: Record<string, ColDef> = {
@@ -163,9 +173,89 @@ const COLUMN_DEFS: Record<string, ColDef> = {
       const statusKey = getShipmentStatusKey(s);
       return <span className={clsx('px-2.5 py-1 rounded-full text-[10px] font-bold border whitespace-nowrap block text-center', statusConfig[statusKey].classes)}>{statusConfig[statusKey].label}</span>;
     }
+  },
+  bound: {
+    label: 'Bound',
+    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-28 border-r border-border/40',
+    tdClass: 'px-4 py-4 border-r border-border/40',
+    renderContent: (s) => {
+      const b = s.bound;
+      if (!b) return <span className="text-muted-foreground">—</span>;
+      const meta = BOUND_META[b];
+      return (
+        <span className={clsx('px-2 py-1 rounded-lg border text-[11px] font-bold', meta.className)}>{meta.label}</span>
+      );
+    }
+  },
+  services: {
+    label: 'Services',
+    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight min-w-[140px] border-r border-border/40',
+    tdClass: 'px-4 py-4 border-r border-border/40',
+    renderContent: (s) => {
+      if (!s.services) return <span className="text-muted-foreground">—</span>;
+      const srvs = s.services.split(',').map(x => x.trim()).filter(Boolean);
+      return (
+        <div className="flex flex-wrap gap-1">
+          {srvs.map((srv, i) => (
+            <span key={i} className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold whitespace-nowrap">
+              {srv}
+            </span>
+          ))}
+        </div>
+      );
+    }
+  },
+  priority: {
+    label: 'Priority',
+    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-28 border-r border-border/40',
+    tdClass: 'px-4 py-4 border-r border-border/40',
+    renderContent: (s) => (
+      <div className="flex justify-start" onClick={(e) => e.stopPropagation()}>
+        <ThreeStarRating
+          variant="inline"
+          value={s.priority_rank ?? 1}
+          disabled={true}
+          onChange={() => {}}
+        />
+      </div>
+    ),
+  },
+  quotation: {
+    label: 'Quotation',
+    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-36 border-r border-border/40',
+    tdClass: 'px-4 py-4 border-r border-border/40 text-[12px]',
+    renderContent: (s) => {
+      if (!s.quotation_id) {
+        return <span className="text-muted-foreground">—</span>;
+      }
+      const label = s.quotation?.no_doc?.trim() || `Q-${s.quotation_id.slice(0, 8)}`;
+      return (
+        <Link
+          to={`/financials/sales/${s.quotation_id}`}
+          onClick={(e) => e.stopPropagation()}
+          className="font-semibold text-primary hover:underline"
+          title="Open quotation"
+        >
+          {label}
+        </Link>
+      );
+    },
+  },
+  masterJobNo: {
+    label: 'Master Job No.',
+    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-[1%] whitespace-nowrap border-r border-border/40',
+    tdClass: 'px-4 py-4 border-r border-border/40 text-[12px] font-bold text-primary whitespace-nowrap',
+    renderContent: (s) => <span>{s.master_job_no || '—'}</span>,
+  },
+  salesperson: {
+    label: 'Salesperson',
+    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-40 border-r border-border/40',
+    tdClass: 'px-4 py-4 border-r border-border/40 text-[12px] text-slate-700',
+    renderContent: (s) => <span>{s.salesperson?.full_name || '—'}</span>,
   }
 };
 const DEFAULT_COL_ORDER = Object.keys(COLUMN_DEFS);
+const DEFAULT_VISIBLE_COLS = ['id', 'customer', 'supplier', 'mode', 'route', 'dates', 'status'];
 
 const ShipmentsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -191,6 +281,9 @@ const ShipmentsPage: React.FC = () => {
   const [selectedModes, setSelectedModes] = useState<string[]>([]);
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
   const [selectedRoutes, setSelectedRoutes] = useState<string[]>([]);
+  const [selectedBounds, setSelectedBounds] = useState<JobBound[]>([]);
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [selectedPriorities, setSelectedPriorities] = useState<number[]>([]);
 
   // Mobile Filter sheet
   const [showMobileFilter, setShowMobileFilter] = useState(false);
@@ -199,6 +292,9 @@ const ShipmentsPage: React.FC = () => {
   const [pendingModes, setPendingModes] = useState<string[]>([]);
   const [pendingCustomers, setPendingCustomers] = useState<string[]>([]);
   const [pendingRoutes, setPendingRoutes] = useState<string[]>([]);
+  const [pendingBounds, setPendingBounds] = useState<JobBound[]>([]);
+  const [pendingServices, setPendingServices] = useState<string[]>([]);
+  const [pendingPriorities, setPendingPriorities] = useState<number[]>([]);
 
   // Dialog State
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -221,7 +317,7 @@ const ShipmentsPage: React.FC = () => {
 
   // Column Settings State
   const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_COL_ORDER);
-  const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_COL_ORDER);
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_VISIBLE_COLS);
   const [isSavingCustomer, setIsSavingCustomer] = useState(false);
   const [isSavingSupplier, setIsSavingSupplier] = useState(false);
 
@@ -716,11 +812,18 @@ const ShipmentsPage: React.FC = () => {
     }
     if (selectedCustomers.length > 0 && !selectedCustomers.includes(s.customer_id)) return false;
     if (selectedRoutes.length > 0 && s.pod && !selectedRoutes.includes(s.pod)) return false;
+    if (selectedBounds.length > 0 && (!s.bound || !selectedBounds.includes(s.bound))) return false;
+    if (selectedServices.length > 0) {
+      if (!s.services) return false;
+      const srvs = s.services.split(',').map(x => x.trim());
+      if (!selectedServices.some(srv => srvs.includes(srv))) return false;
+    }
+    if (selectedPriorities.length > 0 && !selectedPriorities.includes(s.priority_rank ?? 1)) return false;
 
     return true;
   });
 
-  const hasActiveFilters = selectedModes.length > 0 || selectedCustomers.length > 0 || selectedRoutes.length > 0;
+  const hasActiveFilters = selectedModes.length > 0 || selectedCustomers.length > 0 || selectedRoutes.length > 0 || selectedBounds.length > 0 || selectedServices.length > 0 || selectedPriorities.length > 0;
 
   // --- ACTIONS ---
   const toggleSelectAll = () => {
@@ -743,6 +846,9 @@ const ShipmentsPage: React.FC = () => {
     setPendingModes(selectedModes);
     setPendingCustomers(selectedCustomers);
     setPendingRoutes(selectedRoutes);
+    setPendingBounds(selectedBounds);
+    setPendingServices(selectedServices);
+    setPendingPriorities(selectedPriorities);
     setMobileExpandedSection('mode');
     setShowMobileFilter(true);
   };
@@ -751,6 +857,9 @@ const ShipmentsPage: React.FC = () => {
     setSelectedModes(pendingModes);
     setSelectedCustomers(pendingCustomers);
     setSelectedRoutes(pendingRoutes);
+    setSelectedBounds(pendingBounds);
+    setSelectedServices(pendingServices);
+    setSelectedPriorities(pendingPriorities);
     closeMobileFilter();
   };
 
@@ -797,7 +906,7 @@ const ShipmentsPage: React.FC = () => {
               <Filter size={18} />
               {hasActiveFilters && (
                 <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-white text-[9px] font-bold flex items-center justify-center">
-                  {selectedModes.length + selectedCustomers.length + selectedRoutes.length}
+                  {selectedModes.length + selectedCustomers.length + selectedRoutes.length + selectedBounds.length + selectedServices.length + selectedPriorities.length}
                 </span>
               )}
             </button>
@@ -1034,6 +1143,13 @@ const ShipmentsPage: React.FC = () => {
                       <td className="px-4 py-4">
                         <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
                           <button
+                            onClick={() => navigate(`/shipments/sop/${s.id}/arrival-notice`)}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-sky-600 hover:bg-sky-50 transition-all"
+                            title="Arrival Notice"
+                          >
+                            <FileText size={14} />
+                          </button>
+                          <button
                             onClick={() => handleOpenDetail(s)}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all"
                             title="View Details"
@@ -1091,7 +1207,7 @@ const ShipmentsPage: React.FC = () => {
               <Filter size={18} />
               {hasActiveFilters && (
                 <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-white text-[9px] font-bold flex items-center justify-center border border-white">
-                  {selectedModes.length + selectedCustomers.length + selectedRoutes.length}
+                  {selectedModes.length + selectedCustomers.length + selectedRoutes.length + selectedBounds.length + selectedServices.length + selectedPriorities.length}
                 </span>
               )}
             </button>
@@ -1203,9 +1319,117 @@ const ShipmentsPage: React.FC = () => {
                 />
               </div>
 
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setActiveDropdown(activeDropdown === 'bound' ? null : 'bound');
+                    setFilterSearch('');
+                  }}
+                  className={clsx(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all text-[12px] font-bold shadow-sm",
+                    activeDropdown === 'bound' || selectedBounds.length > 0
+                      ? "bg-primary/5 border-primary text-primary"
+                      : "bg-white border-border hover:bg-muted text-muted-foreground"
+                  )}
+                >
+                  <Briefcase size={14} className={clsx(activeDropdown === 'bound' || selectedBounds.length > 0 ? "text-primary" : "text-muted-foreground/50")} />
+                  Bound
+                  {selectedBounds.length > 0 && (
+                    <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
+                      {selectedBounds.length}
+                    </span>
+                  )}
+                  <ChevronRight size={14} className={clsx("transition-transform ml-1 opacity-40", activeDropdown === 'bound' ? "-rotate-90" : "rotate-90")} />
+                </button>
+                <FilterDropdown
+                  isOpen={activeDropdown === 'bound'}
+                  options={BOUND_FILTER_IDS.map(b => ({
+                    id: b,
+                    label: BOUND_META[b].label,
+                    count: shipments.filter(s => s.bound === b).length
+                  }))}
+                  selected={selectedBounds}
+                  onToggle={(id) => setSelectedBounds(prev => prev.includes(id as JobBound) ? prev.filter(i => i !== id) : [...prev, id as JobBound])}
+                  searchValue={filterSearch}
+                  onSearchChange={setFilterSearch}
+                />
+              </div>
+
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setActiveDropdown(activeDropdown === 'services' ? null : 'services');
+                    setFilterSearch('');
+                  }}
+                  className={clsx(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all text-[12px] font-bold shadow-sm",
+                    activeDropdown === 'services' || selectedServices.length > 0
+                      ? "bg-primary/5 border-primary text-primary"
+                      : "bg-white border-border hover:bg-muted text-muted-foreground"
+                  )}
+                >
+                  <Tag size={14} className={clsx(activeDropdown === 'services' || selectedServices.length > 0 ? "text-primary" : "text-muted-foreground/50")} />
+                  Services
+                  {selectedServices.length > 0 && (
+                    <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
+                      {selectedServices.length}
+                    </span>
+                  )}
+                  <ChevronRight size={14} className={clsx("transition-transform ml-1 opacity-40", activeDropdown === 'services' ? "-rotate-90" : "rotate-90")} />
+                </button>
+                <FilterDropdown
+                  isOpen={activeDropdown === 'services'}
+                  options={Array.from(new Set(shipments.flatMap(s => s.services ? s.services.split(',').map(x => x.trim()) : []))).filter(Boolean).map(srv => ({
+                    id: srv,
+                    label: srv,
+                    count: shipments.filter(s => s.services && s.services.split(',').map(x => x.trim()).includes(srv)).length
+                  }))}
+                  selected={selectedServices}
+                  onToggle={(id) => setSelectedServices(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
+                  searchValue={filterSearch}
+                  onSearchChange={setFilterSearch}
+                />
+              </div>
+
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setActiveDropdown(activeDropdown === 'priority' ? null : 'priority');
+                    setFilterSearch('');
+                  }}
+                  className={clsx(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all text-[12px] font-bold shadow-sm",
+                    activeDropdown === 'priority' || selectedPriorities.length > 0
+                      ? "bg-primary/5 border-primary text-primary"
+                      : "bg-white border-border hover:bg-muted text-muted-foreground"
+                  )}
+                >
+                  <Star size={14} className={clsx(activeDropdown === 'priority' || selectedPriorities.length > 0 ? "text-primary" : "text-muted-foreground/50")} />
+                  Priority
+                  {selectedPriorities.length > 0 && (
+                    <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
+                      {selectedPriorities.length}
+                    </span>
+                  )}
+                  <ChevronRight size={14} className={clsx("transition-transform ml-1 opacity-40", activeDropdown === 'priority' ? "-rotate-90" : "rotate-90")} />
+                </button>
+                <FilterDropdown
+                  isOpen={activeDropdown === 'priority'}
+                  options={[1, 2, 3].map(p => ({
+                    id: p.toString(),
+                    label: `${p} Star${p > 1 ? 's' : ''}`,
+                    count: shipments.filter(s => (s.priority_rank ?? 1) === p).length
+                  }))}
+                  selected={selectedPriorities.map(String)}
+                  onToggle={(id) => setSelectedPriorities(prev => prev.includes(Number(id)) ? prev.filter(i => i !== Number(id)) : [...prev, Number(id)])}
+                  searchValue={filterSearch}
+                  onSearchChange={setFilterSearch}
+                />
+              </div>
+
               {hasActiveFilters && (
                 <button
-                  onClick={() => { setSelectedModes([]); setSelectedCustomers([]); setSelectedRoutes([]); }}
+                  onClick={() => { setSelectedModes([]); setSelectedCustomers([]); setSelectedRoutes([]); setSelectedBounds([]); setSelectedServices([]); setSelectedPriorities([]); }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-dashed border-red-300 text-red-500 text-[12px] font-bold hover:bg-red-50 transition-all"
                 >
                   <X size={13} />
@@ -1563,6 +1787,99 @@ const ShipmentsPage: React.FC = () => {
                     </div>
                   )}
                 </div>
+
+                {/* Bound Section */}
+                <div className="px-5 py-4">
+                  <button
+                    onClick={() => setMobileExpandedSection(mobileExpandedSection === 'bound' ? null : 'bound')}
+                    className="w-full flex items-center justify-between mb-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Briefcase size={16} className="text-muted-foreground" />
+                      <span className="text-[15px] font-bold text-slate-800">Bound</span>
+                      {pendingBounds.length > 0 && <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">{pendingBounds.length}</span>}
+                    </div>
+                    <ChevronRight size={18} className={clsx('text-slate-400 transition-transform', mobileExpandedSection === 'bound' && 'rotate-90')} />
+                  </button>
+                  {mobileExpandedSection === 'bound' && (
+                    <div className="flex flex-wrap gap-2 mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                      {BOUND_FILTER_IDS.map(b => (
+                        <button
+                          key={b}
+                          onClick={() => setPendingBounds(prev => prev.includes(b) ? prev.filter(x => x !== b) : [...prev, b])}
+                          className={clsx(
+                            'px-4 py-2 rounded-xl border text-[13px] font-bold transition-all',
+                            pendingBounds.includes(b) ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20' : 'bg-slate-50 text-slate-600 border-slate-200'
+                          )}
+                        >
+                          {BOUND_META[b].label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Services Section */}
+                <div className="px-5 py-4">
+                  <button
+                    onClick={() => setMobileExpandedSection(mobileExpandedSection === 'services' ? null : 'services')}
+                    className="w-full flex items-center justify-between mb-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Tag size={16} className="text-muted-foreground" />
+                      <span className="text-[15px] font-bold text-slate-800">Services</span>
+                      {pendingServices.length > 0 && <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">{pendingServices.length}</span>}
+                    </div>
+                    <ChevronRight size={18} className={clsx('text-slate-400 transition-transform', mobileExpandedSection === 'services' && 'rotate-90')} />
+                  </button>
+                  {mobileExpandedSection === 'services' && (
+                    <div className="flex flex-wrap gap-2 mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                      {Array.from(new Set(shipments.flatMap(s => s.services ? s.services.split(',').map(x => x.trim()) : []))).filter(Boolean).map(srv => (
+                        <button
+                          key={srv}
+                          onClick={() => setPendingServices(prev => prev.includes(srv) ? prev.filter(x => x !== srv) : [...prev, srv])}
+                          className={clsx(
+                            'px-4 py-2 rounded-xl border text-[13px] font-bold transition-all',
+                            pendingServices.includes(srv) ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20' : 'bg-slate-50 text-slate-600 border-slate-200'
+                          )}
+                        >
+                          {srv}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Priority Section */}
+                <div className="px-5 py-4">
+                  <button
+                    onClick={() => setMobileExpandedSection(mobileExpandedSection === 'priority' ? null : 'priority')}
+                    className="w-full flex items-center justify-between mb-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Star size={16} className="text-muted-foreground" />
+                      <span className="text-[15px] font-bold text-slate-800">Priority</span>
+                      {pendingPriorities.length > 0 && <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">{pendingPriorities.length}</span>}
+                    </div>
+                    <ChevronRight size={18} className={clsx('text-slate-400 transition-transform', mobileExpandedSection === 'priority' && 'rotate-90')} />
+                  </button>
+                  {mobileExpandedSection === 'priority' && (
+                    <div className="flex flex-wrap gap-2 mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                      {[1, 2, 3].map(p => (
+                        <button
+                          key={p}
+                          onClick={() => setPendingPriorities(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p])}
+                          className={clsx(
+                            'px-4 py-2 rounded-xl border text-[13px] font-bold transition-all',
+                            pendingPriorities.includes(p) ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20' : 'bg-slate-50 text-slate-600 border-slate-200'
+                          )}
+                        >
+                          {p} Star{p > 1 ? 's' : ''}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <div className="p-4 border-t border-border bg-white flex flex-col gap-2">
@@ -1571,6 +1888,9 @@ const ShipmentsPage: React.FC = () => {
                   setPendingModes([]);
                   setPendingCustomers([]);
                   setPendingRoutes([]);
+                  setPendingBounds([]);
+                  setPendingServices([]);
+                  setPendingPriorities([]);
                 }}
                 className="w-full py-3 rounded-2xl border border-red-200 text-red-500 text-[14px] font-bold hover:bg-red-50 transition-all"
               >

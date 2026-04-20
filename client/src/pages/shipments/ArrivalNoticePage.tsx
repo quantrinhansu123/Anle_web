@@ -4,22 +4,22 @@ import { useNavigate, useParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { jobService } from '../../services/jobService';
+import { shipmentService } from '../../services/shipmentService';
 import { salesService } from '../../services/salesService';
 import { exchangeRateService, type ExchangeRate } from '../../services/exchangeRateService';
 import { formatDate } from '../../lib/utils';
 import { useToastContext } from '../../contexts/ToastContext';
 import type { ChargeGroup, Sales, SalesChargeItem } from '../sales/types';
-import type { FmsJob } from './types';
+import type { Shipment } from './types';
 import { parseSeaHouseBlV1, emptyTopBar } from './seaHouseBlPersistence';
 import type { SeaHouseBlTopBar } from './seaHouseBlPersistence';
-import { emptyHeaderState, type HeaderTabState } from './tabs/HeaderTab';
-import { emptyContainerState, type ContainerTabState } from './tabs/ContainerTab';
-import { emptyMarksDescriptionState, type MarksDescriptionTabState } from './tabs/MarksDescriptionTab';
+import { emptyHeaderState, type HeaderTabState } from './bl-tabs/HeaderTab';
+import { emptyContainerState, type ContainerTabState } from './bl-tabs/ContainerTab';
+import { emptyMarksDescriptionState, type MarksDescriptionTabState } from './bl-tabs/MarksDescriptionTab';
 
 const CHARGE_GROUP_ORDER: ChargeGroup[] = ['freight', 'other', 'on_behalf'];
 
-const ztrim = (s?: string) => (s || '').replace(/[\u200b-\u200d\ufeff]/g, '').trim();
+const ztrim = (s?: string | null) => (s || '').replace(/[\u200b-\u200d\ufeff]/g, '').trim();
 
 const isBlankChargeLine = (c: SalesChargeItem) =>
   !ztrim(c.freight_code) &&
@@ -186,7 +186,7 @@ function buildChargeRows(sales: Sales | null): ArrivalChargeRow[] {
 }
 
 function buildViewModel(
-  job: FmsJob,
+  shipment: Shipment,
   topBar: SeaHouseBlTopBar,
   header: HeaderTabState,
   container: ContainerTabState,
@@ -195,12 +195,12 @@ function buildViewModel(
   exchangeRates: ExchangeRate[],
 ): ArrivalNoticeViewModel {
   const shipper = ztrim(header.shipperName) || ztrim(header.shipper) || '—';
-  const masterBl = ztrim(topBar.masterBl) || ztrim(job.master_bl_number || '') || '—';
+  const masterBl = ztrim(topBar.masterBl) || ztrim(shipment.master_bl_number || '') || '—';
   const houseBl = ztrim(topBar.hbl) || '—';
   const toAddress =
     ztrim(header.consigneeName) ||
     ztrim(header.consignee) ||
-    ztrim(job.customers?.company_name || '') ||
+    ztrim(shipment.customers?.company_name || '') ||
     '—';
   const arrivalRaw = ztrim(header.ata) || ztrim(header.eta) || '';
   const docDate = arrivalRaw ? formatDate(arrivalRaw) : formatDate(new Date().toISOString());
@@ -227,7 +227,7 @@ function buildViewModel(
   const refRateVnd = refAny && refAny.rate > 0 ? refAny.rate : null;
 
   return {
-    masterJobNo: ztrim(job.master_job_no) || job.id.slice(0, 8).toUpperCase(),
+    masterJobNo: ztrim(shipment.master_job_no) || shipment.id.slice(0, 8).toUpperCase(),
     docDateLabel: docDate,
     toAddress,
     shipper,
@@ -548,7 +548,7 @@ function computeVndTotals(rows: ArrivalChargeRow[], rateByCode: Map<string, numb
 
 const ArrivalNoticePage: React.FC = () => {
   const navigate = useNavigate();
-  const { id: jobId } = useParams<{ id: string }>();
+  const { id: shipmentId } = useParams<{ id: string }>();
   const { error: toastError } = useToastContext();
   const [vm, setVm] = useState<ArrivalNoticeViewModel | null>(null);
   const [loading, setLoading] = useState(true);
@@ -586,13 +586,13 @@ const ArrivalNoticePage: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
-      if (!jobId) {
+      if (!shipmentId) {
         setLoading(false);
         return;
       }
       try {
-        const [job, rates] = await Promise.all([
-          jobService.getJob(jobId),
+        const [shipment, rates] = await Promise.all([
+          shipmentService.getShipmentById(shipmentId),
           exchangeRateService.getAll(),
         ]);
         if (cancelled) return;
@@ -600,19 +600,19 @@ const ArrivalNoticePage: React.FC = () => {
 
         let seaBlob: Record<string, unknown> = {};
         try {
-          seaBlob = (await jobService.getSeaHouseBl(jobId)) as Record<string, unknown>;
+          seaBlob = (await shipmentService.getSeaHouseBl(shipmentId)) as Record<string, unknown>;
         } catch {
           seaBlob = {};
         }
         if (cancelled) return;
 
         const { topBar: tb0, header: h0, container: c0, marks: m0 } = mergeSeaState(seaBlob);
-        const topBar = { ...tb0, jobNo: ztrim(tb0.jobNo) || ztrim(job.master_job_no) || tb0.jobNo };
+        const topBar = { ...tb0, jobNo: ztrim(tb0.jobNo) || ztrim(shipment.master_job_no) || tb0.jobNo };
 
         let sales: Sales | null = null;
-        if (job.quotation_id) {
+        if (shipment.quotation_id) {
           try {
-            sales = await salesService.getSalesItemById(job.quotation_id);
+            sales = await salesService.getSalesItemById(shipment.quotation_id);
           } catch {
             sales = null;
           }
@@ -620,7 +620,7 @@ const ArrivalNoticePage: React.FC = () => {
         if (cancelled) return;
 
         const chargeRows = buildChargeRows(sales);
-        const nextVm = buildViewModel(job, topBar, h0, c0, m0, chargeRows, rates);
+        const nextVm = buildViewModel(shipment, topBar, h0, c0, m0, chargeRows, rates);
         setVm(nextVm);
       } catch {
         if (!cancelled) setVm(null);
@@ -632,7 +632,7 @@ const ArrivalNoticePage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [jobId]);
+  }, [shipmentId]);
 
   const safeFileStem = useCallback(() => {
     if (!vm) return 'arrival-notice';
@@ -730,8 +730,8 @@ const ArrivalNoticePage: React.FC = () => {
           <div className="w-16 h-16 bg-red-100/50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
             <Printer size={32} />
           </div>
-          <h3 className="text-lg font-bold text-slate-900 mb-2">Job not found</h3>
-          <p className="text-[13px] text-muted-foreground mb-6">Cannot load job data or job does not exist.</p>
+          <h3 className="text-lg font-bold text-slate-900 mb-2">Shipment not found</h3>
+          <p className="text-[13px] text-muted-foreground mb-6">Cannot load shipment data or shipment does not exist.</p>
           <button
             type="button"
             onClick={() => navigate(-1)}

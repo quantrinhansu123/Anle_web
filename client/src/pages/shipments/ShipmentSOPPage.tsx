@@ -12,6 +12,9 @@ import type { AllowedTransitionsResult, RunGatesResult } from '../../services/sh
 import { customerService, type Customer } from '../../services/customerService';
 import { supplierService, type Supplier, type CreateSupplierDto } from '../../services/supplierService';
 import { contractService } from '../../services/contractService';
+import { employeeService } from '../../services/employeeService';
+import type { Contract } from '../contracts/types';
+import ContractDialog from '../contracts/dialogs/ContractDialog';
 import {
   shipmentDocumentService,
   type CreateShipmentDocumentDto,
@@ -29,6 +32,7 @@ import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 
 // Tabs
 import OverviewTab from './tabs/OverviewTab';
+import SalesBlTab from './tabs/SalesBlTab';
 import FeasibilityTab from './tabs/FeasibilityTab';
 import DocumentsTab from './tabs/DocumentsTab';
 import CustomsTab from './tabs/CustomsTab';
@@ -41,6 +45,7 @@ import AgentsTab from './tabs/AgentsTab';
 // ─── Constants ─────────────────────────────────────────
 const TABS = [
   { id: 'overview', label: 'Overview' },
+  { id: 'sales_bl', label: 'Sales & B/L' },
   { id: 'feasibility', label: 'Feasibility' },
   { id: 'costs', label: 'Costing' },
   { id: 'documents', label: 'Documents' },
@@ -95,7 +100,7 @@ const ShipmentSOPPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState<(Partial<Customer> & { value: string; label: string })[]>([]);
   const [suppliers, setSuppliers] = useState<(Partial<Supplier> & { value: string; label: string })[]>([]);
-  const [contracts, setContracts] = useState<{ value: string; label: string }[]>([]);
+  const [contracts, setContracts] = useState<{ value: string; label: string; customer_id?: string; supplier_id?: string }[]>([]);
   const [documents, setDocuments] = useState<ShipmentDocument[]>([]);
   const [customsClearances, setCustomsClearances] = useState<CustomsClearance[]>([]);
   
@@ -120,6 +125,11 @@ const ShipmentSOPPage: React.FC = () => {
 
   const [isSavingCustomer, setIsSavingCustomer] = useState(false);
   const [isSavingSupplier, setIsSavingSupplier] = useState(false);
+
+  const [isContractDialogOpen, setIsContractDialogOpen] = useState(false);
+  const [isContractDialogClosing, setIsContractDialogClosing] = useState(false);
+  const [contractFormState, setContractFormState] = useState<Partial<Contract>>({});
+  const [employees, setEmployees] = useState<any[]>([]);
 
   const setField = <K extends keyof ShipmentFormState>(key: K, value: ShipmentFormState[K]) => {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -151,10 +161,11 @@ const ShipmentSOPPage: React.FC = () => {
   // ─── Load Data ─────────────────────────────────────
   const loadMasterData = useCallback(async () => {
     try {
-      const [custData, suppData, contractData] = await Promise.all([
+      const [custData, suppData, contractData, empData] = await Promise.all([
         customerService.getCustomers(),
         supplierService.getSuppliers(),
         contractService.getContracts(1, 500),
+        employeeService.getEmployees(),
       ]);
       setCustomers((custData || []).map((c: any) => ({
         ...c, value: c.id, label: c.company_name || c.name || c.id,
@@ -165,7 +176,10 @@ const ShipmentSOPPage: React.FC = () => {
       setContracts((contractData || []).map((ct: any) => ({
         value: ct.id,
         label: `${ct.no_contract || ct.id.slice(0, 8)} — ${ct.customers?.company_name || ct.suppliers?.company_name || ''}`.trim(),
+        customer_id: ct.customer_id,
+        supplier_id: ct.supplier_id,
       })));
+      setEmployees(empData || []);
     } catch (err) { console.error('Failed to load master data:', err); }
   }, []);
 
@@ -251,6 +265,11 @@ const ShipmentSOPPage: React.FC = () => {
         is_cost_locked: form.is_cost_locked, is_truck_booked: form.is_truck_booked,
         is_agent_booked: form.is_agent_booked,
         contract_id: form.contract_id || null,
+        bound: form.bound || null,
+        services: form.services || null,
+        job_date: form.job_date || null,
+        performance_date: form.performance_date || null,
+        priority_rank: form.priority_rank ?? null,
       };
       if (isEditMode && id) {
         await shipmentService.updateShipment(id, payload);
@@ -338,9 +357,67 @@ const ShipmentSOPPage: React.FC = () => {
     finally { setIsSavingSupplier(false); }
   };
 
+  const handleOpenContractDialog = () => {
+    setContractFormState({
+      customer_id: form.customer_id || undefined,
+      supplier_id: form.supplier_id || undefined,
+      pic_id: '',
+      no_contract: '',
+      payment_term: '',
+      type_logistic: false,
+      type_trading: false,
+      file_url: ''
+    });
+    setIsContractDialogOpen(true);
+  };
+
+  const handleCloseContractDialog = () => {
+    setIsContractDialogClosing(true);
+    setTimeout(() => {
+      setIsContractDialogOpen(false);
+      setIsContractDialogClosing(false);
+    }, 350);
+  };
+
+  const handleSaveContract = async () => {
+    try {
+      if (!contractFormState.no_contract) {
+        toast.error('Contract number is required');
+        return;
+      }
+      if (!contractFormState.customer_id && !contractFormState.supplier_id) {
+        toast.error('Please select a customer or supplier');
+        return;
+      }
+
+      const dto = {
+        ...contractFormState,
+      };
+
+      const created = await contractService.createContract(dto as any);
+      handleCloseContractDialog();
+      toast.success('Contract created successfully');
+      
+      await loadMasterData();
+      
+      if (created?.id) {
+        setField('contract_id', created.id);
+      }
+    } catch (err: any) {
+      console.error('Failed to save contract:', err);
+      toast.error(err?.message || 'Failed to save contract');
+    }
+  };
+
   // ─── Render ────────────────────────────────────────
   const selectedCustomer = customers.find(c => c.value === form.customer_id);
   const selectedSupplier = suppliers.find(s => s.value === form.supplier_id);
+  const filteredContracts = contracts.filter(c => {
+    if (!form.customer_id && !form.supplier_id) return false;
+    return (form.customer_id && c.customer_id === form.customer_id) || 
+           (form.supplier_id && c.supplier_id === form.supplier_id);
+  });
+
   const isReady = runGates?.can_run ?? false;
   const statusMeta = STATUS_MAP[form.status || 'draft'] || STATUS_MAP.draft;
 
@@ -415,11 +492,15 @@ const ShipmentSOPPage: React.FC = () => {
              {activeTab === 'overview' && (
                <OverviewTab 
                    form={form} setField={setField}
-                   customers={customers} suppliers={suppliers} contracts={contracts}
+                   customers={customers} suppliers={suppliers} contracts={filteredContracts}
                    selectedCustomer={selectedCustomer} selectedSupplier={selectedSupplier}
                    handleCreateNewCustomer={handleCreateNewCustomer} handleCreateNewSupplier={handleCreateNewSupplier}
                    isSavingCustomer={isSavingCustomer} isSavingSupplier={isSavingSupplier}
+                   onOpenContractDialog={handleOpenContractDialog}
                 />
+             )}
+             {activeTab === 'sales_bl' && (
+               <SalesBlTab form={form} setField={setField} shipmentId={id} />
              )}
              {activeTab === 'feasibility' && (
                <FeasibilityTab form={form} setField={setField} shipmentId={id} />
@@ -432,6 +513,8 @@ const ShipmentSOPPage: React.FC = () => {
                   isCreatingDocument={isCreatingDocument} handleCreateDocument={handleCreateDocument}
                   handleChangeDocStatus={handleChangeDocStatus} handleDeleteDoc={handleDeleteDoc}
                   documentActionLoadingId={documentActionLoadingId}
+                  contractLabel={form.contract_id ? contracts.find(c => c.value === form.contract_id)?.label || form.contract_id : null}
+                  quotationLabel={form.quotation_id ? `Q-${form.quotation_id.slice(0, 8)}` : null}
                />
              )}
              {activeTab === 'customs' && (
@@ -602,6 +685,23 @@ const ShipmentSOPPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      <ContractDialog
+        isOpen={isContractDialogOpen}
+        isClosing={isContractDialogClosing}
+        mode="add"
+        onClose={handleCloseContractDialog}
+        formState={contractFormState}
+        setFormField={(key, value) => setContractFormState(prev => ({ ...prev, [key]: value }))}
+        entityOptions={[
+          ...customers.map(c => ({ value: `C:${c.id}`, label: `(Customer) ${c.label}` })),
+          ...suppliers.map(s => ({ value: `S:${s.id}`, label: `(Supplier) ${s.label}` }))
+        ]}
+        employeeOptions={employees.map(e => ({ value: e.id, label: e.full_name }))}
+        customers={customers as any}
+        suppliers={suppliers as any}
+        onSave={handleSaveContract}
+      />
     </div>
   );
 };

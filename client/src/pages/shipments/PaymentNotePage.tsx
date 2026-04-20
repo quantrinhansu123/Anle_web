@@ -6,8 +6,8 @@ import { WorkflowStepper } from '../../components/ui/WorkflowStepper';
 import { DateInput } from '../../components/ui/DateInput';
 import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 import { useToastContext } from '../../contexts/ToastContext';
-import { jobService } from '../../services/jobService';
-import { FieldLabel, inputClass } from './tabs/blSharedHelpers';
+import { shipmentService } from '../../services/shipmentService';
+import { FieldLabel, inputClass } from './bl-tabs/blSharedHelpers';
 import { fmsJobPaymentNoteService } from '../../services/fmsJobPaymentNoteService';
 import { fmsJobDebitNoteService } from '../../services/fmsJobDebitNoteService';
 import { fmsJobInvoiceService } from '../../services/fmsJobInvoiceService';
@@ -90,7 +90,7 @@ function StatCard({
 
 const PaymentNotePage: React.FC = () => {
   const navigate = useNavigate();
-  const { id: jobId, pnId } = useParams<{ id: string; pnId?: string }>();
+  const { id: shipmentId, pnId } = useParams<{ id: string; pnId?: string }>();
   const { setCustomBreadcrumbs } = useBreadcrumb();
   const { success: toastOk, error: toastErr } = useToastContext();
 
@@ -132,18 +132,18 @@ const PaymentNotePage: React.FC = () => {
   }, [pnId]);
 
   useEffect(() => {
-    if (!jobId) return;
+    if (!shipmentId) return;
     pnHydratedRef.current = false;
     skipAutosaveRef.current = true;
     void (async () => {
       try {
-        const job = await jobService.getJob(jobId);
-        setJobNo(job.master_job_no || '');
-        setMasterBl(job.master_bl_number || '');
-        setMasterJobLabel(job.master_job_no || '');
+        const shipment = await shipmentService.getShipmentById(shipmentId);
+        setJobNo(shipment.master_job_no || '');
+        setMasterBl(shipment.master_bl_number || '');
+        setMasterJobLabel(shipment.master_job_no || '');
 
         if (pnId) {
-          const note = await fmsJobPaymentNoteService.get(jobId, pnId);
+          const note = await fmsJobPaymentNoteService.get(shipmentId, pnId);
           setPaymentNo(note.no_doc);
           setStatus((note.status as PaymentNoteStatus) || 'draft');
           const p = note.payload || {};
@@ -197,24 +197,24 @@ const PaymentNotePage: React.FC = () => {
         }, 500);
       }
     })();
-  }, [jobId, pnId]);
+  }, [shipmentId, pnId]);
 
   useEffect(() => {
-    const jobLabel = masterJobLabel || (jobId ? `Job ${jobId.slice(0, 8)}...` : 'New Job');
+    const shipmentLabel = masterJobLabel || (shipmentId ? `Shipment ${shipmentId.slice(0, 8)}...` : 'New Shipment');
     setCustomBreadcrumbs([
-      { path: '/shipping', label: 'Shipping' },
-      { path: '/shipping/jobs', label: 'Job Management' },
-      ...(jobId ? [{ path: `/shipping/jobs/${jobId}/edit`, label: jobLabel }] : []),
-      { path: `/shipping/jobs/${jobId || 'new'}/sea-house-bl`, label: 'Sea House B/L' },
+      { path: '/shipments', label: 'Shipments' },
+      { path: '/shipments/information', label: 'Shipments' },
+      ...(shipmentId ? [{ path: `/shipments/sop/${shipmentId}`, label: shipmentLabel }] : []),
+      { path: `/shipments/sop/${shipmentId || 'new'}/sea-house-bl`, label: 'Sea House B/L' },
       {
         path: pnId
-          ? `/shipping/jobs/${jobId || 'new'}/sea-house-bl/payment-note/${pnId}`
-          : `/shipping/jobs/${jobId || 'new'}/sea-house-bl/payment-note`,
+          ? `/shipments/sop/${shipmentId || 'new'}/sea-house-bl/payment-note/${pnId}`
+          : `/shipments/sop/${shipmentId || 'new'}/sea-house-bl/payment-note`,
         label: paymentNo || 'Payment Note',
       },
     ]);
     return () => setCustomBreadcrumbs(null);
-  }, [jobId, masterJobLabel, paymentNo, pnId, setCustomBreadcrumbs]);
+  }, [shipmentId, masterJobLabel, paymentNo, pnId, setCustomBreadcrumbs]);
 
   const updateLine = (id: string, patch: Partial<PaymentLine>) => {
     setLines((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
@@ -272,12 +272,12 @@ const PaymentNotePage: React.FC = () => {
   );
 
   useEffect(() => {
-    if (!jobId || !pnHydratedRef.current || skipAutosaveRef.current) return;
+    if (!shipmentId || !pnHydratedRef.current || skipAutosaveRef.current) return;
     const t = window.setTimeout(() => {
       void (async () => {
         try {
           if (persistedPnId) {
-            await fmsJobPaymentNoteService.update(jobId, persistedPnId, {
+            await fmsJobPaymentNoteService.update(shipmentId, persistedPnId, {
               no_doc: paymentNo,
               status,
               payload: persistPayload,
@@ -285,29 +285,29 @@ const PaymentNotePage: React.FC = () => {
             });
             return;
           }
-          const created = await fmsJobPaymentNoteService.create(jobId, {
+          const created = await fmsJobPaymentNoteService.create(shipmentId, {
             no_doc: paymentNo || `SOTAHCN-${Date.now().toString(36).toUpperCase()}`,
             status,
             payload: persistPayload,
             lines: lines.map((line, idx) => lineToDto(line, idx)),
           });
           setPersistedPnId(created.id);
-          navigate(`/shipping/jobs/${jobId}/sea-house-bl/payment-note/${created.id}`, { replace: true });
+          navigate(`/shipments/sop/${shipmentId}/sea-house-bl/payment-note/${created.id}`, { replace: true });
         } catch {
           toastErr('Autosave failed');
         }
       })();
     }, 1200);
     return () => window.clearTimeout(t);
-  }, [autosaveEpoch, jobId, persistedPnId, persistSnapshot, paymentNo, status, persistPayload, lines, toastErr, navigate]);
+  }, [autosaveEpoch, shipmentId, persistedPnId, persistSnapshot, paymentNo, status, persistPayload, lines, toastErr, navigate]);
 
   const handleCreateBill = useCallback(async () => {
-    if (!jobId) return;
+    if (!shipmentId) return;
     setCreatingBill(true);
     try {
       let realPnId = persistedPnId;
       if (!realPnId) {
-        const created = await fmsJobPaymentNoteService.create(jobId, {
+        const created = await fmsJobPaymentNoteService.create(shipmentId, {
           no_doc: paymentNo || `SOTAHCN-${Date.now().toString(36).toUpperCase()}`,
           status,
           payload: persistPayload,
@@ -316,7 +316,7 @@ const PaymentNotePage: React.FC = () => {
         realPnId = created.id;
         setPersistedPnId(created.id);
       } else {
-        await fmsJobPaymentNoteService.update(jobId, realPnId, {
+        await fmsJobPaymentNoteService.update(shipmentId, realPnId, {
           no_doc: paymentNo,
           status,
           payload: persistPayload,
@@ -325,7 +325,7 @@ const PaymentNotePage: React.FC = () => {
       }
 
       const params = new URLSearchParams();
-      params.set('jobId', jobId);
+      params.set('jobId', shipmentId);
       if (jobNo) params.set('jobNo', jobNo);
       params.set('pnId', realPnId);
       params.set('pnNo', paymentNo);
@@ -342,7 +342,7 @@ const PaymentNotePage: React.FC = () => {
         reference_no: referenceNo,
         remark: `Generated from payment note ${paymentNo}`,
       };
-      const dn = await fmsJobDebitNoteService.create(jobId, {
+      const dn = await fmsJobDebitNoteService.create(shipmentId, {
         no_doc: dnNo,
         status: 'sent',
         payload: dnPayload,
@@ -370,7 +370,7 @@ const PaymentNotePage: React.FC = () => {
         price: Number(line.rate || 0),
         tax: line.tax === 'vat_8' ? 'VAT 8%' : line.tax === 'vat_10' ? 'VAT 10%' : 'None',
       }));
-      const inv = await fmsJobInvoiceService.create(jobId, {
+      const inv = await fmsJobInvoiceService.create(shipmentId, {
         debit_note_id: dn.id,
         number_series: 'BILL',
         status: 'draft',
@@ -418,7 +418,7 @@ const PaymentNotePage: React.FC = () => {
     } finally {
       setCreatingBill(false);
     }
-  }, [jobId, persistedPnId, paymentNo, status, persistPayload, lines, jobNo, vendorName, payer, billingDate, dueDate, exchangeRate, navigate, toastErr]);
+  }, [shipmentId, persistedPnId, paymentNo, status, persistPayload, lines, jobNo, vendorName, payer, billingDate, dueDate, exchangeRate, navigate, toastErr]);
 
   return (
     <div className="animate-in fade-in duration-300 mx-auto flex w-full flex-col gap-4 px-0 pb-24 sm:px-1 md:pb-6">
@@ -427,7 +427,7 @@ const PaymentNotePage: React.FC = () => {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => (jobId ? navigate(`/shipping/jobs/${jobId}/sea-house-bl`) : navigate('/shipping/jobs'))}
+              onClick={() => (shipmentId ? navigate(`/shipments/sop/${shipmentId}/sea-house-bl`) : navigate('/shipments/information'))}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-white text-slate-600 shadow-sm transition-all hover:border-primary/25 hover:bg-primary/5 hover:text-primary touch-manipulation"
               aria-label="Back"
             >
@@ -509,7 +509,7 @@ const PaymentNotePage: React.FC = () => {
           </div>
           <div className="grid grid-cols-1 gap-3 p-5">
             <div>
-              <FieldLabel>Job</FieldLabel>
+              <FieldLabel>Ref No</FieldLabel>
               <input value={jobNo} onChange={(e) => setJobNo(e.target.value)} className={inputClass} />
             </div>
             <div>
@@ -605,4 +605,3 @@ const PaymentNotePage: React.FC = () => {
 };
 
 export default PaymentNotePage;
-

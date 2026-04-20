@@ -20,8 +20,9 @@ export interface CustomerExpenseCustomerEmbed {
   company_name: string;
 }
 
-export interface CustomerExpenseJobEmbed {
+export interface CustomerExpenseShipmentEmbed {
   id: string;
+  code: string;
   master_job_no: string;
 }
 
@@ -37,6 +38,7 @@ export interface CustomerExpense {
   employee_id: string;
   customer_id: string | null;
   job_id: string | null;
+  shipment_id: string | null;
   supplier: string | null;
   category: string | null;
   bill_reference: string | null;
@@ -50,7 +52,7 @@ export interface CustomerExpense {
   updated_at: string;
   employee?: CustomerExpenseEmployeeEmbed;
   customer?: CustomerExpenseCustomerEmbed | null;
-  job?: CustomerExpenseJobEmbed | null;
+  shipment?: CustomerExpenseShipmentEmbed | null;
 }
 
 export interface CreateCustomerExpenseDto {
@@ -64,6 +66,7 @@ export interface CreateCustomerExpenseDto {
   employee_id: string;
   customer_id?: string | null;
   job_id?: string | null;
+  shipment_id?: string | null;
   supplier?: string | null;
   category?: string | null;
   bill_reference?: string | null;

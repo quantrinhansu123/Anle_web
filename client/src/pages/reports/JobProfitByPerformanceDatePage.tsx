@@ -761,7 +761,7 @@ const JobProfitByPerformanceDatePage: React.FC = () => {
                               <td className={tdText}>
                                 <button
                                   type="button"
-                                  onClick={() => navigate(`/shipping/jobs/${r.job_id}/edit`)}
+                                  onClick={() => navigate(`/shipments/sop/${r.job_id}`)}
                                   className="font-bold text-primary hover:underline text-left"
                                 >
                                   {r.master_job_no || '—'}
@@ -874,7 +874,7 @@ const JobProfitByPerformanceDatePage: React.FC = () => {
                               <td className={tdText}>
                                 <button
                                   type="button"
-                                  onClick={() => navigate(`/shipping/jobs/${r.job_id}/edit`)}
+                                  onClick={() => navigate(`/shipments/sop/${r.job_id}`)}
                                   className="font-bold text-primary hover:underline text-left"
                                 >
                                   {r.master_job_no || '—'}

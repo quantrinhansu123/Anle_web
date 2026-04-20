@@ -32,15 +32,15 @@ export interface FmsJobDebitNoteDto {
 
 export const fmsJobDebitNoteService = {
   list(jobId: string) {
-    return apiFetch<FmsJobDebitNoteDto[]>(`/jobs/${jobId}/debit-notes`);
+    return apiFetch<FmsJobDebitNoteDto[]>(`/shipments/${jobId}/debit-notes`);
   },
 
   get(jobId: string, dnId: string) {
-    return apiFetch<FmsJobDebitNoteDto>(`/jobs/${jobId}/debit-notes/${dnId}`);
+    return apiFetch<FmsJobDebitNoteDto>(`/shipments/${jobId}/debit-notes/${dnId}`);
   },
 
   create(jobId: string, body: { no_doc: string; status?: string; payload?: Record<string, unknown>; lines?: FmsJobDebitNoteLineDto[] }) {
-    return apiFetch<FmsJobDebitNoteDto>(`/jobs/${jobId}/debit-notes`, {
+    return apiFetch<FmsJobDebitNoteDto>(`/shipments/${jobId}/debit-notes`, {
       method: 'POST',
       body: JSON.stringify(body),
     });
@@ -51,7 +51,7 @@ export const fmsJobDebitNoteService = {
     dnId: string,
     body: { no_doc?: string; status?: string; payload?: Record<string, unknown>; lines?: FmsJobDebitNoteLineDto[] },
   ) {
-    return apiFetch<FmsJobDebitNoteDto>(`/jobs/${jobId}/debit-notes/${dnId}`, {
+    return apiFetch<FmsJobDebitNoteDto>(`/shipments/${jobId}/debit-notes/${dnId}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
     });

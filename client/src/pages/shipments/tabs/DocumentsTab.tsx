@@ -14,11 +14,14 @@ interface DocumentsTabProps {
   handleChangeDocStatus: (id: string, status: ShipmentDocument['status']) => void;
   handleDeleteDoc: (id: string) => void;
   documentActionLoadingId: string | null;
+  contractLabel?: string | null;
+  quotationLabel?: string | null;
 }
 
 const DocumentsTab: React.FC<DocumentsTabProps> = ({
   shipmentId, documents, newDocType, setNewDocType, newDocNumber, setNewDocNumber,
-  isCreatingDocument, handleCreateDocument, handleChangeDocStatus, handleDeleteDoc, documentActionLoadingId
+  isCreatingDocument, handleCreateDocument, handleChangeDocStatus, handleDeleteDoc, documentActionLoadingId,
+  contractLabel, quotationLabel
 }) => {
   return (
     <section className="bg-white rounded-2xl border border-cyan-100 shadow-sm overflow-hidden">
@@ -33,31 +36,59 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({
 
         {/* Document list */}
         <div className="rounded-xl border border-slate-200 p-3">
-          <p className="text-[11px] font-bold text-slate-500 uppercase mb-2">Documents ({documents.length})</p>
-          {documents.length === 0 ? (
-            <p className="text-[12px] text-slate-400">No documents available.</p>
-          ) : (
-            <div className="space-y-1.5">
-              {documents.map(doc => (
-                <div key={doc.id} className="flex items-center justify-between gap-2 text-[12px]">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-700">{doc.doc_type}</span>
-                    {doc.doc_number && <span className="text-slate-500 text-[11px]">({doc.doc_number})</span>}
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <select value={doc.status} onChange={e => handleChangeDocStatus(doc.id, e.target.value as ShipmentDocument['status'])}
-                      disabled={documentActionLoadingId === doc.id}
-                      className="px-1.5 py-0.5 rounded border border-slate-200 bg-white text-[10px] font-bold uppercase">
-                      <option value="draft">draft</option><option value="verified">verified</option>
-                      <option value="rejected">rejected</option><option value="issued">issued</option>
-                    </select>
-                    <button onClick={() => handleDeleteDoc(doc.id)} disabled={documentActionLoadingId === doc.id}
-                      className="p-1 rounded border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"><Trash2 size={11} /></button>
-                  </div>
+          <p className="text-[11px] font-bold text-slate-500 uppercase mb-2">Documents ({documents.length + (contractLabel ? 1 : 0) + (quotationLabel ? 1 : 0)})</p>
+          
+          <div className="space-y-1.5">
+            {/* Auto-linked Quotation */}
+            {quotationLabel && (
+              <div className="flex items-center justify-between gap-2 text-[12px] px-2 py-1.5 bg-slate-50/50 rounded-lg border border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-slate-700">Quotation</span>
+                  <span className="text-slate-500 text-[11px]">({quotationLabel})</span>
                 </div>
-              ))}
-            </div>
-          )}
+                <div className="flex items-center gap-1.5">
+                  <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[10px] font-bold uppercase">Linked</span>
+                </div>
+              </div>
+            )}
+
+            {/* Auto-linked Contract */}
+            {contractLabel && (
+              <div className="flex items-center justify-between gap-2 text-[12px] px-2 py-1.5 bg-slate-50/50 rounded-lg border border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-slate-700">Contract</span>
+                  <span className="text-slate-500 text-[11px]">({contractLabel})</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[10px] font-bold uppercase">Linked</span>
+                </div>
+              </div>
+            )}
+
+            {/* User uploaded documents */}
+            {documents.map(doc => (
+              <div key={doc.id} className="flex items-center justify-between gap-2 text-[12px] px-2 py-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-slate-700">{doc.doc_type}</span>
+                  {doc.doc_number && <span className="text-slate-500 text-[11px]">({doc.doc_number})</span>}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <select value={doc.status} onChange={e => handleChangeDocStatus(doc.id, e.target.value as ShipmentDocument['status'])}
+                    disabled={documentActionLoadingId === doc.id}
+                    className="px-1.5 py-0.5 rounded border border-slate-200 bg-white text-[10px] font-bold uppercase">
+                    <option value="draft">draft</option><option value="verified">verified</option>
+                    <option value="rejected">rejected</option><option value="issued">issued</option>
+                  </select>
+                  <button onClick={() => handleDeleteDoc(doc.id)} disabled={documentActionLoadingId === doc.id}
+                    className="p-1 rounded border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"><Trash2 size={11} /></button>
+                </div>
+              </div>
+            ))}
+
+            {documents.length === 0 && !contractLabel && !quotationLabel && (
+              <p className="text-[12px] text-slate-400 px-2 py-1">No documents available.</p>
+            )}
+          </div>
         </div>
 
         {/* Quick add */}

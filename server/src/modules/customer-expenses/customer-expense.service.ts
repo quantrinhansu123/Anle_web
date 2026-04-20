@@ -9,7 +9,7 @@ import type {
 } from './customer-expense.types';
 
 const SELECT_LIST =
-  '*, employee:employees(id, full_name, department, position), customer:customers(id, company_name), job:fms_jobs(id, master_job_no)';
+  '*, employee:employees(id, full_name, department, position), customer:customers(id, company_name), shipment:shipments(id, code, master_job_no)';
 
 function parseCsvParam(v: unknown): string[] | undefined {
   if (v == null || v === '') return undefined;
@@ -48,7 +48,7 @@ function applyExpenseListFilters<T>(q: T, f: CustomerExpenseListFilters): T {
     query = (query as { in: (c: string, v: string[]) => unknown }).in('employee_id', f.employee_id);
   }
   if (f.job_id && f.job_id.length > 0) {
-    query = (query as { in: (c: string, v: string[]) => unknown }).in('job_id', f.job_id);
+    query = (query as { in: (c: string, v: string[]) => unknown }).in('shipment_id', f.job_id);
   }
   return query as T;
 }
@@ -65,19 +65,19 @@ export class CustomerExpenseService {
 
     if (f.search?.trim()) {
       const term = f.search.trim();
-      const { data: jobs, error: jErr } = await supabase
-        .from('fms_jobs')
+      const { data: shipments, error: sErr } = await supabase
+        .from('shipments')
         .select('id')
-        .ilike('master_job_no', `%${term}%`);
-      if (jErr) throw jErr;
-      const jobIds = (jobs ?? []).map((j) => j.id as string);
+        .or(`master_job_no.ilike.%${term}%,code.ilike.%${term}%`);
+      if (sErr) throw sErr;
+      const shipmentIds = (shipments ?? []).map((s) => s.id as string);
 
       const orParts: string[] = [
         `description.ilike.%${term}%`,
         `bill_reference.ilike.%${term}%`,
       ];
-      if (jobIds.length > 0) {
-        orParts.push(`job_id.in.(${jobIds.join(',')})`);
+      if (shipmentIds.length > 0) {
+        orParts.push(`shipment_id.in.(${shipmentIds.join(',')})`);
       }
 
       let q = supabase
@@ -132,7 +132,7 @@ export class CustomerExpenseService {
       paid_by: dto.paid_by ?? 'employee_reimburse',
       employee_id: dto.employee_id,
       customer_id: dto.customer_id ?? null,
-      job_id: dto.job_id ?? null,
+      shipment_id: dto.shipment_id ?? null,
       supplier: dto.supplier ?? null,
       category: dto.category ?? null,
       bill_reference: dto.bill_reference ?? null,

@@ -18,6 +18,9 @@ export interface ShipmentCostBreakdown {
   other?: number;
 }
 
+export type JobBound = 'import' | 'export' | 'domestic' | 'transit';
+export type FmsJobServiceDetails = Record<string, Record<string, unknown>>;
+
 export interface Shipment {
   id: string;
   code?: string;
@@ -72,6 +75,32 @@ export interface Shipment {
   cost_locked_at?: string | null;
   quotation_id?: string | null;
   contract_id?: string | null;
+
+  // Job fields (merged from fms_jobs)
+  master_job_no?: string | null;
+  job_date?: string | null;
+  services?: string | null;
+  bound?: JobBound | null;
+  salesperson_id?: string | null;
+  sales_team?: string | null;
+  sales_department?: string | null;
+  product_pic_id?: string | null;
+  operators?: string | null;
+  bl_status?: string | null;
+  bl_status_detail?: string | null;
+  master_bl_number?: string | null;
+  master_bl_carrier?: string | null;
+  master_bl_remarks?: string | null;
+  priority_rank?: number | null;
+  service_details?: FmsJobServiceDetails | null;
+  customer_com?: string | null;
+  liner_com?: string | null;
+  performance_date?: string | null;
+  
+  // Joined relations (from job embeds)
+  salesperson?: { id: string; full_name: string } | null;
+  product_pic?: { id: string; full_name: string } | null;
+  bl_lines?: ShipmentBlLine[];
   
   // Audit
   version: number;
@@ -80,9 +109,26 @@ export interface Shipment {
   created_at: string;
 }
 
+export interface ShipmentBlLine {
+  id: string;
+  shipment_id: string;
+  sort_order: number;
+  name_1: string | null;
+  sea_customer: string | null;
+  air_customer: string | null;
+  name_2: string | null;
+  package_text: string | null;
+  unit_text: string | null;
+  sea_etd: string | null;
+  sea_eta: string | null;
+  air_etd: string | null;
+  air_eta: string | null;
+}
+
+export type ShipmentBlLineInput = Omit<ShipmentBlLine, 'shipment_id'> & { shipment_id?: string };
+
 export interface CreateShipmentDto extends Partial<Omit<Shipment, 'id' | 'created_at' | 'version'>> {
   customer_id: string;
-  supplier_id: string;
 }
 
 export interface UpdateShipmentDto extends Partial<CreateShipmentDto> {

@@ -33,18 +33,18 @@ export interface FmsJobPaymentNoteDto {
 
 export const fmsJobPaymentNoteService = {
   list(jobId: string) {
-    return apiFetch<FmsJobPaymentNoteDto[]>(`/jobs/${jobId}/payment-notes`);
+    return apiFetch<FmsJobPaymentNoteDto[]>(`/shipments/${jobId}/payment-notes`);
   },
 
   get(jobId: string, pnId: string) {
-    return apiFetch<FmsJobPaymentNoteDto>(`/jobs/${jobId}/payment-notes/${pnId}`);
+    return apiFetch<FmsJobPaymentNoteDto>(`/shipments/${jobId}/payment-notes/${pnId}`);
   },
 
   create(
     jobId: string,
     body: { no_doc: string; status?: string; payload?: Record<string, unknown>; lines?: FmsJobPaymentNoteLineDto[] },
   ) {
-    return apiFetch<FmsJobPaymentNoteDto>(`/jobs/${jobId}/payment-notes`, {
+    return apiFetch<FmsJobPaymentNoteDto>(`/shipments/${jobId}/payment-notes`, {
       method: 'POST',
       body: JSON.stringify(body),
     });
@@ -55,7 +55,7 @@ export const fmsJobPaymentNoteService = {
     pnId: string,
     body: { no_doc?: string; status?: string; payload?: Record<string, unknown>; lines?: FmsJobPaymentNoteLineDto[] },
   ) {
-    return apiFetch<FmsJobPaymentNoteDto>(`/jobs/${jobId}/payment-notes/${pnId}`, {
+    return apiFetch<FmsJobPaymentNoteDto>(`/shipments/${jobId}/payment-notes/${pnId}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
     });

@@ -1,6 +1,6 @@
 import { formatDate } from '../../lib/utils';
 import { parseSeaHouseBlV1 } from './seaHouseBlPersistence';
-import type { FmsJob } from './types';
+import type { Shipment } from './types';
 
 const BL_RELEASE_LABELS: Record<string, string> = {
   draft: 'Draft',
@@ -9,8 +9,8 @@ const BL_RELEASE_LABELS: Record<string, string> = {
   hold: 'Hold',
 };
 
-function seaHouseBlBlob(job: FmsJob): unknown {
-  const sd = job.service_details as Record<string, unknown> | null | undefined;
+function seaHouseBlBlob(shipment: Shipment): unknown {
+  const sd = shipment.service_details as Record<string, unknown> | null | undefined;
   if (!sd || typeof sd !== 'object') return undefined;
   return sd.sea_house_bl;
 }
@@ -29,7 +29,7 @@ function partyName(name: string | undefined, code: string | undefined): string {
   return n || c || '—';
 }
 
-function formatContainers(job: FmsJob, parsed: ReturnType<typeof parseSeaHouseBlV1>): string {
+function formatContainers(shipment: Shipment, parsed: ReturnType<typeof parseSeaHouseBlV1>): string {
   if (parsed) {
     const nums = (parsed.container.containerRows || [])
       .map((r) => (r.containerNo || '').trim())
@@ -39,9 +39,9 @@ function formatContainers(job: FmsJob, parsed: ReturnType<typeof parseSeaHouseBl
       return nums.length > 4 ? `${shown}…` : shown;
     }
   }
-  const lines = job.bl_lines || [];
+  const lines = (shipment as any).bl_lines || [];
   const fromLines = lines
-    .map((l) => (l.name_1 || '').trim())
+    .map((l: any) => (l.name_1 || '').trim())
     .filter(Boolean)
     .slice(0, 2)
     .join(', ');
@@ -55,7 +55,7 @@ function blReleaseLabel(raw: string | undefined | null): string {
 }
 
 export type HouseSeaBlTableRow = {
-  jobId: string;
+  shipmentId: string;
   masterJobNo: string;
   mbl: string;
   hbl: string;
@@ -73,26 +73,26 @@ export type HouseSeaBlTableRow = {
   operators: string;
 };
 
-export function buildHouseSeaBlTableRow(job: FmsJob): HouseSeaBlTableRow {
-  const parsed = parseSeaHouseBlV1(seaHouseBlBlob(job));
+export function buildHouseSeaBlTableRow(shipment: Shipment): HouseSeaBlTableRow {
+  const parsed = parseSeaHouseBlV1(seaHouseBlBlob(shipment));
   const top = parsed?.topBar;
   const header = parsed?.header;
 
-  const mblFromJob = (job.master_bl_number || '').trim();
+  const mblFromShipment = (shipment.master_bl_number || '').trim();
   const mblFromBlob = (top?.masterBl || '').trim();
-  const mbl = mblFromJob || mblFromBlob || '—';
+  const mbl = mblFromShipment || mblFromBlob || '—';
 
   const hbl = (top?.hbl || '').trim() || '—';
 
   return {
-    jobId: job.id,
-    masterJobNo: job.master_job_no || '—',
+    shipmentId: shipment.id,
+    masterJobNo: shipment.master_job_no || '—',
     mbl,
     hbl,
-    cont: formatContainers(job, parsed),
+    cont: formatContainers(shipment, parsed),
     shpr: partyName(header?.shipperName, header?.shipper),
     cnee: partyName(header?.consigneeName, header?.consignee),
-    salesman: job.salesperson?.full_name?.trim() || '—',
+    salesman: shipment.salesperson?.full_name?.trim() || '—',
     pol: (header?.pol || '').trim() || '—',
     pod: (header?.pod || '').trim() || '—',
     etd: cellDate(header?.etd),
@@ -100,7 +100,7 @@ export function buildHouseSeaBlTableRow(job: FmsJob): HouseSeaBlTableRow {
     atd: cellDate(header?.atd),
     ata: cellDate(header?.ata),
     status: blReleaseLabel(top?.blReleaseStatus),
-    operators: (job.operators || '').trim() || '—',
+    operators: (shipment.operators || '').trim() || '—',
   };
 }
 

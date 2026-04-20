@@ -20,7 +20,7 @@ import {
   parseSeaHouseBlV1,
 } from './seaHouseBlPersistence';
 import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
-import { jobService } from '../../services/jobService';
+import { shipmentService } from '../../services/shipmentService';
 import { salesService } from '../../services/salesService';
 import { fmsJobDebitNoteService } from '../../services/fmsJobDebitNoteService';
 import { fmsJobPaymentNoteService } from '../../services/fmsJobPaymentNoteService';
@@ -29,19 +29,15 @@ import {
   seaHouseBlBlobHasContent,
 } from './mapQuotationToSeaHousePrefill';
 import UploadBOLDialog from './dialogs/UploadBOLDialog';
-import { HeaderTab, emptyHeaderState } from './tabs/HeaderTab';
-import type { HeaderTabState } from './tabs/HeaderTab';
-import { ContainerTab, emptyContainerState } from './tabs/ContainerTab';
-import type { ContainerTabState } from './tabs/ContainerTab';
-import { MarksDescriptionTab, emptyMarksDescriptionState } from './tabs/MarksDescriptionTab';
-import type { MarksDescriptionTabState } from './tabs/MarksDescriptionTab';
-import { FreightTab, emptyFreightState } from './tabs/FreightTab';
-import type { FreightTabState } from './tabs/FreightTab';
-import { FieldLabel, inputClass } from './tabs/blSharedHelpers';
-
-/* ------------------------------------------------------------------ */
-/*  Types & constants                                                  */
-/* ------------------------------------------------------------------ */
+import { HeaderTab, emptyHeaderState } from './bl-tabs/HeaderTab';
+import type { HeaderTabState } from './bl-tabs/HeaderTab';
+import { ContainerTab, emptyContainerState } from './bl-tabs/ContainerTab';
+import type { ContainerTabState } from './bl-tabs/ContainerTab';
+import { MarksDescriptionTab, emptyMarksDescriptionState } from './bl-tabs/MarksDescriptionTab';
+import type { MarksDescriptionTabState } from './bl-tabs/MarksDescriptionTab';
+import { FreightTab, emptyFreightState } from './bl-tabs/FreightTab';
+import type { FreightTabState } from './bl-tabs/FreightTab';
+import { FieldLabel, inputClass } from './bl-tabs/blSharedHelpers';
 
 type HBLTab = 'header' | 'container' | 'marks' | 'freight' | 'tracking';
 
@@ -105,10 +101,6 @@ const SERVICE_TERMS = [
   { value: 'cy-door', label: 'CY / Door' },
 ];
 
-/* ------------------------------------------------------------------ */
-/*  Stats card                                                         */
-/* ------------------------------------------------------------------ */
-
 function StatCard({
   icon: Icon,
   label,
@@ -142,10 +134,6 @@ function StatCard({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Placeholder tab                                                    */
-/* ------------------------------------------------------------------ */
-
 function PlaceholderTab({ label }: { label: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
@@ -157,12 +145,9 @@ function PlaceholderTab({ label }: { label: string }) {
 }
 
 
-/* ------------------------------------------------------------------ */
-/*  Main page component                                                */
-/* ------------------------------------------------------------------ */
 const CreateSeaHouseBLPage: React.FC = () => {
   const navigate = useNavigate();
-  const { id: jobId } = useParams<{ id: string }>();
+  const { id: shipmentId } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const isViewMode = searchParams.get('mode') === 'view';
   const fromHouseSeaBlList = searchParams.get('from') === 'house-sea-bl';
@@ -174,7 +159,6 @@ const CreateSeaHouseBLPage: React.FC = () => {
   const [printDropdownOpen, setPrintDropdownOpen] = useState(false);
   const printDropdownRef = useRef<HTMLDivElement>(null);
 
-  /* Close print dropdown on outside click */
   useEffect(() => {
     if (!printDropdownOpen) return;
     const handler = (e: MouseEvent) => {
@@ -187,7 +171,6 @@ const CreateSeaHouseBLPage: React.FC = () => {
   }, [printDropdownOpen]);
 
   const PRINT_OPTIONS = [
-    'Arrival Notice',
     'Delivery Request',
     'HAWB',
     'Proof Of Delivery',
@@ -201,16 +184,11 @@ const CreateSeaHouseBLPage: React.FC = () => {
   const handlePrintOption = useCallback(
     (option: string) => {
       setPrintDropdownOpen(false);
-      if (option === 'Arrival Notice' && jobId) {
-        navigate(`/shipping/jobs/${jobId}/arrival-notice`);
-        return;
-      }
       toastOk(`Print: ${option} — coming soon`);
     },
-    [toastOk, navigate, jobId],
+    [toastOk],
   );
 
-  /* Top form fields */
   const [hbl, setHbl] = useState('');
   const [blType, setBlType] = useState('');
   const [blReleaseStatus, setBlReleaseStatus] = useState('');
@@ -222,6 +200,7 @@ const CreateSeaHouseBLPage: React.FC = () => {
   const [jobNo, setJobNo] = useState('');
   const [incoterm, setIncoterm] = useState('');
   const [serviceTerm, setServiceTerm] = useState('');
+  const [shipmentCodeLabel, setShipmentCodeLabel] = useState('');
   const [masterJobLabel, setMasterJobLabel] = useState('');
   const [quotationLink, setQuotationLink] = useState<{ id: string; label: string } | null>(null);
   const [debitNoteCount, setDebitNoteCount] = useState(0);
@@ -229,22 +208,18 @@ const CreateSeaHouseBLPage: React.FC = () => {
   const skipBlAutosaveRef = useRef(true);
   const [blHydrateEpoch, setBlHydrateEpoch] = useState(0);
 
-  /* Header tab state */
   const [headerState, setHeaderState] = useState<HeaderTabState>(emptyHeaderState);
   const patchHeader = (patch: Partial<HeaderTabState>) =>
     setHeaderState((prev) => ({ ...prev, ...patch }));
 
-  /* Container tab state */
   const [containerState, setContainerState] = useState<ContainerTabState>(emptyContainerState);
   const patchContainer = (patch: Partial<ContainerTabState>) =>
     setContainerState((prev) => ({ ...prev, ...patch }));
 
-  /* Marks & Description tab state */
   const [marksState, setMarksState] = useState<MarksDescriptionTabState>(emptyMarksDescriptionState);
   const patchMarks = (patch: Partial<MarksDescriptionTabState>) =>
     setMarksState((prev) => ({ ...prev, ...patch }));
 
-  /* Freight tab state */
   const [freightState, setFreightState] = useState<FreightTabState>(emptyFreightState);
   const patchFreight = (patch: Partial<FreightTabState>) =>
     setFreightState((prev) => ({ ...prev, ...patch }));
@@ -287,9 +262,8 @@ const CreateSeaHouseBLPage: React.FC = () => {
     ],
   );
 
-  /* Load job + saved Sea House B/L, or prefill from quotation when blob empty */
   useEffect(() => {
-    if (!jobId) return;
+    if (!shipmentId) return;
     skipBlAutosaveRef.current = true;
     setHbl('');
     setBlType('');
@@ -311,20 +285,21 @@ const CreateSeaHouseBLPage: React.FC = () => {
     let cancelled = false;
     void (async () => {
       try {
-        const [job, sea] = await Promise.all([
-          jobService.getJob(jobId),
-          jobService.getSeaHouseBl(jobId),
+        const [shipmentData, sea] = await Promise.all([
+          shipmentService.getShipmentById(shipmentId),
+          shipmentService.getSeaHouseBl(shipmentId),
         ]);
         if (cancelled) return;
 
-        const mjn = job.master_job_no || '';
+        const mjn = shipmentData.master_job_no || '';
         setMasterJobLabel(mjn);
+        setShipmentCodeLabel(shipmentData.code || '');
 
-        if (job.quotation_id) {
+        if (shipmentData.quotation_id) {
           const qLabel =
-            job.quotation?.no_doc?.trim() ||
-            `Q-${job.quotation_id.slice(0, 8)}`;
-          setQuotationLink({ id: job.quotation_id, label: qLabel });
+            shipmentData.quotation?.no_doc?.trim() ||
+            `Q-${shipmentData.quotation_id.slice(0, 8)}`;
+          setQuotationLink({ id: shipmentData.quotation_id, label: qLabel });
         } else {
           setQuotationLink(null);
         }
@@ -349,8 +324,8 @@ const CreateSeaHouseBLPage: React.FC = () => {
           setFreightState(parsed.freight);
         } else {
           setJobNo(mjn);
-          if (!seaHouseBlBlobHasContent(sea) && job.quotation_id) {
-            const sales = await salesService.getSalesItemById(job.quotation_id);
+          if (!seaHouseBlBlobHasContent(sea) && shipmentData.quotation_id) {
+            const sales = await salesService.getSalesItemById(shipmentData.quotation_id);
             if (cancelled) return;
             const { headerPatch, topBar } = buildSeaHousePrefillFromSales(sales);
             setHeaderState((prev) => ({ ...prev, ...headerPatch }));
@@ -376,15 +351,14 @@ const CreateSeaHouseBLPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [jobId, toastOk]);
+  }, [shipmentId, toastOk]);
 
-  /* Debounced persist of full Sea House B/L blob */
   useEffect(() => {
-    if (!jobId || skipBlAutosaveRef.current || isViewMode) return;
+    if (!shipmentId || skipBlAutosaveRef.current || isViewMode) return;
     const t = window.setTimeout(() => {
-      void jobService
+      void shipmentService
         .patchSeaHouseBl(
-          jobId,
+          shipmentId,
           buildSeaHouseBlBlobV1({
             topBar: {
               hbl,
@@ -410,24 +384,25 @@ const CreateSeaHouseBLPage: React.FC = () => {
         });
     }, 1400);
     return () => window.clearTimeout(t);
-  }, [blHydrateEpoch, jobId, isViewMode, seaHousePersistKey, toastErr]);
+  }, [blHydrateEpoch, shipmentId, isViewMode, seaHousePersistKey, toastErr]);
 
-  /* Set up custom breadcrumbs */
   useEffect(() => {
-    const jobLabel = masterJobLabel || (jobId ? `Job ${jobId.slice(0, 8)}...` : 'New Job');
+    const shipmentLabel = shipmentCodeLabel || masterJobLabel || (shipmentId ? `Shipment ${shipmentId.slice(0, 8)}...` : 'New Shipment');
     const detailQs = new URLSearchParams();
     if (isViewMode) detailQs.set('mode', 'view');
     if (fromHouseSeaBlList) detailQs.set('from', 'house-sea-bl');
     const detailQuery = detailQs.toString();
-    const detailPath = `/shipping/jobs/${jobId || 'new'}/sea-house-bl${detailQuery ? `?${detailQuery}` : ''}`;
+    const detailPath = `/shipments/sop/${shipmentId || 'new'}/sea-house-bl${detailQuery ? `?${detailQuery}` : ''}`;
 
     if (fromHouseSeaBlList) {
       const modeSuffix = isViewMode ? ' · View' : ' · Edit';
       const tailBase =
-        masterJobLabel.trim() !== ''
+        shipmentCodeLabel.trim() !== ''
+          ? shipmentCodeLabel
+          : masterJobLabel.trim() !== ''
           ? masterJobLabel
-          : jobId
-            ? `Job ${jobId.slice(0, 8)}…`
+          : shipmentId
+            ? `Shipment ${shipmentId.slice(0, 8)}…`
             : 'Sea House B/L';
       const tail = `${tailBase}${modeSuffix}`;
       setCustomBreadcrumbs([
@@ -438,27 +413,26 @@ const CreateSeaHouseBLPage: React.FC = () => {
     } else {
       const blLabel = isViewMode ? 'Sea House B/L (View)' : 'Sea House B/L';
       setCustomBreadcrumbs([
-        { path: '/shipping', label: 'Shipping' },
-        { path: '/shipping/jobs', label: 'Job Management' },
-        ...(jobId ? [{ path: `/shipping/jobs/${jobId}/edit`, label: jobLabel }] : []),
-        { path: `/shipping/jobs/${jobId || 'new'}/sea-house-bl`, label: blLabel },
+        { path: '/shipments/information', label: 'Shipments' },
+        ...(shipmentId ? [{ path: `/shipments/sop/${shipmentId}`, label: shipmentLabel }] : []),
+        { path: `/shipments/sop/${shipmentId || 'new'}/sea-house-bl`, label: blLabel },
       ]);
     }
 
     return () => {
       setCustomBreadcrumbs(null);
     };
-  }, [jobId, fromHouseSeaBlList, isViewMode, masterJobLabel, setCustomBreadcrumbs]);
+  }, [shipmentId, fromHouseSeaBlList, isViewMode, masterJobLabel, shipmentCodeLabel, setCustomBreadcrumbs]);
 
   useEffect(() => {
-    if (!jobId) {
+    if (!shipmentId) {
       setDebitNoteCount(0);
       return;
     }
     let cancelled = false;
     void (async () => {
       try {
-        const dns = await fmsJobDebitNoteService.list(jobId);
+        const dns = await fmsJobDebitNoteService.list(shipmentId);
         if (!cancelled) setDebitNoteCount(dns.length);
       } catch {
         if (!cancelled) setDebitNoteCount(0);
@@ -467,17 +441,17 @@ const CreateSeaHouseBLPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [jobId]);
+  }, [shipmentId]);
 
   useEffect(() => {
-    if (!jobId) {
+    if (!shipmentId) {
       setPaymentNoteCount(0);
       return;
     }
     let cancelled = false;
     void (async () => {
       try {
-        const items = await fmsJobPaymentNoteService.list(jobId);
+        const items = await fmsJobPaymentNoteService.list(shipmentId);
         if (!cancelled) setPaymentNoteCount(items.length);
       } catch {
         if (!cancelled) setPaymentNoteCount(0);
@@ -486,9 +460,8 @@ const CreateSeaHouseBLPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [jobId]);
+  }, [shipmentId]);
 
-  /* Stat counts (placeholder) */
   const stats = {
     expenses: 0,
     paymentNotes: paymentNoteCount,
@@ -498,16 +471,15 @@ const CreateSeaHouseBLPage: React.FC = () => {
 
   return (
     <div className="animate-in fade-in duration-300 mx-auto flex w-full flex-col gap-4 px-0 pb-24 sm:px-1 md:pb-6">
-      {/* ── Page header ───────────────────────────────────────────── */}
       <div className="overflow-visible rounded-2xl border border-border bg-white shadow-sm shadow-slate-200/40">
         <div className="flex flex-col gap-4 bg-gradient-to-br from-white via-white to-slate-50/40 px-5 py-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6 lg:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={() =>
-                jobId
-                  ? navigate(`/shipping/jobs/${jobId}/edit`)
-                  : navigate('/shipping/jobs')
+                shipmentId
+                  ? navigate(`/shipments/sop/${shipmentId}`)
+                  : navigate('/shipments/information')
               }
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-white text-slate-600 shadow-sm transition-all hover:border-primary/25 hover:bg-primary/5 hover:text-primary touch-manipulation"
               aria-label="Back"
@@ -526,7 +498,7 @@ const CreateSeaHouseBLPage: React.FC = () => {
                 ) : null}
               </div>
               <p className="mt-1 truncate text-[13px] font-medium text-muted-foreground">
-                {masterJobLabel ? masterJobLabel : jobId ? `Job ${jobId.slice(0, 8)}…` : 'New Sea House Bill of Lading'}
+                {shipmentCodeLabel ? shipmentCodeLabel : masterJobLabel ? masterJobLabel : shipmentId ? `Shipment ${shipmentId.slice(0, 8)}…` : 'New Sea House Bill of Lading'}
               </p>
               {quotationLink ? (
                 <p className="mt-1.5 text-[12px] font-medium text-muted-foreground">
@@ -542,12 +514,11 @@ const CreateSeaHouseBLPage: React.FC = () => {
             </div>
           </div>
 
-          {/* ── Toolbar buttons ──────────────────────────────────── */}
           <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
-            {isViewMode && jobId ? (
+            {isViewMode && shipmentId ? (
               <button
                 type="button"
-                onClick={() => navigate(`/shipping/jobs/${jobId}/sea-house-bl?from=house-sea-bl`)}
+                onClick={() => navigate(`/shipments/sop/${shipmentId}/sea-house-bl?from=house-sea-bl`)}
                 className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-primary bg-primary px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-primary-foreground shadow-sm transition-all hover:opacity-95"
               >
                 <Pencil size={15} />
@@ -572,7 +543,15 @@ const CreateSeaHouseBLPage: React.FC = () => {
               <Upload size={15} />
               Upload BOL
             </button>
-            {/* Print dropdown */}
+            <button
+              type="button"
+              disabled={!shipmentId}
+              onClick={() => navigate(`/shipments/sop/${shipmentId}/arrival-notice`)}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-sky-300 bg-sky-50 px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-sky-700 shadow-sm transition-all hover:bg-sky-100 hover:border-sky-400 disabled:pointer-events-none disabled:opacity-40"
+            >
+              <FileText size={15} />
+              Arrival Notice
+            </button>
             <div className="relative" ref={printDropdownRef}>
               <button
                 type="button"
@@ -602,7 +581,6 @@ const CreateSeaHouseBLPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── Stats cards ───────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           icon={DollarSign}
@@ -613,8 +591,8 @@ const CreateSeaHouseBLPage: React.FC = () => {
         <div
           className="cursor-pointer transition-transform hover:scale-[1.02]"
           onClick={() => {
-            if (!jobId) return;
-            navigate(`/shipping/jobs/${jobId}/sea-house-bl/payment-note`);
+            if (!shipmentId) return;
+            navigate(`/shipments/sop/${shipmentId}/sea-house-bl/payment-note`);
           }}
         >
           <StatCard
@@ -626,7 +604,7 @@ const CreateSeaHouseBLPage: React.FC = () => {
         </div>
         <div
           className="cursor-pointer transition-transform hover:scale-[1.02]"
-          onClick={() => navigate(`/shipping/jobs/${jobId}/sea-house-bl/debit-note`)}
+          onClick={() => navigate(`/shipments/sop/${shipmentId}/sea-house-bl/debit-note`)}
         >
           <StatCard
             icon={Receipt}
@@ -643,7 +621,6 @@ const CreateSeaHouseBLPage: React.FC = () => {
         />
       </div>
 
-      {/* ── Top form (4 columns) ──────────────────────────────────── */}
       <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
         <div className="shrink-0 border-b border-border bg-slate-50/80 px-4 py-3">
           <h2 className="text-[12px] font-bold uppercase tracking-wider text-primary">
@@ -652,7 +629,6 @@ const CreateSeaHouseBLPage: React.FC = () => {
         </div>
         <fieldset disabled={isViewMode} className="min-w-0 border-0 p-0 m-0">
           <div className="p-4 flex flex-col gap-3">
-          {/* Row 1 */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <div>
               <FieldLabel>HBL</FieldLabel>
@@ -695,7 +671,6 @@ const CreateSeaHouseBLPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Row 2 */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <div>
               <FieldLabel>Master BL</FieldLabel>
@@ -736,15 +711,14 @@ const CreateSeaHouseBLPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Row 3 */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <div>
-              <FieldLabel>Job No.</FieldLabel>
+              <FieldLabel>Ref No.</FieldLabel>
               <input
                 value={jobNo}
                 onChange={(e) => setJobNo(e.target.value)}
                 className={inputClass}
-                placeholder="Job number"
+                placeholder="Reference number"
               />
             </div>
             <div>
@@ -758,7 +732,6 @@ const CreateSeaHouseBLPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Row 4 */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <div className="xl:col-span-2">
               <FieldLabel>Service Term</FieldLabel>
@@ -775,9 +748,7 @@ const CreateSeaHouseBLPage: React.FC = () => {
         </fieldset>
       </div>
 
-      {/* ── Content tabs ──────────────────────────────────────────── */}
       <div className="overflow-x-clip rounded-2xl border border-border bg-white shadow-sm">
-        {/* Tab bar */}
         <div className="flex flex-wrap gap-1 overflow-x-auto overflow-y-hidden border-b border-border bg-slate-50/80 px-2 py-2 sm:px-3">
           {TABS.map((t) => (
             <button
@@ -796,7 +767,6 @@ const CreateSeaHouseBLPage: React.FC = () => {
           ))}
         </div>
 
-        {/* Tab content */}
         <fieldset disabled={isViewMode} className="min-w-0 border-0 p-0 m-0">
           <div className="min-h-0 min-w-0">
             {activeTab === 'header' ? (
@@ -814,7 +784,6 @@ const CreateSeaHouseBLPage: React.FC = () => {
         </fieldset>
       </div>
 
-      {/* Upload BOL dialog */}
       <UploadBOLDialog
         open={showUploadDialog}
         onClose={() => setShowUploadDialog(false)}

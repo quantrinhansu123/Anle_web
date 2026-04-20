@@ -24,6 +24,7 @@ export interface FmsJobDebitNoteLine {
 export interface FmsJobDebitNote {
   id: string;
   job_id: string;
+  shipment_id: string;
   no_doc: string;
   status: FmsJobDebitNoteStatus;
   payload: Record<string, unknown>;

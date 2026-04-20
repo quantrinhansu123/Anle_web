@@ -53,15 +53,12 @@ const UploadBOLDialog: React.FC<UploadBOLDialogProps> = ({ open, onClose, onExtr
       className="fixed inset-0 z-[9999] flex items-center justify-center"
       onClick={handleClose}
     >
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
 
-      {/* Dialog */}
       <div
         className="relative z-10 w-full max-w-lg mx-4 animate-in fade-in zoom-in-95 duration-200 rounded-2xl border border-border bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
@@ -81,14 +78,12 @@ const UploadBOLDialog: React.FC<UploadBOLDialogProps> = ({ open, onClose, onExtr
           </button>
         </div>
 
-        {/* Body */}
         <div className="px-5 py-5">
           <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-tight block mb-2">
             Bill of Lading / AWB PDF
           </label>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-            {/* Upload your file button */}
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
@@ -98,7 +93,6 @@ const UploadBOLDialog: React.FC<UploadBOLDialogProps> = ({ open, onClose, onExtr
               Upload your file
             </button>
 
-            {/* Drop zone */}
             <div
               onDrop={handleDrop}
               onDragOver={handleDragOver}
@@ -129,7 +123,6 @@ const UploadBOLDialog: React.FC<UploadBOLDialogProps> = ({ open, onClose, onExtr
           />
         </div>
 
-        {/* Footer */}
         <div className="flex items-center gap-3 border-t border-border px-5 py-4">
           <button
             type="button"

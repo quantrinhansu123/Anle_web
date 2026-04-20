@@ -1,11 +1,11 @@
-import type { HeaderTabState } from './tabs/HeaderTab';
-import { emptyHeaderState } from './tabs/HeaderTab';
-import type { ContainerTabState } from './tabs/ContainerTab';
-import { emptyContainerState } from './tabs/ContainerTab';
-import type { MarksDescriptionTabState } from './tabs/MarksDescriptionTab';
-import { emptyMarksDescriptionState } from './tabs/MarksDescriptionTab';
-import type { FreightTabState } from './tabs/FreightTab';
-import { emptyFreightState } from './tabs/FreightTab';
+import type { HeaderTabState } from './bl-tabs/HeaderTab';
+import { emptyHeaderState } from './bl-tabs/HeaderTab';
+import type { ContainerTabState } from './bl-tabs/ContainerTab';
+import { emptyContainerState } from './bl-tabs/ContainerTab';
+import type { MarksDescriptionTabState } from './bl-tabs/MarksDescriptionTab';
+import { emptyMarksDescriptionState } from './bl-tabs/MarksDescriptionTab';
+import type { FreightTabState } from './bl-tabs/FreightTab';
+import { emptyFreightState } from './bl-tabs/FreightTab';
 
 export const SEA_HOUSE_BL_SCHEMA_VERSION = 1 as const;
 

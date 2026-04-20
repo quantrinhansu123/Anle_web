@@ -1,7 +1,8 @@
-import { apiFetch } from '../lib/api';
+import { apiFetch, apiFetchPaginated } from '../lib/api';
 import type {
   CreateShipmentDto,
   Shipment,
+  ShipmentBlLine,
   ShipmentReadinessResult,
   UpdateShipmentDto,
   UpdateShipmentStatusDto,
@@ -88,6 +89,115 @@ export const shipmentService = {
 
   deleteShipment: (id: string) => 
     apiFetch<void>(`/shipments/${id}`, {
+      method: 'DELETE',
+    }),
+
+  listShipmentsPaginated: (page = 1, limit = 50, filters?: Record<string, string>) => {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (filters) {
+      Object.entries(filters).forEach(([k, v]) => { if (v) params.set(k, v); });
+    }
+    return apiFetchPaginated<Shipment>(`/shipments?${params.toString()}`);
+  },
+
+  getBlLines: (shipmentId: string) =>
+    apiFetch<ShipmentBlLine[]>(`/shipments/${shipmentId}/bl-lines`),
+
+  replaceBlLines: (shipmentId: string, lines: ShipmentBlLine[]) =>
+    apiFetch<ShipmentBlLine[]>(`/shipments/${shipmentId}/bl-lines`, {
+      method: 'PUT',
+      body: JSON.stringify(lines),
+    }),
+
+  getSeaHouseBl: (shipmentId: string) =>
+    apiFetch<Record<string, unknown>>(`/shipments/${shipmentId}/sea-house-bl`),
+
+  patchSeaHouseBl: (shipmentId: string, patch: Record<string, unknown>) =>
+    apiFetch<Record<string, unknown>>(`/shipments/${shipmentId}/sea-house-bl`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
+
+  getDebitNotes: (shipmentId: string) =>
+    apiFetch<unknown[]>(`/shipments/${shipmentId}/debit-notes`),
+
+  createDebitNote: (shipmentId: string, data: Record<string, unknown>) =>
+    apiFetch<unknown>(`/shipments/${shipmentId}/debit-notes`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getDebitNote: (shipmentId: string, dnId: string) =>
+    apiFetch<unknown>(`/shipments/${shipmentId}/debit-notes/${dnId}`),
+
+  updateDebitNote: (shipmentId: string, dnId: string, data: Record<string, unknown>) =>
+    apiFetch<unknown>(`/shipments/${shipmentId}/debit-notes/${dnId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  deleteDebitNote: (shipmentId: string, dnId: string) =>
+    apiFetch<void>(`/shipments/${shipmentId}/debit-notes/${dnId}`, {
+      method: 'DELETE',
+    }),
+
+  listAllInvoices: (page = 1, limit = 20, filters?: Record<string, string>) => {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (filters) {
+      Object.entries(filters).forEach(([k, v]) => { if (v) params.set(k, v); });
+    }
+    return apiFetchPaginated<unknown>(`/shipments/invoices?${params.toString()}`);
+  },
+
+  getInvoices: (shipmentId: string) =>
+    apiFetch<unknown[]>(`/shipments/${shipmentId}/invoices`),
+
+  createInvoice: (shipmentId: string, data: Record<string, unknown>) =>
+    apiFetch<unknown>(`/shipments/${shipmentId}/invoices`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getInvoice: (shipmentId: string, invoiceId: string) =>
+    apiFetch<unknown>(`/shipments/${shipmentId}/invoices/${invoiceId}`),
+
+  updateInvoice: (shipmentId: string, invoiceId: string, data: Record<string, unknown>) =>
+    apiFetch<unknown>(`/shipments/${shipmentId}/invoices/${invoiceId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  deleteInvoice: (shipmentId: string, invoiceId: string) =>
+    apiFetch<void>(`/shipments/${shipmentId}/invoices/${invoiceId}`, {
+      method: 'DELETE',
+    }),
+
+  recordInvoicePayment: (shipmentId: string, invoiceId: string, data: Record<string, unknown>) =>
+    apiFetch<unknown>(`/shipments/${shipmentId}/invoices/${invoiceId}/record-payment`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getPaymentNotes: (shipmentId: string) =>
+    apiFetch<unknown[]>(`/shipments/${shipmentId}/payment-notes`),
+
+  createPaymentNote: (shipmentId: string, data: Record<string, unknown>) =>
+    apiFetch<unknown>(`/shipments/${shipmentId}/payment-notes`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getPaymentNote: (shipmentId: string, pnId: string) =>
+    apiFetch<unknown>(`/shipments/${shipmentId}/payment-notes/${pnId}`),
+
+  updatePaymentNote: (shipmentId: string, pnId: string, data: Record<string, unknown>) =>
+    apiFetch<unknown>(`/shipments/${shipmentId}/payment-notes/${pnId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  deletePaymentNote: (shipmentId: string, pnId: string) =>
+    apiFetch<void>(`/shipments/${shipmentId}/payment-notes/${pnId}`, {
       method: 'DELETE',
     }),
 };

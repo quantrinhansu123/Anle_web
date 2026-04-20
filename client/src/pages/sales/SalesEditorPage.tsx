@@ -44,8 +44,7 @@ import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 import { SalesChargeCatalogDialog } from './dialogs/SalesChargeCatalogDialog';
 import { SalesUnitCatalogDialog } from './dialogs/SalesUnitCatalogDialog';
 import { customerService } from '../../services/customerService';
-import { jobService } from '../../services/jobService';
-import { buildJobCreatePayloadFromQuotation } from '../jobs/quotationToJobPayload';
+import { buildShipmentFieldsFromQuotation } from '../shipments/quotationToShipmentPayload';
 import { Edit3, Send, CheckCircle2, FileCheck, CheckSquare } from 'lucide-react';
 import { WorkflowStepper, type WorkflowStep } from '../../components/ui/WorkflowStepper';
 
@@ -718,14 +717,14 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
     navigate(`/financials/sales/quotation/${formState.id}`);
   };
 
-  const handleCreateJobFromQuotation = useCallback(async () => {
+  const handleCreateShipmentFromQuotation = useCallback(async () => {
     if (!formState.id || !formState.shipment_id) return;
     setCreatingJob(true);
     try {
       const ship =
         formState.relatedShipment || shipmentOptions.find((s) => s.value === formState.shipment_id);
-      const payload = await buildJobCreatePayloadFromQuotation({ ...formState, relatedShipment: ship });
-      const created = await jobService.createJob(payload);
+      const payload = await buildShipmentFieldsFromQuotation({ ...formState, relatedShipment: ship });
+      const created = await shipmentService.createShipment(payload as Parameters<typeof shipmentService.createShipment>[0]);
 
       try {
         await salesService.updateSalesItem(formState.id, { status: 'converted' });
@@ -738,15 +737,15 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
             : '';
         toastError(
           sm
-            ? `${sm} Job ${created.master_job_no} was created; set quotation to Converted manually if needed.`
-            : `Job ${created.master_job_no} was created, but the quotation could not be marked Converted.`,
+            ? `${sm} Shipment ${created.code || created.id} was created; set quotation to Converted manually if needed.`
+            : `Shipment ${created.code || created.id} was created, but the quotation could not be marked Converted.`,
         );
       }
 
-      toastSuccess(`Job ${created.master_job_no} created from quotation`);
-      navigate(`/shipping/jobs/${created.id}/edit`, {
+      toastSuccess(`Shipment ${created.code || created.id} created from quotation`);
+      navigate(`/shipments/sop/${created.id}`, {
         state: {
-          jobCreatedFromQuotation: true,
+          shipmentCreatedFromQuotation: true,
           quotationBreadcrumb: {
             quotationId: formState.id,
             quotationLabel:
@@ -760,7 +759,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
         e && typeof e === 'object' && 'message' in e
           ? String((e as { message?: unknown }).message ?? '')
           : '';
-      toastError(msg || 'Could not create job');
+      toastError(msg || 'Could not create shipment');
     } finally {
       setCreatingJob(false);
     }
@@ -781,7 +780,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
   const selectedEmployee = employees.find((employee) => employee.id === formState.sales_person_id);
 
   const quotationStatus = normalizeQuotationStatus(formState.status);
-  const canCreateJobFromQuotation =
+  const canCreateShipmentFromQuotation =
     isReadOnly && quotationStatus === 'sent' && !!formState.id && !!formState.shipment_id;
 
   const quotationDocLabel = formatQuotationBreadcrumbLabel(formState.no_doc, formState.id);
@@ -1499,15 +1498,15 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
             <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end lg:shrink-0">
               {isReadOnly ? (
                 <>
-                  {canCreateJobFromQuotation ? (
+                  {canCreateShipmentFromQuotation ? (
                     <button
                       type="button"
-                      onClick={() => void handleCreateJobFromQuotation()}
+                      onClick={() => void handleCreateShipmentFromQuotation()}
                       disabled={creatingJob}
                       className="inline-flex items-center justify-center gap-2 min-h-10 rounded-xl border border-border bg-white px-4 py-2 text-[12px] font-bold text-slate-700 shadow-sm hover:bg-slate-50 transition-all active:scale-[0.99] disabled:pointer-events-none disabled:opacity-45"
                     >
                       {creatingJob ? <Loader2 size={15} className="animate-spin" /> : <Briefcase size={15} />}
-                      Create Job
+                      Create Shipment
                     </button>
                   ) : null}
                   {canPrintQuotation ? (
@@ -2097,15 +2096,15 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
               Back
             </button>
             <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-              {canCreateJobFromQuotation ? (
+              {canCreateShipmentFromQuotation ? (
                 <button
                   type="button"
-                  onClick={() => void handleCreateJobFromQuotation()}
+                  onClick={() => void handleCreateShipmentFromQuotation()}
                   disabled={creatingJob}
                   className="inline-flex shrink-0 items-center justify-center gap-1.5 min-h-[48px] rounded-xl border border-border bg-white px-3.5 py-2.5 text-[12px] font-bold text-slate-700 shadow-sm hover:bg-slate-50 active:scale-[0.99] touch-manipulation disabled:pointer-events-none disabled:opacity-45"
                 >
                   {creatingJob ? <Loader2 size={16} className="animate-spin" /> : <Briefcase size={16} />}
-                  Create Job
+                  Create Shipment
                 </button>
               ) : null}
               {canPrintQuotation ? (

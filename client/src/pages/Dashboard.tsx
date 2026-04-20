@@ -13,14 +13,14 @@ import { useBookmarks } from '../hooks/useBookmarks';
 const dashboardModules: ActionCardProps[] = [
   {
     icon: Truck,
-    title: 'Shipping',
+    title: 'Logistics',
     description: 'FMS, Business Dashboard, Sales, jobs, payments, and debit notes.',
     href: '/shipping',
     colorScheme: 'blue'
   },
   {
     icon: Package,
-    title: 'Operations',
+    title: 'Trading',
     description: 'Logistics, Inventory, Fleet, and Trading.',
     href: '/operations',
     colorScheme: 'slate'
@@ -171,7 +171,7 @@ const Dashboard: React.FC = () => {
               });
 
               const orderedNames = [
-                'Shipping',
+                'Logistics',
                 'Logistics & Supply Chain', 'Trading',
                 'Customer Relations', 'Digital Presence',
                 'Human Resources', 'Work & Development',

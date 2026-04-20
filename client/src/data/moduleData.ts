@@ -12,12 +12,12 @@ import type { ModuleCardProps } from '../components/ui/ModuleCard';
 export const moduleData: Record<string, { section: string; items: ModuleCardProps[] }[]> = {
   '/shipping': [
     {
-      section: 'Shipping',
+      section: 'Logistics',
       items: [
         { icon: LayoutDashboard, title: 'Dashboard FMS', description: 'Freight operations and shipment overview.', colorScheme: 'blue', path: '/shipping/dashboard-fms' },
         { icon: BarChart3, title: 'Business Dashboard', description: 'Business metrics and transportation performance.', colorScheme: 'emerald', path: '/shipping/business-dashboard' },
         { icon: BadgeDollarSign, title: 'Sales', description: 'Quotes, orders, and service rates.', colorScheme: 'amber', path: '/financials/sales', requiredDepartments: ['sales', 'finance', 'bod'] },
-        { icon: ClipboardList, title: 'Job Management', description: 'Job board: HBL, master code, PIC, operators, and priority.', colorScheme: 'blue', path: '/shipping/jobs', requiredDepartments: ['logistics', 'finance', 'bod'] },
+        { icon: ClipboardList, title: 'Shipments', description: 'Shipment board: SOP tracking, B/L, operators, and priority.', colorScheme: 'blue', path: '/shipments/information', requiredDepartments: ['logistics', 'finance', 'bod'] },
         { icon: Anchor, title: 'House Sea B/L', description: 'Table of house B/L: MBL, HBL, containers, parties, schedule, and operators.', colorScheme: 'cyan', path: '/shipping/house-sea-bl', requiredDepartments: ['logistics', 'finance', 'bod'] },
         { icon: Package, title: 'Transport Services', description: 'Manage freight charge catalog and transport services.', colorScheme: 'slate', path: '/financials/sales-charges', requiredDepartments: ['logistics', 'finance', 'bod'] },
         { icon: CreditCard, title: 'Payment Management', description: 'Payment requests and cost flow.', colorScheme: 'teal', path: '/financials/payment-requests', requiredDepartments: ['finance', 'bod'] },

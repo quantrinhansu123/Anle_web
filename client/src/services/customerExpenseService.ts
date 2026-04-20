@@ -16,7 +16,7 @@ function buildQueryString(q: CustomerExpenseListQuery): string {
   q.status?.forEach((s) => p.append('status', s));
   q.customer_id?.forEach((s) => p.append('customer_id', s));
   q.employee_id?.forEach((s) => p.append('employee_id', s));
-  q.job_id?.forEach((s) => p.append('job_id', s));
+  q.shipment_id?.forEach((s) => p.append('shipment_id', s));
   const qs = p.toString();
   return qs ? `?${qs}` : '';
 }
@@ -32,7 +32,7 @@ function bodyFromForm(dto: Omit<CustomerExpenseFormState, 'id'> | CustomerExpens
     paid_by: dto.paid_by,
     employee_id: dto.employee_id,
     customer_id: dto.customer_id ? dto.customer_id : null,
-    job_id: dto.job_id ? dto.job_id : null,
+    shipment_id: dto.shipment_id ? dto.shipment_id : null,
     supplier: dto.supplier || null,
     category: dto.category || null,
     bill_reference: dto.bill_reference || null,
@@ -70,7 +70,7 @@ export const customerExpenseService = {
     if (dto.paid_by !== undefined) b.paid_by = dto.paid_by;
     if (dto.employee_id !== undefined) b.employee_id = dto.employee_id;
     if (dto.customer_id !== undefined) b.customer_id = dto.customer_id || null;
-    if (dto.job_id !== undefined) b.job_id = dto.job_id || null;
+    if (dto.shipment_id !== undefined) b.shipment_id = dto.shipment_id || null;
     if (dto.supplier !== undefined) b.supplier = dto.supplier || null;
     if (dto.category !== undefined) b.category = dto.category || null;
     if (dto.bill_reference !== undefined) b.bill_reference = dto.bill_reference || null;

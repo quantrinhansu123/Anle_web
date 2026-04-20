@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, RefreshCcw, Search } from 'lucide-react';
 import { clsx } from 'clsx';
 import { cn } from '../../lib/utils';
-import { jobService } from '../../services/jobService';
+import { shipmentService } from '../../services/shipmentService';
 import { useToastContext } from '../../contexts/ToastContext';
-import type { FmsJob } from './types';
+import type { Shipment } from './types';
 import { buildHouseSeaBlTableRow, houseSeaBlRowSearchBlob, type HouseSeaBlTableRow } from './houseSeaBlListRow';
 
 const thBase =
@@ -16,8 +16,8 @@ const tdCheck = cn(tdBase, 'text-center align-middle');
 
 const COL_COUNT = 15;
 
-function seaHouseBlViewPath(jobId: string) {
-  return `/shipping/jobs/${jobId}/sea-house-bl?mode=view&from=house-sea-bl`;
+function seaHouseBlViewPath(shipmentId: string) {
+  return `/shipments/sop/${shipmentId}/sea-house-bl?mode=view&from=house-sea-bl`;
 }
 
 const HouseSeaBlListPage: React.FC = () => {
@@ -25,7 +25,7 @@ const HouseSeaBlListPage: React.FC = () => {
   const { error: toastError } = useToastContext();
   const [page, setPage] = useState(1);
   const limit = 50;
-  const [jobs, setJobs] = useState<FmsJob[]>([]);
+  const [shipments, setShipments] = useState<Shipment[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
@@ -36,12 +36,12 @@ const HouseSeaBlListPage: React.FC = () => {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const { items, pagination } = await jobService.listJobsPaginated(page, limit);
-      setJobs(items);
+      const { items, pagination } = await shipmentService.listShipmentsPaginated(page, limit);
+      setShipments(items);
       setTotal(pagination.total);
     } catch (e) {
-      toastError(e instanceof Error ? e.message : 'Failed to load jobs');
-      setJobs([]);
+      toastError(e instanceof Error ? e.message : 'Failed to load shipments');
+      setShipments([]);
       setTotal(0);
     } finally {
       setLoading(false);
@@ -52,7 +52,7 @@ const HouseSeaBlListPage: React.FC = () => {
     void fetchData();
   }, [fetchData]);
 
-  const tableRows: HouseSeaBlTableRow[] = useMemo(() => jobs.map(buildHouseSeaBlTableRow), [jobs]);
+  const tableRows: HouseSeaBlTableRow[] = useMemo(() => shipments.map(buildHouseSeaBlTableRow), [shipments]);
 
   const filteredRows = useMemo(() => {
     const q = searchText.trim().toLowerCase();
@@ -61,7 +61,7 @@ const HouseSeaBlListPage: React.FC = () => {
   }, [tableRows, searchText]);
 
   const pageSelectedCount = useMemo(
-    () => filteredRows.filter((r) => selectedIds[r.jobId]).length,
+    () => filteredRows.filter((r) => selectedIds[r.shipmentId]).length,
     [filteredRows, selectedIds],
   );
 
@@ -73,20 +73,20 @@ const HouseSeaBlListPage: React.FC = () => {
     if (allFilteredSelected) {
       setSelectedIds((prev) => {
         const next = { ...prev };
-        for (const r of filteredRows) delete next[r.jobId];
+        for (const r of filteredRows) delete next[r.shipmentId];
         return next;
       });
     } else {
       setSelectedIds((prev) => {
         const next = { ...prev };
-        for (const r of filteredRows) next[r.jobId] = true;
+        for (const r of filteredRows) next[r.shipmentId] = true;
         return next;
       });
     }
   };
 
-  const toggleOne = (jobId: string) => {
-    setSelectedIds((prev) => ({ ...prev, [jobId]: !prev[jobId] }));
+  const toggleOne = (shipmentId: string) => {
+    setSelectedIds((prev) => ({ ...prev, [shipmentId]: !prev[shipmentId] }));
   };
 
   useEffect(() => {
@@ -129,15 +129,15 @@ const HouseSeaBlListPage: React.FC = () => {
 
   const renderRow = (r: HouseSeaBlTableRow) => (
     <tr
-      key={r.jobId}
+      key={r.shipmentId}
       role="link"
       tabIndex={0}
-      aria-label={`View Sea House B/L for job ${r.masterJobNo}`}
-      onClick={() => navigate(seaHouseBlViewPath(r.jobId))}
+      aria-label={`View Sea House B/L for shipment ${r.masterJobNo}`}
+      onClick={() => navigate(seaHouseBlViewPath(r.shipmentId))}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          navigate(seaHouseBlViewPath(r.jobId));
+          navigate(seaHouseBlViewPath(r.shipmentId));
         }
       }}
       className="cursor-pointer hover:bg-slate-50/60 transition-colors"
@@ -146,8 +146,8 @@ const HouseSeaBlListPage: React.FC = () => {
         <input
           type="checkbox"
           className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
-          checked={Boolean(selectedIds[r.jobId])}
-          onChange={() => toggleOne(r.jobId)}
+          checked={Boolean(selectedIds[r.shipmentId])}
+          onChange={() => toggleOne(r.shipmentId)}
           aria-label={`Select ${r.masterJobNo}`}
         />
       </td>
@@ -156,7 +156,7 @@ const HouseSeaBlListPage: React.FC = () => {
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            navigate(seaHouseBlViewPath(r.jobId));
+            navigate(seaHouseBlViewPath(r.shipmentId));
           }}
           className="font-semibold text-primary hover:underline text-left"
         >
@@ -168,7 +168,7 @@ const HouseSeaBlListPage: React.FC = () => {
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            navigate(seaHouseBlViewPath(r.jobId));
+            navigate(seaHouseBlViewPath(r.shipmentId));
           }}
           className="font-bold text-primary hover:underline text-left"
         >
@@ -211,7 +211,7 @@ const HouseSeaBlListPage: React.FC = () => {
   const emptyMessage =
     searchText.trim() && filteredRows.length === 0
       ? 'No rows match your search on this page.'
-      : 'No jobs in this page range.';
+      : 'No shipments in this page range.';
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full flex-1 flex flex-col -mt-2 min-h-0">
@@ -337,7 +337,7 @@ const HouseSeaBlListPage: React.FC = () => {
 
         <div className="px-6 py-3 border-t border-border bg-slate-50/50 flex flex-wrap items-center justify-between gap-2 shrink-0">
           <span className="text-[12px] font-medium text-slate-500">
-            Showing <b>{showingFrom}</b> – <b>{showingTo}</b> of <b>{total}</b> job(s)
+            Showing <b>{showingFrom}</b> – <b>{showingTo}</b> of <b>{total}</b> shipment(s)
             {searchText.trim() ? (
               <span className="text-muted-foreground">
                 {' '}

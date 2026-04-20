@@ -7,10 +7,10 @@ import type {
   UpdateFmsJobPaymentNoteDto,
 } from './fms-job-payment-note.types';
 
-async function assertJobExists(jobId: string): Promise<void> {
-  const { data, error } = await supabase.from('fms_jobs').select('id').eq('id', jobId).maybeSingle();
+async function assertShipmentExists(shipmentId: string): Promise<void> {
+  const { data, error } = await supabase.from('shipments').select('id').eq('id', shipmentId).maybeSingle();
   if (error) throw error;
-  if (!data) throw new AppError('Job not found', 404);
+  if (!data) throw new AppError('Shipment not found', 404);
 }
 
 async function fetchLines(paymentNoteId: string): Promise<FmsJobPaymentNoteLine[]> {
@@ -24,23 +24,23 @@ async function fetchLines(paymentNoteId: string): Promise<FmsJobPaymentNoteLine[
 }
 
 export class FmsJobPaymentNoteService {
-  async listByJob(jobId: string): Promise<FmsJobPaymentNote[]> {
-    await assertJobExists(jobId);
+  async listByJob(shipmentId: string): Promise<FmsJobPaymentNote[]> {
+    await assertShipmentExists(shipmentId);
     const { data, error } = await supabase
       .from('fms_job_payment_notes')
       .select('*')
-      .eq('job_id', jobId)
+      .eq('shipment_id', shipmentId)
       .order('created_at', { ascending: false });
     if (error) throw error;
     return (data ?? []) as FmsJobPaymentNote[];
   }
 
-  async findById(jobId: string, pnId: string): Promise<FmsJobPaymentNote | null> {
+  async findById(shipmentId: string, pnId: string): Promise<FmsJobPaymentNote | null> {
     const { data, error } = await supabase
       .from('fms_job_payment_notes')
       .select('*')
       .eq('id', pnId)
-      .eq('job_id', jobId)
+      .eq('shipment_id', shipmentId)
       .maybeSingle();
     if (error) throw error;
     if (!data) return null;
@@ -48,20 +48,20 @@ export class FmsJobPaymentNoteService {
     return { ...(data as FmsJobPaymentNote), lines };
   }
 
-  async create(jobId: string, dto: CreateFmsJobPaymentNoteDto): Promise<FmsJobPaymentNote> {
-    await assertJobExists(jobId);
+  async create(shipmentId: string, dto: CreateFmsJobPaymentNoteDto): Promise<FmsJobPaymentNote> {
+    await assertShipmentExists(shipmentId);
     const status = dto.status ?? 'draft';
     const payload = dto.payload ?? {};
 
     const { data: note, error: insErr } = await supabase
       .from('fms_job_payment_notes')
       .upsert({
-        job_id: jobId,
+        shipment_id: shipmentId,
         no_doc: dto.no_doc,
         status,
         payload,
         updated_at: new Date().toISOString(),
-      }, { onConflict: 'job_id,no_doc' })
+      }, { onConflict: 'shipment_id,no_doc' })
       .select('*')
       .single();
 
@@ -92,11 +92,11 @@ export class FmsJobPaymentNoteService {
       }
     }
 
-    return (await this.findById(jobId, id)) as FmsJobPaymentNote;
+    return (await this.findById(shipmentId, id)) as FmsJobPaymentNote;
   }
 
-  async update(jobId: string, pnId: string, dto: UpdateFmsJobPaymentNoteDto): Promise<FmsJobPaymentNote> {
-    const existing = await this.findById(jobId, pnId);
+  async update(shipmentId: string, pnId: string, dto: UpdateFmsJobPaymentNoteDto): Promise<FmsJobPaymentNote> {
+    const existing = await this.findById(shipmentId, pnId);
     if (!existing) throw new AppError('Payment Note not found', 404);
 
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -109,7 +109,7 @@ export class FmsJobPaymentNoteService {
         .from('fms_job_payment_notes')
         .update(patch)
         .eq('id', pnId)
-        .eq('job_id', jobId);
+        .eq('shipment_id', shipmentId);
       if (upErr) throw upErr;
     }
 
@@ -137,13 +137,13 @@ export class FmsJobPaymentNoteService {
       }
     }
 
-    return (await this.findById(jobId, pnId)) as FmsJobPaymentNote;
+    return (await this.findById(shipmentId, pnId)) as FmsJobPaymentNote;
   }
 
-  async delete(jobId: string, pnId: string): Promise<void> {
-    const existing = await this.findById(jobId, pnId);
+  async delete(shipmentId: string, pnId: string): Promise<void> {
+    const existing = await this.findById(shipmentId, pnId);
     if (!existing) throw new AppError('Payment Note not found', 404);
-    const { error } = await supabase.from('fms_job_payment_notes').delete().eq('id', pnId).eq('job_id', jobId);
+    const { error } = await supabase.from('fms_job_payment_notes').delete().eq('id', pnId).eq('shipment_id', shipmentId);
     if (error) throw error;
   }
 }

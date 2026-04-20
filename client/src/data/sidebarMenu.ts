@@ -23,8 +23,8 @@ export type SidebarItem = {
 
 export const sidebarMenu: SidebarItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-  { icon: Truck, label: 'Shipping', path: '/shipping', requiredDepartments: ['logistics', 'finance', 'bod'] },
-  { icon: Package, label: 'Operations', path: '/operations', requiredDepartments: ['logistics', 'procurement', 'finance', 'bod'] },
+  { icon: Truck, label: 'Logistics', path: '/shipping', requiredDepartments: ['logistics', 'finance', 'bod'] },
+  { icon: Package, label: 'Trading', path: '/operations', requiredDepartments: ['logistics', 'procurement', 'finance', 'bod'] },
   { icon: Warehouse, label: 'Inventory', path: '/inventory', requiredDepartments: ['logistics', 'finance', 'bod'] },
   { icon: Handshake, label: 'CRM & Marketing', path: '/marketing', requiredDepartments: ['sales', 'bod'] },
   { icon: Users, label: 'HR & Projects', path: '/hr', requiredRoles: ['ceo', 'director', 'manager'] },

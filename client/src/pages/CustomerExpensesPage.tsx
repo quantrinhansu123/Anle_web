@@ -30,8 +30,8 @@ import { useToastContext } from '../contexts/ToastContext';
 import { customerExpenseService } from '../services/customerExpenseService';
 import { employeeService, type Employee } from '../services/employeeService';
 import { customerService, type Customer } from '../services/customerService';
-import { jobService } from '../services/jobService';
-import type { FmsJob } from './jobs/types';
+import { shipmentService } from '../services/shipmentService';
+import type { Shipment } from './shipments/types';
 import type {
   CustomerExpense,
   CustomerExpenseFormState,
@@ -66,7 +66,7 @@ const INITIAL_FORM_STATE: CustomerExpenseFormState = {
   paid_by: 'employee_reimburse',
   employee_id: '',
   customer_id: '',
-  job_id: '',
+  shipment_id: '',
   supplier: '',
   category: '',
   bill_reference: '',
@@ -129,7 +129,7 @@ type ColDef = {
   label: string;
   thClass: string;
   tdClass: string;
-  renderContent: (r: CustomerExpense) => React.ReactNode;
+  renderContent: (r: CustomerExpense, navigate: (path: string) => void) => React.ReactNode;
 };
 
 const COLUMN_DEFS: Record<string, ColDef> = {
@@ -147,12 +147,23 @@ const COLUMN_DEFS: Record<string, ColDef> = {
     tdClass: 'px-4 py-4 border-r border-border/40 text-[13px] font-medium max-w-[280px] truncate',
     renderContent: (r) => r.description,
   },
-  job: {
-    label: 'Job',
+  shipment: {
+    label: 'Shipment',
     thClass:
       'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-36 border-r border-border/40',
     tdClass: 'px-4 py-4 border-r border-border/40 text-[12px] font-bold text-primary',
-    renderContent: (r) => r.job?.master_job_no || '—',
+    renderContent: (r, navigate) => (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (r.shipment_id) navigate(`/shipments/sop/${r.shipment_id}`);
+        }}
+        className="hover:underline text-left"
+      >
+        {r.shipment?.code || r.shipment?.master_job_no || '—'}
+      </button>
+    ),
   },
   employee: {
     label: 'Employee',
@@ -222,7 +233,7 @@ const CustomerExpensesPage: React.FC = () => {
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
   const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
-  const [selectedJobs, setSelectedJobs] = useState<string[]>([]);
+  const [selectedShipments, setSelectedShipments] = useState<string[]>([]);
 
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [filterSearch, setFilterSearch] = useState('');
@@ -240,8 +251,8 @@ const CustomerExpensesPage: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerOptions, setCustomerOptions] = useState<{ value: string; label: string }[]>([]);
-  const [jobs, setJobs] = useState<FmsJob[]>([]);
-  const [jobOptions, setJobOptions] = useState<{ value: string; label: string }[]>([]);
+  const [shipments, setShipments] = useState<Shipment[]>([]);
+  const [shipmentOptions, setShipmentOptions] = useState<{ value: string; label: string }[]>([]);
 
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ type: 'single' | 'bulk'; id?: string }>({
@@ -254,7 +265,7 @@ const CustomerExpensesPage: React.FC = () => {
   const [pendingStatuses, setPendingStatuses] = useState<string[]>([]);
   const [pendingCustomers, setPendingCustomers] = useState<string[]>([]);
   const [pendingEmployees, setPendingEmployees] = useState<string[]>([]);
-  const [pendingJobs, setPendingJobs] = useState<string[]>([]);
+  const [pendingShipments, setPendingShipments] = useState<string[]>([]);
 
   useEffect(() => {
     if (!activeDropdown) return;
@@ -274,13 +285,13 @@ const CustomerExpensesPage: React.FC = () => {
       status: selectedStatuses.length ? selectedStatuses : undefined,
       customer_id: selectedCustomers.length ? selectedCustomers : undefined,
       employee_id: selectedEmployees.length ? selectedEmployees : undefined,
-      job_id: selectedJobs.length ? selectedJobs : undefined,
+      shipment_id: selectedShipments.length ? selectedShipments : undefined,
     };
     if (searchText.trim()) {
       base.search = searchText.trim();
     }
     return base;
-  }, [page, searchText, selectedStatuses, selectedCustomers, selectedEmployees, selectedJobs]);
+  }, [page, searchText, selectedStatuses, selectedCustomers, selectedEmployees, selectedShipments]);
 
   const fetchList = useCallback(async () => {
     try {
@@ -343,14 +354,14 @@ const CustomerExpensesPage: React.FC = () => {
     }
   }, []);
 
-  const fetchJobs = useCallback(async () => {
+  const fetchShipments = useCallback(async () => {
     try {
-      const data = await jobService.getJobs(1, 200);
-      setJobs(Array.isArray(data) ? data : []);
-      setJobOptions(
-        (Array.isArray(data) ? data : []).map((j) => ({
+      const { items } = await shipmentService.listShipmentsPaginated(1, 200);
+      setShipments(Array.isArray(items) ? items : []);
+      setShipmentOptions(
+        (Array.isArray(items) ? items : []).map((j) => ({
           value: j.id,
-          label: j.master_job_no,
+          label: j.code || j.master_job_no || '—',
         })),
       );
     } catch (err) {
@@ -361,8 +372,8 @@ const CustomerExpensesPage: React.FC = () => {
   useEffect(() => {
     void fetchEmployees();
     void fetchCustomers();
-    void fetchJobs();
-  }, [fetchEmployees, fetchCustomers, fetchJobs]);
+    void fetchShipments();
+  }, [fetchEmployees, fetchCustomers, fetchShipments]);
 
   useEffect(() => {
     if (activeTab !== 'stats') return;
@@ -386,13 +397,13 @@ const CustomerExpensesPage: React.FC = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [searchText, selectedStatuses, selectedCustomers, selectedEmployees, selectedJobs]);
+  }, [searchText, selectedStatuses, selectedCustomers, selectedEmployees, selectedShipments]);
 
   const hasActiveFilters =
     selectedStatuses.length > 0 ||
     selectedCustomers.length > 0 ||
     selectedEmployees.length > 0 ||
-    selectedJobs.length > 0;
+    selectedShipments.length > 0;
 
   const toggleSelectAll = () => {
     if (selectedIds.length === rows.length && rows.length > 0) setSelectedIds([]);
@@ -414,7 +425,7 @@ const CustomerExpensesPage: React.FC = () => {
     paid_by: r.paid_by,
     employee_id: r.employee_id,
     customer_id: r.customer_id || '',
-    job_id: r.job_id || '',
+    shipment_id: r.shipment_id || '',
     supplier: r.supplier || '',
     category: r.category || '',
     bill_reference: r.bill_reference || '',
@@ -537,7 +548,7 @@ const CustomerExpensesPage: React.FC = () => {
     setPendingStatuses(selectedStatuses);
     setPendingCustomers(selectedCustomers);
     setPendingEmployees(selectedEmployees);
-    setPendingJobs(selectedJobs);
+    setPendingShipments(selectedShipments);
     setShowMobileFilter(true);
   };
 
@@ -545,7 +556,7 @@ const CustomerExpensesPage: React.FC = () => {
     setSelectedStatuses(pendingStatuses);
     setSelectedCustomers(pendingCustomers);
     setSelectedEmployees(pendingEmployees);
-    setSelectedJobs(pendingJobs);
+    setSelectedShipments(pendingShipments);
     closeMobileFilter();
   };
 
@@ -927,12 +938,12 @@ const CustomerExpensesPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    setActiveDropdown(activeDropdown === 'job' ? null : 'job');
+                    setActiveDropdown(activeDropdown === 'shipment' ? null : 'shipment');
                     setFilterSearch('');
                   }}
                   className={clsx(
                     'flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all text-[12px] font-bold shadow-sm',
-                    activeDropdown === 'job' || selectedJobs.length > 0
+                    activeDropdown === 'shipment' || selectedShipments.length > 0
                       ? 'bg-primary/5 border-primary text-primary'
                       : 'bg-white border-border hover:bg-muted text-muted-foreground',
                   )}
@@ -940,34 +951,34 @@ const CustomerExpensesPage: React.FC = () => {
                   <Briefcase
                     size={14}
                     className={clsx(
-                      activeDropdown === 'job' || selectedJobs.length > 0
+                      activeDropdown === 'shipment' || selectedShipments.length > 0
                         ? 'text-primary'
                         : 'text-muted-foreground/50',
                     )}
                   />
-                  Job
-                  {selectedJobs.length > 0 && (
+                  Shipment
+                  {selectedShipments.length > 0 && (
                     <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
-                      {selectedJobs.length}
+                      {selectedShipments.length}
                     </span>
                   )}
                   <ChevronRight
                     size={14}
                     className={clsx(
                       'transition-transform ml-1 opacity-40',
-                      activeDropdown === 'job' ? '-rotate-90' : 'rotate-90',
+                      activeDropdown === 'shipment' ? '-rotate-90' : 'rotate-90',
                     )}
                   />
                 </button>
                 <FilterDropdown
-                  isOpen={activeDropdown === 'job'}
-                  options={jobs.map((j) => ({
+                  isOpen={activeDropdown === 'shipment'}
+                  options={shipments.map((j) => ({
                     id: j.id,
-                    label: j.master_job_no,
+                    label: j.code || j.master_job_no || '—',
                   }))}
-                  selected={selectedJobs}
+                  selected={selectedShipments}
                   onToggle={(id) =>
-                    setSelectedJobs((prev) =>
+                    setSelectedShipments((prev) =>
                       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
                     )
                   }
@@ -1088,7 +1099,7 @@ const CustomerExpensesPage: React.FC = () => {
                                 .filter((id) => visibleColumns.includes(id))
                                 .map((key) => (
                                   <td key={key} className={COLUMN_DEFS[key].tdClass}>
-                                    {COLUMN_DEFS[key].renderContent(r)}
+                                    {COLUMN_DEFS[key].renderContent(r, navigate)}
                                   </td>
                                 ))}
                               <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
@@ -1233,25 +1244,25 @@ const CustomerExpensesPage: React.FC = () => {
                     </button>
                   ))}
                 </div>
-                <p className="text-[12px] font-bold mb-3">Job</p>
+                <p className="text-[12px] font-bold mb-3">Shipment</p>
                 <div className="flex flex-wrap gap-2 mb-4 max-h-32 overflow-y-auto">
-                  {jobs.map((j) => (
+                  {shipments.map((j) => (
                     <button
                       key={j.id}
                       type="button"
                       onClick={() =>
-                        setPendingJobs((prev) =>
+                        setPendingShipments((prev) =>
                           prev.includes(j.id) ? prev.filter((x) => x !== j.id) : [...prev, j.id],
                         )
                       }
                       className={clsx(
                         'px-3 py-1.5 rounded-full text-[11px] font-bold border',
-                        pendingJobs.includes(j.id)
+                        pendingShipments.includes(j.id)
                           ? 'border-primary bg-primary/10 text-primary'
                           : 'border-border',
                       )}
                     >
-                      {j.master_job_no}
+                      {j.code || j.master_job_no || '—'}
                     </button>
                   ))}
                 </div>
@@ -1451,11 +1462,11 @@ const CustomerExpensesPage: React.FC = () => {
         }}
         formState={formState}
         setFormField={(key, val) => setFormState((prev) => ({ ...prev, [key]: val }))}
-        employeeOptions={employeeOptions}
-        customerOptions={customerOptions}
-        jobOptions={jobOptions}
-        onSave={handleSave}
-      />
+          employeeOptions={employeeOptions}
+          customerOptions={customerOptions}
+          shipmentOptions={shipmentOptions}
+          onSave={handleSave}
+        />
 
       <ConfirmDialog
         isOpen={isConfirmOpen}

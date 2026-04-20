@@ -25,6 +25,7 @@ export interface FmsJobPaymentNoteLine {
 export interface FmsJobPaymentNote {
   id: string;
   job_id: string;
+  shipment_id: string;
   no_doc: string;
   status: FmsJobPaymentNoteStatus;
   payload: Record<string, unknown>;

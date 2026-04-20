@@ -38,14 +38,14 @@ export interface RecordPaymentBody {
 export const fmsJobInvoiceService = {
   /** Cross-job invoice list (paginated). */
   listAll: (query: JobInvoiceListQuery = {}) =>
-    apiFetchPaginated<FmsJobInvoiceListItem>(`/jobs/invoices${buildInvoiceListQuery(query)}`),
+    apiFetchPaginated<FmsJobInvoiceListItem>(`/shipments/invoices${buildInvoiceListQuery(query)}`),
 
   list(jobId: string) {
-    return apiFetch<FmsJobInvoiceDto[]>(`/jobs/${jobId}/invoices`);
+    return apiFetch<FmsJobInvoiceDto[]>(`/shipments/${jobId}/invoices`);
   },
 
   get(jobId: string, invoiceId: string) {
-    return apiFetch<FmsJobInvoiceDto>(`/jobs/${jobId}/invoices/${invoiceId}`);
+    return apiFetch<FmsJobInvoiceDto>(`/shipments/${jobId}/invoices/${invoiceId}`);
   },
 
   create(
@@ -59,7 +59,7 @@ export const fmsJobInvoiceService = {
       payload?: Record<string, unknown>;
     },
   ) {
-    return apiFetch<FmsJobInvoiceDto>(`/jobs/${jobId}/invoices`, {
+    return apiFetch<FmsJobInvoiceDto>(`/shipments/${jobId}/invoices`, {
       method: 'POST',
       body: JSON.stringify(body),
     });
@@ -77,7 +77,7 @@ export const fmsJobInvoiceService = {
       payment_status: 'unpaid' | 'paid' | 'partial';
     }>,
   ) {
-    return apiFetch<FmsJobInvoiceDto>(`/jobs/${jobId}/invoices/${invoiceId}`, {
+    return apiFetch<FmsJobInvoiceDto>(`/shipments/${jobId}/invoices/${invoiceId}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
     });
@@ -85,7 +85,7 @@ export const fmsJobInvoiceService = {
 
   recordPayment(jobId: string, invoiceId: string, body: RecordPaymentBody) {
     return apiFetch<{ paymentResult: unknown; invoice: FmsJobInvoiceDto }>(
-      `/jobs/${jobId}/invoices/${invoiceId}/record-payment`,
+      `/shipments/${jobId}/invoices/${invoiceId}/record-payment`,
       {
         method: 'POST',
         body: JSON.stringify(body),

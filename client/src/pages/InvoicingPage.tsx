@@ -283,16 +283,16 @@ const InvoicingPage: React.FC = () => {
 
     const debitNoteLabel = fromDnNo || 'Debit Note';
     const debitNotePath = fromDnId
-      ? `/shipping/jobs/${fromJobId}/sea-house-bl/debit-note/${fromDnId}`
-      : `/shipping/jobs/${fromJobId}/sea-house-bl/debit-note`;
+      ? `/shipments/sop/${fromJobId}/sea-house-bl/debit-note/${fromDnId}`
+      : `/shipments/sop/${fromJobId}/sea-house-bl/debit-note`;
     setCustomBreadcrumbs([
       { path: '/shipping', label: 'Shipping' },
-      { path: '/shipping/jobs', label: 'Job Management' },
+      { path: '/shipments/information', label: 'Shipments' },
       {
-        path: `/shipping/jobs/${fromJobId}/edit`,
-        label: fromJobNo || `Job ${fromJobId.slice(0, 8)}...`,
+        path: `/shipments/sop/${fromJobId}`,
+        label: fromJobNo || `Shipment ${fromJobId.slice(0, 8)}...`,
       },
-      { path: `/shipping/jobs/${fromJobId}/sea-house-bl`, label: 'Sea House B/L' },
+      { path: `/shipments/sop/${fromJobId}/sea-house-bl`, label: 'Sea House B/L' },
       { path: debitNotePath, label: debitNoteLabel },
       {
         path: `/financials/invoicing${searchParams.toString() ? `?${searchParams.toString()}` : ''}`,

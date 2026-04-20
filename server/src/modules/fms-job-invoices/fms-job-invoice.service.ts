@@ -9,10 +9,10 @@ import type {
   UpdateFmsJobInvoiceDto,
 } from './fms-job-invoice.types';
 
-async function assertJobExists(jobId: string): Promise<void> {
-  const { data, error } = await supabase.from('fms_jobs').select('id').eq('id', jobId).maybeSingle();
+async function assertShipmentExists(shipmentId: string): Promise<void> {
+  const { data, error } = await supabase.from('shipments').select('id').eq('id', shipmentId).maybeSingle();
   if (error) throw error;
-  if (!data) throw new AppError('Job not found', 404);
+  if (!data) throw new AppError('Shipment not found', 404);
 }
 
 async function allocateInvoiceNo(series: 'INV' | 'BILL'): Promise<string> {
@@ -101,15 +101,15 @@ function toListItem(
   };
 }
 
-async function assertDebitNoteBelongsToJob(jobId: string, debitNoteId: string): Promise<void> {
+async function assertDebitNoteBelongsToShipment(shipmentId: string, debitNoteId: string): Promise<void> {
   const { data, error } = await supabase
     .from('fms_job_debit_notes')
     .select('id')
     .eq('id', debitNoteId)
-    .eq('job_id', jobId)
+    .eq('shipment_id', shipmentId)
     .maybeSingle();
   if (error) throw error;
-  if (!data) throw new AppError('Debit Note not found for this job', 404);
+  if (!data) throw new AppError('Debit Note not found for this shipment', 404);
 }
 
 export class FmsJobInvoiceService {
@@ -126,32 +126,32 @@ export class FmsJobInvoiceService {
     if (error) throw error;
   }
 
-  async listByJob(jobId: string): Promise<FmsJobInvoice[]> {
-    await assertJobExists(jobId);
+  async listByJob(shipmentId: string): Promise<FmsJobInvoice[]> {
+    await assertShipmentExists(shipmentId);
     const { data, error } = await supabase
       .from('fms_job_invoices')
       .select('*')
-      .eq('job_id', jobId)
+      .eq('shipment_id', shipmentId)
       .order('created_at', { ascending: false });
     if (error) throw error;
     return (data ?? []) as FmsJobInvoice[];
   }
 
-  async findById(jobId: string, invoiceId: string): Promise<FmsJobInvoice | null> {
+  async findById(shipmentId: string, invoiceId: string): Promise<FmsJobInvoice | null> {
     const { data, error } = await supabase
       .from('fms_job_invoices')
       .select('*')
       .eq('id', invoiceId)
-      .eq('job_id', jobId)
+      .eq('shipment_id', shipmentId)
       .maybeSingle();
     if (error) throw error;
     if (!data) return null;
     return data as FmsJobInvoice;
   }
 
-  async create(jobId: string, dto: CreateFmsJobInvoiceDto): Promise<FmsJobInvoice> {
-    await assertJobExists(jobId);
-    await assertDebitNoteBelongsToJob(jobId, dto.debit_note_id);
+  async create(shipmentId: string, dto: CreateFmsJobInvoiceDto): Promise<FmsJobInvoice> {
+    await assertShipmentExists(shipmentId);
+    await assertDebitNoteBelongsToShipment(shipmentId, dto.debit_note_id);
 
     const status = dto.status ?? 'draft';
     const lines = dto.lines ?? [];
@@ -161,7 +161,7 @@ export class FmsJobInvoiceService {
     const { data, error } = await supabase
       .from('fms_job_invoices')
       .insert({
-        job_id: jobId,
+        shipment_id: shipmentId,
         debit_note_id: dto.debit_note_id,
         invoice_no: invoiceNo,
         status,
@@ -178,8 +178,8 @@ export class FmsJobInvoiceService {
     return data as FmsJobInvoice;
   }
 
-  async update(jobId: string, invoiceId: string, dto: UpdateFmsJobInvoiceDto): Promise<FmsJobInvoice> {
-    const existing = await this.findById(jobId, invoiceId);
+  async update(shipmentId: string, invoiceId: string, dto: UpdateFmsJobInvoiceDto): Promise<FmsJobInvoice> {
+    const existing = await this.findById(shipmentId, invoiceId);
     if (!existing) throw new AppError('Invoice not found', 404);
 
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -194,7 +194,7 @@ export class FmsJobInvoiceService {
       .from('fms_job_invoices')
       .update(patch)
       .eq('id', invoiceId)
-      .eq('job_id', jobId)
+      .eq('shipment_id', shipmentId)
       .select('*')
       .single();
 
@@ -207,29 +207,29 @@ export class FmsJobInvoiceService {
     return data as FmsJobInvoice;
   }
 
-  async delete(jobId: string, invoiceId: string): Promise<void> {
-    const existing = await this.findById(jobId, invoiceId);
+  async delete(shipmentId: string, invoiceId: string): Promise<void> {
+    const existing = await this.findById(shipmentId, invoiceId);
     if (!existing) throw new AppError('Invoice not found', 404);
     if (existing.status !== 'draft') {
       throw new AppError('Only draft invoices can be deleted', 400);
     }
-    const { error } = await supabase.from('fms_job_invoices').delete().eq('id', invoiceId).eq('job_id', jobId);
+    const { error } = await supabase.from('fms_job_invoices').delete().eq('id', invoiceId).eq('shipment_id', shipmentId);
     if (error) throw error;
   }
 
   async recordPayment(
-    jobId: string,
+    shipmentId: string,
     invoiceId: string,
     dto: RecordFmsJobInvoicePaymentDto,
   ): Promise<{ result: unknown; invoice: FmsJobInvoice }> {
-    await assertJobExists(jobId);
-    const existing = await this.findById(jobId, invoiceId);
+    await assertShipmentExists(shipmentId);
+    const existing = await this.findById(shipmentId, invoiceId);
     if (!existing) throw new AppError('Invoice not found', 404);
 
     const paymentDate = dto.payment_date ?? new Date().toISOString().slice(0, 10);
 
     const { data, error } = await supabase.rpc('record_fms_job_invoice_payment', {
-      p_job_id: jobId,
+      p_job_id: shipmentId,
       p_invoice_id: invoiceId,
       p_journal: dto.journal ?? null,
       p_payment_method: dto.payment_method ?? null,
@@ -246,7 +246,7 @@ export class FmsJobInvoiceService {
       throw error;
     }
 
-    const invoice = await this.findById(jobId, invoiceId);
+    const invoice = await this.findById(shipmentId, invoiceId);
     return { result: data, invoice: invoice as FmsJobInvoice };
   }
 
@@ -263,15 +263,15 @@ export class FmsJobInvoiceService {
 
     if (f.search?.trim()) {
       const term = f.search.trim();
-      const { data: jobs, error: jErr } = await supabase
-        .from('fms_jobs')
+      const { data: shipments, error: sErr } = await supabase
+        .from('shipments')
         .select('id')
         .ilike('master_job_no', `%${term}%`);
-      if (jErr) throw jErr;
-      const jobIdsFromNo = (jobs ?? []).map((j) => j.id as string);
+      if (sErr) throw sErr;
+      const shipmentIdsFromNo = (shipments ?? []).map((s) => s.id as string);
       const orParts = [`invoice_no.ilike.%${term}%`];
-      if (jobIdsFromNo.length > 0) {
-        orParts.push(`job_id.in.(${jobIdsFromNo.join(',')})`);
+      if (shipmentIdsFromNo.length > 0) {
+        orParts.push(`shipment_id.in.(${shipmentIdsFromNo.join(',')})`);
       }
 
       let q = supabase
@@ -285,7 +285,7 @@ export class FmsJobInvoiceService {
       if (f.payment_status && f.payment_status.length > 0) {
         q = q.in('payment_status', f.payment_status);
       }
-      if (f.job_id && f.job_id.length > 0) q = q.in('job_id', f.job_id);
+      if (f.job_id && f.job_id.length > 0) q = q.in('shipment_id', f.job_id);
 
       const { data, error, count } = await q;
       if (error) throw error;
@@ -304,7 +304,7 @@ export class FmsJobInvoiceService {
     if (f.payment_status && f.payment_status.length > 0) {
       q = q.in('payment_status', f.payment_status);
     }
-    if (f.job_id && f.job_id.length > 0) q = q.in('job_id', f.job_id);
+    if (f.job_id && f.job_id.length > 0) q = q.in('shipment_id', f.job_id);
 
     const { data, error, count } = await q;
     if (error) throw error;
@@ -316,16 +316,16 @@ export class FmsJobInvoiceService {
   private async hydrateListRows(rows: FmsJobInvoice[]): Promise<FmsJobInvoiceListItem[]> {
     if (rows.length === 0) return [];
 
-    const jobIds = [...new Set(rows.map((r) => r.job_id))];
+    const shipmentIds = [...new Set(rows.map((r) => r.shipment_id))];
     const dnIds = [...new Set(rows.map((r) => r.debit_note_id))];
 
-    const { data: jobRows, error: jErr } = await supabase
-      .from('fms_jobs')
+    const { data: shipmentRows, error: sErr } = await supabase
+      .from('shipments')
       .select('id, master_job_no, customers(company_name)')
-      .in('id', jobIds);
-    if (jErr) throw jErr;
-    const jobMap = new Map<string, JobLite>();
-    for (const row of jobRows ?? []) {
+      .in('id', shipmentIds);
+    if (sErr) throw sErr;
+    const shipmentMap = new Map<string, JobLite>();
+    for (const row of shipmentRows ?? []) {
       const id = row.id as string;
       const raw = row as unknown as {
         master_job_no: string;
@@ -335,7 +335,7 @@ export class FmsJobInvoiceService {
       const c = raw.customers;
       if (Array.isArray(c)) customers = c[0] ?? null;
       else if (c && typeof c === 'object') customers = c as { company_name?: string };
-      jobMap.set(id, { id, master_job_no: raw.master_job_no, customers });
+      shipmentMap.set(id, { id, master_job_no: raw.master_job_no, customers });
     }
 
     const { data: dnRows, error: dnErr } = await supabase
@@ -348,7 +348,7 @@ export class FmsJobInvoiceService {
     );
 
     return rows.map((inv) =>
-      toListItem(inv, jobMap.get(inv.job_id) ?? null, dnMap.get(inv.debit_note_id) ?? null),
+      toListItem(inv, shipmentMap.get(inv.shipment_id) ?? null, dnMap.get(inv.debit_note_id) ?? null),
     );
   }
 }

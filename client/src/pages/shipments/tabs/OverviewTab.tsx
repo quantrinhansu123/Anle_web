@@ -1,9 +1,10 @@
 import React from 'react';
-import { User, Anchor, FileText, Barcode, Package, Tag, Info, Ship, Plane, MapPin, Calendar, CheckCircle2, XCircle, ScrollText } from 'lucide-react';
+import { User, Anchor, FileText, Barcode, Package, Tag, Info, Ship, Plane, MapPin, Calendar, CheckCircle2, XCircle, ScrollText, Plus } from 'lucide-react';
 import { SearchableSelect } from '../../../components/ui/SearchableSelect';
 import { DateInput } from '../../../components/ui/DateInput';
+import { ThreeStarRating } from '../../../components/ui/ThreeStarRating';
 import { clsx } from 'clsx';
-import type { ShipmentFormState } from '../types';
+import type { ShipmentFormState, JobBound } from '../types';
 
 interface OverviewTabProps {
   form: ShipmentFormState;
@@ -17,11 +18,13 @@ interface OverviewTabProps {
   handleCreateNewSupplier: () => void;
   isSavingCustomer: boolean;
   isSavingSupplier: boolean;
+  onOpenContractDialog: () => void;
 }
 
 const OverviewTab: React.FC<OverviewTabProps> = ({
   form, setField, customers, suppliers, contracts, selectedCustomer, selectedSupplier,
-  handleCreateNewCustomer, handleCreateNewSupplier, isSavingCustomer, isSavingSupplier
+  handleCreateNewCustomer, handleCreateNewSupplier, isSavingCustomer, isSavingSupplier,
+  onOpenContractDialog
 }) => {
   return (
     <div className="space-y-6">
@@ -80,7 +83,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
         </div>
         <div className="p-5 space-y-3">
           {!form.isNewSupplier ? (
-            <SearchableSelect options={suppliers} value={form.supplier_id} onValueChange={v => setField('supplier_id', v)} placeholder="Search supplier..." />
+            <SearchableSelect options={suppliers} value={form.supplier_id || undefined} onValueChange={v => setField('supplier_id', v)} placeholder="Search supplier..." />
           ) : (
             <div className="grid grid-cols-2 gap-x-5 gap-y-4 pt-2">
               <div className="space-y-1.5"><label className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5"><Package size={12} /> Company Name <span className="text-red-500">*</span></label><input type="text" value={form.newSupplier?.company_name || ''} onChange={e => setField('newSupplier', { ...form.newSupplier, company_name: e.target.value })} placeholder="Enter supplier company name" className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium" /></div>
@@ -122,7 +125,12 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
 
           {/* Contract Selector (SOP gate: Hợp đồng OK) */}
           <div className="space-y-1.5 col-span-2">
-            <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5"><ScrollText size={12} /> Contract <span className="text-red-500">*</span></label>
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5"><ScrollText size={12} /> Contract <span className="text-red-500">*</span></label>
+              <button type="button" onClick={onOpenContractDialog} className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors">
+                <Plus size={12} /> Create new contract
+              </button>
+            </div>
             <SearchableSelect options={contracts} value={form.contract_id || ''} onValueChange={v => setField('contract_id', v || null)} placeholder="Link contract..." />
             {!form.contract_id && (
               <p className="text-[10px] text-amber-600 font-medium">SOP requires a linked contract before running the shipment.</p>
@@ -151,11 +159,12 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           </div>
           <div className="space-y-1.5">
             <label className="text-[11px] font-bold text-slate-500 uppercase">Incoterms</label>
-            <select value={form.term || ''} onChange={e => setField('term', e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-bold">
-              <option value="">— Select —</option>
-              {['EXW', 'FCA', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP', 'FAS', 'FOB', 'CFR', 'CIF'].map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
+            <SearchableSelect
+              options={['EXW', 'FCA', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP', 'FAS', 'FOB', 'CFR', 'CIF'].map(t => ({ value: t, label: t }))}
+              value={form.term || ''}
+              onValueChange={v => setField('term', v)}
+              placeholder="— Select —"
+            />
           </div>
           <div className="space-y-1.5">
             <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5"><Ship size={12} /> Vessel & Voyage</label>
@@ -216,8 +225,57 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
             <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5"><Calendar size={12} /> ETA</label>
             <DateInput value={form.eta || ''} onChange={v => setField('eta', v)} />
           </div>
+
+          <div className="col-span-2 border-t border-indigo-100 mt-2 pt-4">
+            <span className="text-[11px] font-bold text-indigo-500 uppercase tracking-wider">Operational Details</span>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5"><Barcode size={12} /> Ref No</label>
+            <input type="text" value={form.master_job_no || ''} readOnly placeholder="Auto-generated"
+              className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-[13px] font-bold text-slate-500 cursor-not-allowed" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5">Bound</label>
+            <select value={form.bound || ''} onChange={e => setField('bound', (e.target.value || null) as JobBound | null)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-bold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all">
+              <option value="">— Select —</option>
+              <option value="import">Import</option>
+              <option value="export">Export</option>
+              <option value="domestic">Domestic</option>
+              <option value="transit">Transit</option>
+            </select>
+          </div>
+          <div className="space-y-1.5 col-span-2">
+            <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5">Services</label>
+            <input type="text" value={form.services || ''} onChange={e => setField('services', e.target.value)} placeholder="e.g. SEA, AIR, Trucking, Customs"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5"><Calendar size={12} /> Shipment Date</label>
+            <DateInput value={form.job_date || ''} onChange={v => setField('job_date', v)} />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5"><Calendar size={12} /> Performance Date</label>
+            <DateInput value={form.performance_date || ''} onChange={v => setField('performance_date', v)} />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5">Priority Rank</label>
+            <div className="flex items-center gap-2 pt-1">
+              <ThreeStarRating
+                value={form.priority_rank || 0}
+                onChange={(val) => setField('priority_rank', val)}
+                variant="framed"
+              />
+              {form.priority_rank ? (
+                <button type="button" onClick={() => setField('priority_rank', null)} className="text-[10px] text-slate-400 hover:text-slate-600 ml-2 underline">Clear</button>
+              ) : null}
+            </div>
+          </div>
         </div>
       </section>
+
+
     </div>
   );
 };

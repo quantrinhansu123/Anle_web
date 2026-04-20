@@ -17,8 +17,8 @@ import { formatDate } from '../lib/utils';
 import { FilterDropdown } from '../components/ui/FilterDropdown';
 import { useToastContext } from '../contexts/ToastContext';
 import { fmsJobInvoiceService } from '../services/fmsJobInvoiceService';
-import { jobService } from '../services/jobService';
-import type { FmsJob } from './jobs/types';
+import { shipmentService } from '../services/shipmentService';
+import type { Shipment } from './shipments/types';
 import type {
   FmsJobInvoiceListItem,
   FmsJobInvoicePaymentStatus,
@@ -84,7 +84,7 @@ const InvoicesManagementPage: React.FC = () => {
   const [selectedJobs, setSelectedJobs] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  const [jobs, setJobs] = useState<FmsJob[]>([]);
+  const [jobs, setJobs] = useState<Shipment[]>([]);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [filterSearch, setFilterSearch] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -134,7 +134,7 @@ const InvoicesManagementPage: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
-        const data = await jobService.getJobs(1, 200);
+        const data = await shipmentService.getShipments(1, 200);
         if (!cancelled) setJobs(Array.isArray(data) ? data : []);
       } catch {
         if (!cancelled) setJobs([]);
@@ -383,7 +383,7 @@ const InvoicesManagementPage: React.FC = () => {
               </button>
               <FilterDropdown
                 isOpen={activeDropdown === 'job'}
-                options={jobs.map((j) => ({ id: j.id, label: j.master_job_no }))}
+                options={jobs.map((j) => ({ id: j.id, label: j.master_job_no || 'No Job No.' }))}
                 selected={selectedJobs}
                 onToggle={(id) =>
                   setSelectedJobs((prev) =>

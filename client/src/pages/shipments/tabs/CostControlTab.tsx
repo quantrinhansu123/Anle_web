@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { shipmentService } from '../../../services/shipmentService';
+import { useToastContext } from '../../../contexts/ToastContext';
 
 interface Props {
   shipmentId: string;
@@ -27,6 +28,7 @@ const formatCurrency = (amount: number) =>
   new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(amount);
 
 const CostControlTab: React.FC<Props> = ({ shipmentId }) => {
+  const { success, error } = useToastContext();
   const [plannedCost, setPlannedCost] = useState<CostBreakdown>({ trucking: 0, agent: 0, customs: 0, other: 0 });
   const [actualCost, setActualCost] = useState<CostBreakdown>({ trucking: 0, agent: 0, customs: 0, other: 0 });
   const [loading, setLoading] = useState(true);
@@ -58,10 +60,11 @@ const CostControlTab: React.FC<Props> = ({ shipmentId }) => {
         planned_cost: plannedCost,
         actual_cost: actualCost,
       } as any);
-      // Small toast or visual check could be added
+      success('Cost breakdown saved successfully');
       fetchData();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to update cost breakdown:', err);
+      error(err instanceof Error ? err.message : (err?.message || 'Failed to save costs'));
     } finally {
       setSaving(false);
     }

@@ -24,7 +24,7 @@ import salesUnitCatalogRoutes from './modules/sales-unit-catalog/sales-unit-cata
 import fmsDashboardRoutes from './modules/fms-dashboard/fms-dashboard.routes';
 import businessDashboardRoutes from './modules/business-dashboard/business-dashboard.routes';
 import reportsRoutes from './modules/reports/reports.routes';
-import jobRoutes from './modules/jobs/job.routes';
+
 import salaryAdvanceRequestRoutes from './modules/salary-advance-requests/salary-advance-request.routes';
 import customerExpenseRoutes from './modules/customer-expenses/customer-expense.routes';
 import accountingDashboardRoutes from './modules/accounting-dashboard/accounting-dashboard.routes';
@@ -64,7 +64,6 @@ app.use(authMiddleware);
 app.use(`${v1}/customers`, customerRoutes);
 app.use(`${v1}/suppliers`, supplierRoutes);
 app.use(`${v1}/shipments`, shipmentRoutes);
-app.use(`${v1}/jobs`, jobRoutes);
 app.use(`${v1}/fms-dashboard`, fmsDashboardRoutes);
 app.use(`${v1}/business-dashboard`, businessDashboardRoutes);
 app.use(`${v1}/reports`, reportsRoutes);

@@ -4,6 +4,7 @@ export type FmsJobInvoicePaymentStatus = 'unpaid' | 'paid' | 'partial';
 export interface FmsJobInvoice {
   id: string;
   job_id: string;
+  shipment_id: string;
   debit_note_id: string;
   invoice_no: string;
   status: FmsJobInvoiceStatus;

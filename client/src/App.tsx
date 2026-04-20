@@ -37,13 +37,11 @@ import CashFlowPage from './pages/financials/CashFlowPage';
 import ReceivableAgingPage from './pages/financials/ReceivableAgingPage';
 import FmsDashboardPage from './pages/shipping/FmsDashboardPage';
 import BusinessDashboardPage from './pages/shipping/BusinessDashboardPage';
-import JobPage from './pages/JobPage';
-import JobEditorPage from './pages/jobs/JobEditorPage';
-import CreateSeaHouseBLPage from './pages/jobs/CreateSeaHouseBLPage';
-import ArrivalNoticePage from './pages/jobs/ArrivalNoticePage';
-import HouseSeaBlListPage from './pages/jobs/HouseSeaBlListPage';
-import DebitNotePage from './pages/jobs/DebitNotePage';
-import PaymentNotePage from './pages/jobs/PaymentNotePage';
+import CreateSeaHouseBLPage from './pages/shipments/CreateSeaHouseBLPage';
+import ArrivalNoticePage from './pages/shipments/ArrivalNoticePage';
+import HouseSeaBlListPage from './pages/shipments/HouseSeaBlListPage';
+import DebitNotePage from './pages/shipments/DebitNotePage';
+import PaymentNotePage from './pages/shipments/PaymentNotePage';
 import InvoicingPage from './pages/InvoicingPage';
 import InvoicesManagementPage from './pages/InvoicesManagementPage';
 import JobProfitByPerformanceDatePage from './pages/reports/JobProfitByPerformanceDatePage';
@@ -84,18 +82,24 @@ function App() {
                 <Route path="/shipments/information" element={<ShipmentsPage />} />
                 <Route path="/shipments/sop/new" element={<ShipmentSOPPage />} />
                 <Route path="/shipments/sop/:id" element={<ShipmentSOPPage />} />
-                <Route path="/shipping/jobs/new" element={<JobEditorPage />} />
-                <Route path="/shipping/jobs/:id/edit" element={<JobEditorPage />} />
-                <Route path="/shipping/jobs/:id/sea-house-bl" element={<CreateSeaHouseBLPage />} />
-                <Route path="/shipping/jobs/:id/arrival-notice" element={<ArrivalNoticePage />} />
-                <Route path="/shipping/jobs/:id/sea-house-bl/debit-note" element={<DebitNotePage />} />
-                <Route path="/shipping/jobs/:id/sea-house-bl/debit-note/:dnId" element={<DebitNotePage />} />
-                <Route path="/shipping/jobs/:id/sea-house-bl/payment-note" element={<PaymentNotePage />} />
-                <Route path="/shipping/jobs/:id/sea-house-bl/payment-note/:pnId" element={<PaymentNotePage />} />
+                {/* Shipment sub-pages (ported from jobs) */}
+                <Route path="/shipments/sop/:id/sea-house-bl" element={<CreateSeaHouseBLPage />} />
+                <Route path="/shipments/sop/:id/arrival-notice" element={<ArrivalNoticePage />} />
+                <Route path="/shipments/sop/:id/sea-house-bl/debit-note" element={<DebitNotePage />} />
+                <Route path="/shipments/sop/:id/sea-house-bl/debit-note/:dnId" element={<DebitNotePage />} />
+                <Route path="/shipments/sop/:id/sea-house-bl/payment-note" element={<PaymentNotePage />} />
+                <Route path="/shipments/sop/:id/sea-house-bl/payment-note/:pnId" element={<PaymentNotePage />} />
                 <Route path="/reports/job-profit-by-performance-date" element={<JobProfitByPerformanceDatePage />} />
                 <Route path="/shipping/house-sea-bl" element={<HouseSeaBlListPage />} />
-                <Route path="/shipping/jobs" element={<JobPage />} />
-                <Route path="/operations/jobs" element={<Navigate to="/shipping/jobs" replace />} />
+
+                {/* Redirects: old job URLs → shipment equivalents */}
+                <Route path="/shipping/jobs" element={<Navigate to="/shipments/information" replace />} />
+                <Route path="/shipping/jobs/new" element={<Navigate to="/shipments/sop/new" replace />} />
+                <Route path="/shipping/jobs/:id/edit" element={<Navigate to="/shipments/sop/:id" replace />} />
+                <Route path="/shipping/jobs/:id/sea-house-bl" element={<Navigate to="/shipments/sop/:id/sea-house-bl" replace />} />
+                <Route path="/shipping/jobs/:id/arrival-notice" element={<Navigate to="/shipments/sop/:id/arrival-notice" replace />} />
+                <Route path="/shipping/jobs/:id/*" element={<Navigate to="/shipments/information" replace />} />
+                <Route path="/operations/jobs" element={<Navigate to="/shipments/information" replace />} />
                 <Route path="/customers/directory" element={<CustomerPage />} />
                 <Route path="/customers/directory/:id" element={<CustomerDetailsPage />} />
                 <Route path="/suppliers/directory" element={<SupplierPage />} />

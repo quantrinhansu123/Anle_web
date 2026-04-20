@@ -20,8 +20,9 @@ export interface CustomerExpenseCustomerEmbed {
   company_name: string;
 }
 
-export interface CustomerExpenseJobEmbed {
+export interface CustomerExpenseShipmentEmbed {
   id: string;
+  code: string;
   master_job_no: string;
 }
 
@@ -36,7 +37,7 @@ export interface CustomerExpense {
   paid_by: CustomerExpensePaidBy;
   employee_id: string;
   customer_id: string | null;
-  job_id: string | null;
+  shipment_id: string | null;
   supplier: string | null;
   category: string | null;
   bill_reference: string | null;
@@ -50,7 +51,7 @@ export interface CustomerExpense {
   updated_at: string;
   employee?: CustomerExpenseEmployeeEmbed;
   customer?: CustomerExpenseCustomerEmbed | null;
-  job?: CustomerExpenseJobEmbed | null;
+  shipment?: CustomerExpenseShipmentEmbed | null;
 }
 
 export interface CustomerExpenseSummaryBucket {
@@ -89,7 +90,7 @@ export interface CustomerExpenseListQuery {
   status?: string[];
   customer_id?: string[];
   employee_id?: string[];
-  job_id?: string[];
+  shipment_id?: string[];
   expense_date_from?: string;
   expense_date_to?: string;
 }
@@ -106,7 +107,7 @@ export interface CustomerExpenseFormState {
   paid_by: CustomerExpensePaidBy;
   employee_id: string;
   customer_id: string;
-  job_id: string;
+  shipment_id: string;
   supplier: string;
   category: string;
   bill_reference: string;

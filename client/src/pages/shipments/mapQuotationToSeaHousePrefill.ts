@@ -1,5 +1,5 @@
 import type { Sales } from '../sales/types';
-import type { HeaderTabState } from './tabs/HeaderTab';
+import type { HeaderTabState } from './bl-tabs/HeaderTab';
 
 const INCOTERM_VALUES = new Set([
   'fob',

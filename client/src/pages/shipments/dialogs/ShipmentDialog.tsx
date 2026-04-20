@@ -581,7 +581,7 @@ const ShipmentDialog: React.FC<Props> = ({
                   </div>
                   <SearchableSelect
                     options={supplierOptions}
-                    value={supplier_id}
+                    value={supplier_id || undefined}
                     onValueChange={(v) => setFormField('supplier_id', v)}
                     placeholder="Search existing supplier..."
                     disabled={isDetailMode}

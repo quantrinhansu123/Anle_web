@@ -17,6 +17,8 @@ import type {
   FeasibilityDepartment,
   FeasibilityStatus,
   UpdateFeasibilityDto,
+  ShipmentBlLine,
+  ShipmentBlLineInput,
 } from './shipment.types';
 
 const notificationService = new NotificationService();
@@ -95,7 +97,7 @@ export class ShipmentService {
     const from = (page - 1) * limit;
     const { data, error, count } = await supabase
       .from('shipments')
-      .select('*, customers(*), suppliers(*), pic:employees(*)', { count: 'exact' })
+      .select('*, customers(*), suppliers(*), pic:employees!shipments_pic_id_fkey(*)', { count: 'exact' })
       .range(from, from + limit - 1)
       .order('created_at', { ascending: false });
 
@@ -106,7 +108,7 @@ export class ShipmentService {
   async findById(id: string): Promise<Shipment | null> {
     const { data, error } = await supabase
       .from('shipments')
-      .select('*, customers(*), suppliers(*), pic:employees(*)')
+      .select('*, customers(*), suppliers(*), pic:employees!shipments_pic_id_fkey(*)')
       .eq('id', id)
       .single();
 
@@ -203,6 +205,8 @@ export class ShipmentService {
     }
 
     const patch: UpdateShipmentDto = { ...dto };
+    const bl_lines = (patch as Record<string, unknown>).bl_lines as ShipmentBlLineInput[] | undefined;
+    delete (patch as Record<string, unknown>).bl_lines;
 
     if (typeof dto.is_cost_locked === 'boolean' && dto.is_cost_locked && !current.is_cost_locked) {
       patch.cost_locked_at = new Date().toISOString();
@@ -225,6 +229,10 @@ export class ShipmentService {
       .single();
 
     if (error) throw error;
+
+    if (bl_lines !== undefined) {
+      await this.replaceBlLines(id, bl_lines);
+    }
 
     // ─── Side Effects on Status Change ────────────────────────────
     if (dto.status && dto.status !== current.status) {
@@ -455,5 +463,76 @@ export class ShipmentService {
     });
 
     return mapped;
+  }
+
+  // ─── B/L LINES ────────────────────────────────────────────────
+  async getBlLines(shipmentId: string): Promise<ShipmentBlLine[]> {
+    const { data, error } = await supabase
+      .from('shipment_bl_lines')
+      .select('*')
+      .eq('shipment_id', shipmentId)
+      .order('sort_order', { ascending: true });
+
+    if (error) throw error;
+    return data ?? [];
+  }
+
+  async replaceBlLines(shipmentId: string, lines: ShipmentBlLineInput[] | undefined): Promise<void> {
+    if (lines === undefined) return;
+
+    const { error: delErr } = await supabase.from('shipment_bl_lines').delete().eq('shipment_id', shipmentId);
+    if (delErr) throw delErr;
+
+    if (lines.length === 0) return;
+
+    const rows = lines.map((l, i) => ({
+      shipment_id: shipmentId,
+      sort_order: l.sort_order ?? i,
+      name_1: l.name_1 ?? null,
+      sea_customer: l.sea_customer ?? null,
+      air_customer: l.air_customer ?? null,
+      name_2: l.name_2 ?? null,
+      package_text: l.package_text ?? null,
+      unit_text: l.unit_text ?? null,
+      sea_etd: l.sea_etd ?? null,
+      sea_eta: l.sea_eta ?? null,
+      air_etd: l.air_etd ?? null,
+      air_eta: l.air_eta ?? null,
+    }));
+
+    const { error: insErr } = await supabase.from('shipment_bl_lines').insert(rows);
+    if (insErr) throw insErr;
+  }
+
+  // ─── SEA HOUSE B/L ───────────────────────────────────────────
+  async getSeaHouseBl(shipmentId: string): Promise<Record<string, unknown>> {
+    const shipment = await this.findById(shipmentId);
+    if (!shipment) throw new AppError('Shipment not found', 404);
+    const sd = (shipment.service_details ?? {}) as Record<string, unknown>;
+    const blob = sd.sea_house_bl;
+    if (blob && typeof blob === 'object' && !Array.isArray(blob)) {
+      return blob as Record<string, unknown>;
+    }
+    return {};
+  }
+
+  async patchSeaHouseBl(shipmentId: string, patch: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const shipment = await this.findById(shipmentId);
+    if (!shipment) throw new AppError('Shipment not found', 404);
+
+    const sd = { ...((shipment.service_details ?? {}) as Record<string, unknown>) };
+    const cur =
+      sd.sea_house_bl && typeof sd.sea_house_bl === 'object' && !Array.isArray(sd.sea_house_bl)
+        ? ({ ...(sd.sea_house_bl as Record<string, unknown>) } as Record<string, unknown>)
+        : {};
+    sd.sea_house_bl = { ...cur, ...patch };
+
+    const { error } = await supabase
+      .from('shipments')
+      .update({ service_details: sd })
+      .eq('id', shipmentId);
+
+    if (error) throw error;
+    return this.getSeaHouseBl(shipmentId);
   }
 }

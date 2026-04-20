@@ -16,13 +16,13 @@ import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { WorkflowStepper } from '../../components/ui/WorkflowStepper';
 import { useToastContext } from '../../contexts/ToastContext';
 import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
-import { jobService } from '../../services/jobService';
+import { shipmentService } from '../../services/shipmentService';
 import { salesService } from '../../services/salesService';
 import { buildDnLineSeedsFromSales } from './mapQuotationToDebitNoteLines';
 import { fmsJobDebitNoteService } from '../../services/fmsJobDebitNoteService';
 import { fmsJobInvoiceService } from '../../services/fmsJobInvoiceService';
 import type { FmsJobDebitNoteLineDto } from '../../services/fmsJobDebitNoteService';
-import { FieldLabel, inputClass } from './tabs/blSharedHelpers';
+import { FieldLabel, inputClass } from './bl-tabs/blSharedHelpers';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -214,7 +214,7 @@ const fmtCurrency = (n: number, curr: string) => `${fmtNumber(n)} ${curr === 'VN
 
 const DebitNotePage: React.FC = () => {
   const navigate = useNavigate();
-  const { id: jobId, dnId } = useParams<{ id: string; dnId?: string }>();
+  const { id: shipmentId, dnId } = useParams<{ id: string; dnId?: string }>();
   const { success: toastOk, error: toastErr } = useToastContext();
   const { setCustomBreadcrumbs } = useBreadcrumb();
 
@@ -308,9 +308,9 @@ const DebitNotePage: React.FC = () => {
   const [invoiceCount, setInvoiceCount] = useState(0);
   const [paymentCount, setPaymentCount] = useState(0);
 
-  /* Labels from job */
+  /* Labels from shipment */
   const [masterJobLabel, setMasterJobLabel] = useState('');
-  const [quotationIdFromJob, setQuotationIdFromJob] = useState<string | null>(null);
+  const [quotationIdFromShipment, setQuotationIdFromShipment] = useState<string | null>(null);
   const [importingQuotationLines, setImportingQuotationLines] = useState(false);
 
   const buildDnPayload = useCallback((): Record<string, unknown> => {
@@ -374,7 +374,7 @@ const DebitNotePage: React.FC = () => {
 
   /* Load existing FMS debit note */
   useEffect(() => {
-    if (!jobId || !dnId) {
+    if (!shipmentId || !dnId) {
       dnHydratedRef.current = false;
       return;
     }
@@ -383,7 +383,7 @@ const DebitNotePage: React.FC = () => {
     let cancelled = false;
     void (async () => {
       try {
-        const dn = await fmsJobDebitNoteService.get(jobId, dnId);
+        const dn = await fmsJobDebitNoteService.get(shipmentId, dnId);
         if (cancelled) return;
         setDnNo(dn.no_doc);
         setStatus((dn.status as DNStatus) || 'draft');
@@ -447,14 +447,14 @@ const DebitNotePage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [dnId, jobId, toastErr]);
+  }, [dnId, shipmentId, toastErr]);
 
   /* Debounced autosave for persisted debit notes */
   useEffect(() => {
-    if (!jobId || !dnId || !dnHydratedRef.current || omitDnAutosaveRef.current) return;
+    if (!shipmentId || !dnId || !dnHydratedRef.current || omitDnAutosaveRef.current) return;
     const t = window.setTimeout(() => {
       void fmsJobDebitNoteService
-        .update(jobId, dnId, {
+        .update(shipmentId, dnId, {
           no_doc: dnNo,
           status,
           payload: buildDnPayload(),
@@ -466,26 +466,26 @@ const DebitNotePage: React.FC = () => {
         });
     }, 1200);
     return () => window.clearTimeout(t);
-  }, [buildDnPayload, dnAutosaveEpoch, dnId, jobId, persistSnapshot, toastErr]);
+  }, [buildDnPayload, dnAutosaveEpoch, dnId, shipmentId, persistSnapshot, toastErr]);
 
-  /* Fetch job data */
+  /* Fetch shipment data */
   useEffect(() => {
-    if (!jobId) return;
+    if (!shipmentId) return;
     void (async () => {
       try {
-        const job = await jobService.getJob(jobId);
-        const mjn = job.master_job_no || '';
+        const shipment = await shipmentService.getShipmentById(shipmentId);
+        const mjn = shipment.master_job_no || '';
         setJobNo(mjn);
         setMasterJobLabel(mjn);
-        setCustomer(job.customers?.company_name || '');
-        setCustomerDisplay(job.customers?.company_name || '');
-        setSalesman(job.salesperson?.full_name || '');
-        setSalesmanTeam(job.sales_team || '');
-        setSalesDepartment(job.sales_department || '');
-        setCreatedBy(job.created_by?.full_name || '');
+        setCustomer(shipment.customers?.company_name || '');
+        setCustomerDisplay(shipment.customers?.company_name || '');
+        setSalesman(shipment.salesperson?.full_name || '');
+        setSalesmanTeam(shipment.sales_team || '');
+        setSalesDepartment(shipment.sales_department || '');
+        setCreatedBy((shipment as any).created_by?.full_name || shipment.pic?.full_name || '');
         setCreatedOn(
-          job.created_on
-            ? new Date(job.created_on).toLocaleString('en-GB', {
+          shipment.created_at
+            ? new Date(shipment.created_at).toLocaleString('en-GB', {
               day: '2-digit',
               month: '2-digit',
               year: 'numeric',
@@ -495,19 +495,19 @@ const DebitNotePage: React.FC = () => {
             })
             : '',
         );
-        setMasterBl(job.master_bl_number || '');
-        setQuotationIdFromJob(job.quotation_id || null);
+        setMasterBl(shipment.master_bl_number || '');
+        setQuotationIdFromShipment(shipment.quotation_id || null);
       } catch {
         /* ignore */
       }
     })();
-  }, [jobId]);
+  }, [shipmentId]);
 
   const handleImportLinesFromQuotation = useCallback(async () => {
-    if (!quotationIdFromJob) return;
+    if (!quotationIdFromShipment) return;
     setImportingQuotationLines(true);
     try {
-      const sales = await salesService.getSalesItemById(quotationIdFromJob);
+      const sales = await salesService.getSalesItemById(quotationIdFromShipment);
       const seeds = buildDnLineSeedsFromSales(sales);
       if (seeds.length === 0) {
         toastErr('This quotation has no charge or service lines to import.');
@@ -520,11 +520,11 @@ const DebitNotePage: React.FC = () => {
     } finally {
       setImportingQuotationLines(false);
     }
-  }, [quotationIdFromJob, toastErr, toastOk]);
+  }, [quotationIdFromShipment, toastErr, toastOk]);
 
   /* Stat cards: invoices and payments linked to this debit note */
   useEffect(() => {
-    if (!jobId || !dnId) {
+    if (!shipmentId || !dnId) {
       setInvoiceCount(0);
       setPaymentCount(0);
       return;
@@ -532,7 +532,7 @@ const DebitNotePage: React.FC = () => {
     let cancelled = false;
     void (async () => {
       try {
-        const invoices = await fmsJobInvoiceService.list(jobId);
+        const invoices = await fmsJobInvoiceService.list(shipmentId);
         if (cancelled) return;
         const linked = invoices.filter((inv) => inv.debit_note_id === dnId);
         setInvoiceCount(linked.length);
@@ -546,7 +546,7 @@ const DebitNotePage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [jobId, dnId, status]);
+  }, [shipmentId, dnId, status]);
 
   /* Generate DN number */
   useEffect(() => {
@@ -558,29 +558,29 @@ const DebitNotePage: React.FC = () => {
 
   /* Custom breadcrumbs */
   useEffect(() => {
-    const jobLabel =
-      masterJobLabel || (jobId ? `Job ${jobId.slice(0, 8)}...` : 'New Job');
+    const shipmentLabel =
+      masterJobLabel || (shipmentId ? `Shipment ${shipmentId.slice(0, 8)}...` : 'New Shipment');
     setCustomBreadcrumbs([
-      { path: '/shipping', label: 'Shipping' },
-      { path: '/shipping/jobs', label: 'Job Management' },
-      ...(jobId
-        ? [{ path: `/shipping/jobs/${jobId}/edit`, label: jobLabel }]
+      { path: '/shipments', label: 'Shipments' },
+      { path: '/shipments/information', label: 'Shipments' },
+      ...(shipmentId
+        ? [{ path: `/shipments/sop/${shipmentId}`, label: shipmentLabel }]
         : []),
       {
-        path: `/shipping/jobs/${jobId || 'new'}/sea-house-bl`,
+        path: `/shipments/sop/${shipmentId || 'new'}/sea-house-bl`,
         label: 'Sea House B/L',
       },
       {
         path: dnId
-          ? `/shipping/jobs/${jobId || 'new'}/sea-house-bl/debit-note/${dnId}`
-          : `/shipping/jobs/${jobId || 'new'}/sea-house-bl/debit-note`,
+          ? `/shipments/sop/${shipmentId || 'new'}/sea-house-bl/debit-note/${dnId}`
+          : `/shipments/sop/${shipmentId || 'new'}/sea-house-bl/debit-note`,
         label: dnNo || 'Debit Note',
       },
     ]);
     return () => {
       setCustomBreadcrumbs(null);
     };
-  }, [dnId, jobId, masterJobLabel, dnNo, setCustomBreadcrumbs]);
+  }, [dnId, shipmentId, masterJobLabel, dnNo, setCustomBreadcrumbs]);
 
   /* Line helpers */
   const updateLine = (id: string, patch: Partial<ServiceLine>) => {
@@ -634,12 +634,12 @@ const DebitNotePage: React.FC = () => {
   const [invoiceSubmitting, setInvoiceSubmitting] = useState(false);
 
   const handleCreateInvoice = async () => {
-    if (!jobId) {
-      toastErr('Missing job');
+    if (!shipmentId) {
+      toastErr('Missing shipment');
       return;
     }
     const params = new URLSearchParams();
-    params.set('jobId', jobId);
+    params.set('jobId', shipmentId);
     if (jobNo) params.set('jobNo', jobNo);
     if (dnNo) params.set('dnNo', dnNo);
 
@@ -670,7 +670,7 @@ const DebitNotePage: React.FC = () => {
       const lineDtos = linesToDto(lines);
       let realDnId = dnId;
       if (!realDnId) {
-        const created = await fmsJobDebitNoteService.create(jobId, {
+        const created = await fmsJobDebitNoteService.create(shipmentId, {
           no_doc: dnNo || `DN-${Date.now().toString(36)}`,
           status,
           payload: buildDnPayload(),
@@ -678,7 +678,7 @@ const DebitNotePage: React.FC = () => {
         });
         realDnId = created.id;
       } else {
-        await fmsJobDebitNoteService.update(jobId, realDnId, {
+        await fmsJobDebitNoteService.update(shipmentId, realDnId, {
           no_doc: dnNo,
           status,
           payload: buildDnPayload(),
@@ -686,7 +686,7 @@ const DebitNotePage: React.FC = () => {
         });
       }
 
-      const inv = await fmsJobInvoiceService.create(jobId, {
+      const inv = await fmsJobInvoiceService.create(shipmentId, {
         debit_note_id: realDnId,
         number_series: 'INV',
         status: 'draft',
@@ -726,9 +726,9 @@ const DebitNotePage: React.FC = () => {
             <button
               type="button"
               onClick={() =>
-                jobId
-                  ? navigate(`/shipping/jobs/${jobId}/sea-house-bl`)
-                  : navigate('/shipping/jobs')
+                shipmentId
+                  ? navigate(`/shipments/sop/${shipmentId}/sea-house-bl`)
+                  : navigate('/shipments/information')
               }
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-white text-slate-600 shadow-sm transition-all hover:border-primary/25 hover:bg-primary/5 hover:text-primary touch-manipulation"
               aria-label="Back"
@@ -748,7 +748,7 @@ const DebitNotePage: React.FC = () => {
 
           {/* Right: Status stepper */}
           <div className="flex items-center gap-4 overflow-x-auto lg:shrink-0">
-            {quotationIdFromJob && jobId && !dnId ? (
+            {quotationIdFromShipment && shipmentId && !dnId ? (
               <button
                 type="button"
                 onClick={() => void handleImportLinesFromQuotation()}
@@ -902,12 +902,12 @@ const DebitNotePage: React.FC = () => {
           </div>
           <div className="flex flex-col gap-3 p-5">
             <div>
-              <FieldLabel>Job</FieldLabel>
+              <FieldLabel>Ref No</FieldLabel>
               <input
                 value={jobNo}
                 onChange={(e) => setJobNo(e.target.value)}
                 className={inputClass}
-                placeholder="Job number"
+                placeholder="Reference number"
               />
             </div>
             <div>

@@ -37,7 +37,7 @@ interface Props {
   ) => void;
   employeeOptions: { value: string; label: string }[];
   customerOptions: { value: string; label: string }[];
-  jobOptions: { value: string; label: string }[];
+  shipmentOptions: { value: string; label: string }[];
   onSave: () => void;
 }
 
@@ -84,7 +84,7 @@ const CustomerExpenseDialog: React.FC<Props> = ({
   setFormField,
   employeeOptions,
   customerOptions,
-  jobOptions,
+  shipmentOptions,
   onSave,
 }) => {
   if (!isOpen && !isClosing) return null;
@@ -256,12 +256,12 @@ const CustomerExpenseDialog: React.FC<Props> = ({
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-muted-foreground uppercase">Job</label>
+                <label className="text-[11px] font-bold text-muted-foreground uppercase">Shipment</label>
                 <SearchableSelect
-                  value={formState.job_id || '__none__'}
-                  onValueChange={(v) => setFormField('job_id', v === '__none__' ? '' : v)}
-                  options={[{ value: '__none__', label: '— None —' }, ...jobOptions]}
-                  placeholder="Select job..."
+                  value={formState.shipment_id || '__none__'}
+                  onValueChange={(v) => setFormField('shipment_id', v === '__none__' ? '' : v)}
+                  options={[{ value: '__none__', label: '— None —' }, ...shipmentOptions]}
+                  placeholder="Select shipment..."
                   disabled={readOnly}
                 />
               </div>
