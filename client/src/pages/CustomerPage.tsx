@@ -26,6 +26,7 @@ const STATUS_COLUMNS: Array<{ id: CustomerStatus; label: string; softBg: string;
   { id: 'follow_up', label: 'Follow Up', softBg: 'bg-amber-50', accent: 'text-amber-700' },
   { id: 'quotation_sent', label: 'Quotation Sent', softBg: 'bg-indigo-50', accent: 'text-indigo-700' },
   { id: 'meeting', label: 'Meeting', softBg: 'bg-emerald-50', accent: 'text-emerald-700' },
+  { id: 'won', label: 'Won', softBg: 'bg-teal-50', accent: 'text-teal-700' },
   { id: 'lost', label: 'Lost', softBg: 'bg-rose-50', accent: 'text-rose-700' }
 ];
 
@@ -211,6 +212,7 @@ const CustomerPage: React.FC = () => {
       follow_up: [],
       quotation_sent: [],
       meeting: [],
+      won: [],
       lost: []
     }),
     [filteredCustomers]
@@ -309,7 +311,7 @@ const CustomerPage: React.FC = () => {
                 Loading customers...
               </div>
             ) : (
-              <div className="h-full min-w-[1280px] grid grid-cols-5 gap-4 p-4">
+              <div className="h-full min-w-[1500px] grid grid-cols-6 gap-4 p-4">
                 {STATUS_COLUMNS.map((col) => {
                   const items = customersByStatus[col.id];
                   return (
@@ -444,11 +446,12 @@ const CustomerPage: React.FC = () => {
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto space-y-4 pb-12 pr-1 no-scrollbar animate-in fade-in slide-in-from-right-4 duration-500">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {[
               { label: 'Total Customers', val: customers.length, icon: Building2, color: 'text-primary', bg: 'bg-primary/5' },
               { label: 'New Leads', val: statusStats.find((s) => s.id === 'new')?.count || 0, icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50' },
               { label: 'In Meeting', val: statusStats.find((s) => s.id === 'meeting')?.count || 0, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+              { label: 'Won', val: statusStats.find((s) => s.id === 'won')?.count || 0, icon: CheckCircle2, color: 'text-teal-600', bg: 'bg-teal-50' },
               { label: 'Lost', val: statusStats.find((s) => s.id === 'lost')?.count || 0, icon: Globe, color: 'text-rose-600', bg: 'bg-rose-50' },
             ].map(card => (
               <div key={card.label} className="bg-white p-4 rounded-2xl border border-border shadow-sm flex items-center gap-3">

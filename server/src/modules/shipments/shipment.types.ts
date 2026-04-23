@@ -123,6 +123,8 @@ export interface ShipmentBlLine {
   sea_eta: string | null;
   air_etd: string | null;
   air_eta: string | null;
+  loading_date: string | null;
+  delivery_date: string | null;
 }
 
 export type ShipmentBlLineInput = Omit<ShipmentBlLine, 'shipment_id'> & { shipment_id?: string };

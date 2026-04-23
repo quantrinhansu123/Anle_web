@@ -1,11 +1,15 @@
 import { supabase } from '../../config/supabase';
 import { CreateSalesDto, UpdateSalesDto } from './sales.types';
 import { AppError } from '../../middlewares/error.middleware';
+import { ShipmentService } from '../shipments/shipment.service';
+import type { CreateShipmentDto } from '../shipments/shipment.types';
 
 const SALES_SELECT = '*, sales_items(*), sales_charge_items(*), shipments!sales_shipment_id_fkey(*, customers(*), suppliers(*)), sales_person:employees(*)';
+const shipmentService = new ShipmentService();
 
 const HEADER_FIELDS: Array<keyof CreateSalesDto> = [
   'shipment_id',
+  'customer_id',
   'quote_date',
   'status',
   'priority_rank',
@@ -37,6 +41,25 @@ const HEADER_FIELDS: Array<keyof CreateSalesDto> = [
   'exchange_rate',
   'exchange_rate_date',
 ];
+
+const CANONICAL_STATUS = ['draft', 'confirmed', 'sent', 'won', 'lost'] as const;
+type CanonicalStatus = (typeof CANONICAL_STATUS)[number];
+
+const normalizeStatus = (status?: string | null): CanonicalStatus => {
+  const current = String(status || 'draft').toLowerCase();
+  if (current === 'converted') return 'won';
+  if (current === 'final') return 'sent';
+  if ((CANONICAL_STATUS as readonly string[]).includes(current)) return current as CanonicalStatus;
+  return 'draft';
+};
+
+const ALLOWED_STATUS_TRANSITIONS: Record<CanonicalStatus, CanonicalStatus[]> = {
+  draft: ['confirmed'],
+  confirmed: ['sent'],
+  sent: ['won', 'lost'],
+  won: [],
+  lost: [],
+};
 
 const pickHeaderPayload = (dto: Partial<CreateSalesDto>) => {
   const payload: Record<string, unknown> = {};
@@ -141,11 +164,15 @@ export const salesService = {
 
   async create(dto: CreateSalesDto) {
     const { items = [], charge_items = [], ...headerDto } = dto;
+    const normalizedStatus = normalizeStatus(headerDto.status);
 
     // 1. Insert header
     const { data: header, error: headerError } = await supabase
       .from('sales')
-      .insert(pickHeaderPayload(headerDto))
+      .insert({
+        ...pickHeaderPayload(headerDto),
+        status: normalizedStatus,
+      })
       .select()
       .single();
 
@@ -184,13 +211,23 @@ export const salesService = {
       }
     }
 
+    const created = await this.getById(header.id);
+    await this.syncCustomerStatus(created, normalizedStatus);
     return this.getById(header.id);
   },
 
   async update(id: string, dto: UpdateSalesDto) {
     const { items, charge_items, ...headerDto } = dto;
+    const current = await this.getById(id);
+    const currentStatus = normalizeStatus(current.status);
 
     const headerPayload = pickHeaderPayload(headerDto);
+    if (headerDto.status !== undefined) {
+      const nextStatus = normalizeStatus(headerDto.status);
+      this.assertStatusTransition(currentStatus, nextStatus);
+      headerPayload.status = nextStatus;
+    }
+
     if (Object.keys(headerPayload).length > 0) {
        const { error: headerErr } = await supabase
          .from('sales')
@@ -207,7 +244,9 @@ export const salesService = {
       await syncChargeItems(id, charge_items);
     }
 
-    return this.getById(id);
+    const updated = await this.getById(id);
+    await this.syncCustomerStatus(updated, normalizeStatus(updated.status));
+    return updated;
   },
 
   async delete(id: string) {
@@ -219,5 +258,142 @@ export const salesService = {
 
     if (error) throw new AppError(error.message, 400);
     return true;
-  }
+  },
+
+  assertStatusTransition(current: CanonicalStatus, next: CanonicalStatus) {
+    if (current === next) return;
+    const allowed = ALLOWED_STATUS_TRANSITIONS[current] || [];
+    if (!allowed.includes(next)) {
+      throw new AppError(`Invalid quotation status transition: ${current} -> ${next}`, 400);
+    }
+  },
+
+  async syncCustomerStatus(sale: any, status: CanonicalStatus) {
+    const customerId = sale?.customer_id || sale?.shipments?.customer_id || null;
+    if (!customerId) return;
+
+    const mappedCustomerStatus =
+      status === 'won'
+        ? 'won'
+        : status === 'lost'
+          ? 'lost'
+          : status === 'sent'
+            ? 'quotation_sent'
+            : null;
+
+    if (!mappedCustomerStatus) return;
+
+    const { error } = await supabase
+      .from('customers')
+      .update({ status: mappedCustomerStatus, updated_at: new Date().toISOString() })
+      .eq('id', customerId);
+
+    if (error) throw new AppError(error.message, 400);
+  },
+
+  async changeStatus(id: string, next: CanonicalStatus) {
+    const sale = await this.getById(id);
+    const current = normalizeStatus(sale.status);
+    this.assertStatusTransition(current, next);
+
+    const { error } = await supabase
+      .from('sales')
+      .update({ status: next })
+      .eq('id', id);
+    if (error) throw new AppError(error.message, 400);
+
+    const updated = await this.getById(id);
+    await this.syncCustomerStatus(updated, next);
+    return updated;
+  },
+
+  async confirm(id: string) {
+    return this.changeStatus(id, 'confirmed');
+  },
+
+  async markWon(id: string) {
+    return this.changeStatus(id, 'won');
+  },
+
+  async markLost(id: string) {
+    return this.changeStatus(id, 'lost');
+  },
+
+  async sendEmail(id: string, payload: { to_email?: string; subject?: string; content_snapshot?: string; sent_by?: string }) {
+    const sale = await this.getById(id);
+    const current = normalizeStatus(sale.status);
+    if (current === 'draft') {
+      throw new AppError('Quotation must be confirmed before sending.', 400);
+    }
+
+    const emailLogPayload = {
+      sales_id: id,
+      to_email: payload.to_email || sale.customer_contact_email || null,
+      subject: payload.subject || `Quotation ${sale.no_doc || sale.id}`,
+      content_snapshot: payload.content_snapshot || null,
+      sent_by: payload.sent_by || null,
+      status: 'logged',
+      sent_at: new Date().toISOString(),
+    };
+
+    const { error: logErr } = await supabase
+      .from('quotation_email_logs')
+      .insert(emailLogPayload);
+    if (logErr) throw new AppError(logErr.message, 400);
+
+    const updated = await this.changeStatus(id, 'sent');
+    return {
+      quotation: updated,
+      email_log: emailLogPayload,
+    };
+  },
+
+  async createJob(id: string, shipmentInput?: Partial<CreateShipmentDto>) {
+    const sale = await this.getById(id);
+    const status = normalizeStatus(sale.status);
+    if (status !== 'won') {
+      throw new AppError('Only won quotations can create jobs.', 400);
+    }
+
+    if (sale.shipment_id) {
+      const existing = await shipmentService.findById(sale.shipment_id);
+      if (existing) {
+        return { shipment: existing, quotation: sale, already_created: true };
+      }
+    }
+
+    const customerId =
+      shipmentInput?.customer_id ||
+      sale.customer_id ||
+      sale.shipments?.customer_id ||
+      null;
+
+    if (!customerId) {
+      throw new AppError('Cannot create job: quotation does not have a customer.', 400);
+    }
+
+    const { bl_lines, ...shipmentHeader } = shipmentInput || {};
+    const createdShipment = await shipmentService.create({
+      ...(shipmentHeader as Partial<CreateShipmentDto>),
+      customer_id: customerId,
+      quotation_id: id,
+      status: shipmentHeader.status || 'draft',
+    } as CreateShipmentDto);
+
+    if (Array.isArray(bl_lines) && bl_lines.length > 0) {
+      await shipmentService.replaceBlLines(createdShipment.id, bl_lines as any);
+    }
+
+    const { error: updateErr } = await supabase
+      .from('sales')
+      .update({
+        shipment_id: createdShipment.id,
+        job_no: createdShipment.code || null,
+      })
+      .eq('id', id);
+    if (updateErr) throw new AppError(updateErr.message, 400);
+
+    const updatedSale = await this.getById(id);
+    return { shipment: createdShipment, quotation: updatedSale, already_created: false };
+  },
 };

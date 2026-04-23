@@ -27,10 +27,12 @@ type ColDef = { label: string; thClass: string; tdClass: string; renderContent: 
 
 const QUOTATION_STATUS_META: Record<string, { label: string; className: string }> = {
   draft: { label: 'Draft', className: 'bg-slate-100 text-slate-700 border-slate-200' },
-  sent: { label: 'Sent', className: 'bg-blue-50 text-blue-700 border-blue-200' },
-  converted: { label: 'Converted', className: 'bg-violet-50 text-violet-700 border-violet-200' },
   confirmed: { label: 'Confirmed', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  final: { label: 'Final', className: 'bg-amber-50 text-amber-700 border-amber-200' },
+  sent: { label: 'Sent', className: 'bg-blue-50 text-blue-700 border-blue-200' },
+  won: { label: 'Won', className: 'bg-teal-50 text-teal-700 border-teal-200' },
+  lost: { label: 'Lost', className: 'bg-rose-50 text-rose-700 border-rose-200' },
+  converted: { label: 'Won', className: 'bg-teal-50 text-teal-700 border-teal-200' },
+  final: { label: 'Sent', className: 'bg-blue-50 text-blue-700 border-blue-200' },
 };
 
 const formatDate = (value?: string) => {
@@ -61,7 +63,6 @@ const COLUMN_DEFS: Record<string, ColDef> = {
     renderContent: (s) => (
       <div className="flex flex-col">
         <span>{s.no_doc || `Q-${s.id.slice(0, 8)}`}</span>
-        <span className="text-[10px] text-muted-foreground">{s.shipments?.code || '—'}</span>
       </div>
     )
   },
@@ -301,7 +302,7 @@ const SalesPage: React.FC = () => {
       const search = searchText.toLowerCase();
       const matchesText =
         item.sales_items?.some(i => i.description?.toLowerCase().includes(search)) ||
-        item.shipment_id?.toLowerCase().includes(search) ||
+        item.customer_trade_name?.toLowerCase().includes(search) ||
         item.no_doc?.toLowerCase().includes(search) ||
         item.shipments?.customers?.company_name?.toLowerCase().includes(search) ||
         item.shipments?.bill_no?.toLowerCase().includes(search) ||
@@ -401,10 +402,11 @@ const SalesPage: React.FC = () => {
     const shipmentMap = new Map<string, { code: string, val: number }>();
     filteredItems.forEach(item => {
       const val = item.sales_items?.reduce((sum, i) => sum + (i.total || 0), 0) || 0;
-      const code = item.shipments?.code || `#${item.shipment_id?.slice(0, 8)}`;
-      const current = shipmentMap.get(item.shipment_id) || { code, val: 0 };
+      const key = item.id;
+      const code = item.no_doc || `Q-${item.id.slice(0, 8)}`;
+      const current = shipmentMap.get(key) || { code, val: 0 };
       current.val += val;
-      shipmentMap.set(item.shipment_id, current);
+      shipmentMap.set(key, current);
     });
     const shipmentData = Array.from(shipmentMap.values())
       .map(data => ({
@@ -536,7 +538,7 @@ const SalesPage: React.FC = () => {
                   >
                     <div className="flex items-start justify-between relative z-10">
                       <div className="flex flex-col gap-1 pr-12 min-w-0">
-                        <span className="text-[10px] font-black text-primary uppercase tracking-tighter opacity-70">{item.shipments?.code || `#${item.shipment_id?.slice(0, 8)}`}</span>
+                        <span className="text-[10px] font-black text-primary uppercase tracking-tighter opacity-70">{item.no_doc || `Q-${item.id.slice(0, 8)}`}</span>
                         <span className="text-[14px] font-bold text-slate-900 leading-tight line-clamp-2">{desc}</span>
                         <span className="text-[11px] text-muted-foreground font-medium underline mt-1">{countText}</span>
                       </div>
@@ -574,7 +576,7 @@ const SalesPage: React.FC = () => {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
                   <input
                     type="text"
-                    placeholder="Search description, shipment ID..."
+                    placeholder="Search description, quotation no..."
                     value={searchText}
                     onChange={(e) => setSearchText(e.target.value)}
                     className="w-full pl-10 pr-8 py-1.5 bg-muted/20 border border-border rounded-xl text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all text-slate-900"

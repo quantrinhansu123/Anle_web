@@ -9,7 +9,8 @@ export const ShipmentController = {
     try {
       const page = Number(req.query.page) || 1;
       const limit = Number(req.query.limit) || 20;
-      const result = await service.findAll(page, limit);
+      const q = typeof req.query.q === 'string' ? req.query.q.trim() : undefined;
+      const result = await service.findAll(page, limit, { q });
       res.json(paginatedResponse(result.data, result.count, page, limit));
     } catch (err) {
       next(err);

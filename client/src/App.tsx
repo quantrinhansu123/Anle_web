@@ -46,6 +46,9 @@ import InvoicingPage from './pages/InvoicingPage';
 import InvoicesManagementPage from './pages/InvoicesManagementPage';
 import JobProfitByPerformanceDatePage from './pages/reports/JobProfitByPerformanceDatePage';
 import ShipmentSOPPage from './pages/shipments/ShipmentSOPPage';
+import CRMPage from './pages/CRMPage';
+import ContactsDirectoryPage from './pages/ContactsDirectoryPage';
+import WebsitePage from './pages/WebsitePage';
 import LoginPage from './pages/auth/LoginPage';
 import ApprovalsPage from './pages/ApprovalsPage';
 import { AuthProvider } from './contexts/AuthContext';
@@ -131,9 +134,9 @@ function App() {
                 <Route path="/inventory/overview" element={<InventoryOverviewPage />} />
                 <Route path="/inventory/stock" element={<InventoryStockReportPage />} />
                 <Route path="/fleet" element={<PlaceholderPage />} />
-                <Route path="/crm" element={<PlaceholderPage />} />
-                <Route path="/contacts/directory" element={<PlaceholderPage />} />
-                <Route path="/website" element={<PlaceholderPage />} />
+                <Route path="/crm" element={<CRMPage />} />
+                <Route path="/contacts/directory" element={<ContactsDirectoryPage />} />
+                <Route path="/website" element={<WebsitePage />} />
                 <Route path="/email-marketing" element={<PlaceholderPage />} />
                 <Route path="/link-tracker" element={<PlaceholderPage />} />
                 <Route path="/projects" element={<PlaceholderPage />} />

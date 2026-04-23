@@ -93,13 +93,23 @@ export class ShipmentService {
     }
   }
 
-  async findAll(page = 1, limit = 20): Promise<{ data: Shipment[]; count: number }> {
+  async findAll(page = 1, limit = 20, filters?: { q?: string }): Promise<{ data: Shipment[]; count: number }> {
     const from = (page - 1) * limit;
-    const { data, error, count } = await supabase
+    let query = supabase
       .from('shipments')
       .select('*, customers(*), suppliers(*), pic:employees!shipments_pic_id_fkey(*)', { count: 'exact' })
       .range(from, from + limit - 1)
       .order('created_at', { ascending: false });
+
+    const rawQ = filters?.q?.trim();
+    if (rawQ) {
+      const escaped = rawQ.replace(/[%_]/g, '\\$&');
+      query = query.or(
+        `code.ilike.%${escaped}%,master_job_no.ilike.%${escaped}%,master_bl_number.ilike.%${escaped}%`,
+      );
+    }
+
+    const { data, error, count } = await query;
 
     if (error) throw error;
     return { data: data ?? [], count: count ?? 0 };
@@ -498,6 +508,8 @@ export class ShipmentService {
       sea_eta: l.sea_eta ?? null,
       air_etd: l.air_etd ?? null,
       air_eta: l.air_eta ?? null,
+      loading_date: l.loading_date ?? null,
+      delivery_date: l.delivery_date ?? null,
     }));
 
     const { error: insErr } = await supabase.from('shipment_bl_lines').insert(rows);

@@ -36,6 +36,7 @@ export interface Shipment {
   note?: string;
   etd?: string;
   eta?: string;
+  actual_eta?: string;
   pic_id?: string;
   status?: ShipmentStatus;
   is_docs_ready?: boolean;
@@ -52,6 +53,7 @@ export interface Shipment {
   planned_cost?: any;
   actual_cost?: any;
   created_at: string;
+  updated_at?: string;
   // Job-merged fields
   master_job_no?: string | null;
   job_date?: string | null;
@@ -109,6 +111,8 @@ export interface ShipmentBlLine {
   sea_eta: string | null;
   air_etd: string | null;
   air_eta: string | null;
+  loading_date: string | null;
+  delivery_date: string | null;
 }
 
 export interface CreateShipmentDto {

@@ -43,6 +43,7 @@ const CustomerDialog: React.FC<Props> = ({
     follow_up: 'Follow Up',
     quotation_sent: 'Quotation Sent',
     meeting: 'Meeting',
+    won: 'Won',
     lost: 'Lost'
   };
 

@@ -13,7 +13,7 @@ export interface SalesItem {
   created_at?: string;
 }
 
-export type QuotationStatus = 'draft' | 'sent' | 'converted' | 'confirmed' | 'final';
+export type QuotationStatus = 'draft' | 'confirmed' | 'sent' | 'won' | 'lost' | 'converted' | 'final';
 export type QuotationType = 'service_breakdown' | 'option_based';
 export type ChargeGroup = 'freight' | 'other' | 'on_behalf';
 
@@ -38,7 +38,8 @@ export interface SalesChargeItem {
 
 export interface Sales {
   id: string;
-  shipment_id: string;
+  shipment_id?: string | null;
+  customer_id?: string | null;
   quote_date?: string;
   no_doc?: string;
   status?: QuotationStatus;
@@ -76,7 +77,8 @@ export interface Sales {
 }
 
 export interface CreateSalesDto {
-  shipment_id: string;
+  shipment_id?: string;
+  customer_id?: string;
   quote_date?: string;
   status?: QuotationStatus;
   priority_rank?: number;

@@ -60,6 +60,8 @@ const emptyBlLine = (order: number): ShipmentBlLine => ({
   sea_eta: '',
   air_etd: '',
   air_eta: '',
+  loading_date: '',
+  delivery_date: '',
 });
 
 interface SalesBlTabProps {
@@ -117,6 +119,8 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
             sea_eta: l.sea_eta ? String(l.sea_eta).slice(0, 10) : '',
             air_etd: l.air_etd ? String(l.air_etd).slice(0, 10) : '',
             air_eta: l.air_eta ? String(l.air_eta).slice(0, 10) : '',
+            loading_date: l.loading_date ? String(l.loading_date).slice(0, 10) : '',
+            delivery_date: l.delivery_date ? String(l.delivery_date).slice(0, 10) : '',
           })));
         } else {
           setBlLines([emptyBlLine(0)]);
@@ -171,6 +175,8 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
         sea_eta: l.sea_eta || null,
         air_etd: l.air_etd || null,
         air_eta: l.air_eta || null,
+        loading_date: l.loading_date || null,
+        delivery_date: l.delivery_date || null,
       }));
       await shipmentService.replaceBlLines(shipmentId, payload);
       toastOk('B/L lines saved successfully');
@@ -334,7 +340,7 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
               <table className="w-full text-left text-[11px]">
                 <thead className="bg-slate-50 border-b border-border">
                   <tr>
-                    {['Name', 'Sea customer', 'Air customer', 'Name', 'Package', 'Unit', 'Sea ETD', 'Sea ETA', 'Air ETD', 'Air ETA', ''].map((h) => (
+                    {['Name', 'Sea customer', 'Air customer', 'Name', 'Package', 'Unit', 'Sea ETD', 'Sea ETA', 'Air ETD', 'Air ETA', 'Loading Date', 'Delivery Date', ''].map((h) => (
                       <th key={h} className="px-2 py-2 font-bold text-muted-foreground uppercase whitespace-nowrap">
                         {h}
                       </th>
@@ -415,6 +421,22 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
                           dense
                           value={row.air_eta || ''}
                           onChange={(v) => updateBlLine(idx, { air_eta: v })}
+                          className="min-w-[108px]"
+                        />
+                      </td>
+                      <td className="p-1 align-middle">
+                        <DateInput
+                          dense
+                          value={row.loading_date || ''}
+                          onChange={(v) => updateBlLine(idx, { loading_date: v })}
+                          className="min-w-[108px]"
+                        />
+                      </td>
+                      <td className="p-1 align-middle">
+                        <DateInput
+                          dense
+                          value={row.delivery_date || ''}
+                          onChange={(v) => updateBlLine(idx, { delivery_date: v })}
                           className="min-w-[108px]"
                         />
                       </td>

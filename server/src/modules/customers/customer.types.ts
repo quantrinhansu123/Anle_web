@@ -1,4 +1,4 @@
-export type CustomerStatus = 'new' | 'follow_up' | 'quotation_sent' | 'meeting' | 'lost';
+export type CustomerStatus = 'new' | 'follow_up' | 'quotation_sent' | 'meeting' | 'won' | 'lost';
 
 export interface Customer {
   id: string;

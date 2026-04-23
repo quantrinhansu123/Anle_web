@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { clsx } from 'clsx';
 import {
   Briefcase,
@@ -24,11 +24,9 @@ import { DateTimePicker24h } from '../../components/ui/DateTimePicker';
 import { ThreeStarRating } from '../../components/ui/ThreeStarRating';
 import type { QuotationStatus, Sales, SalesFormState } from './types';
 import type { ChargeGroup, SalesChargeItem } from './types';
-import type { Shipment } from '../shipments/types';
 import type { ExchangeRate } from '../../services/exchangeRateService';
 import type { Employee } from '../../services/employeeService';
 import { salesService } from '../../services/salesService';
-import { shipmentService } from '../../services/shipmentService';
 import { exchangeRateService } from '../../services/exchangeRateService';
 import { employeeService } from '../../services/employeeService';
 import {
@@ -43,22 +41,21 @@ import { useToastContext } from '../../contexts/ToastContext';
 import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 import { SalesChargeCatalogDialog } from './dialogs/SalesChargeCatalogDialog';
 import { SalesUnitCatalogDialog } from './dialogs/SalesUnitCatalogDialog';
-import { customerService } from '../../services/customerService';
-import { buildShipmentFieldsFromQuotation } from '../shipments/quotationToShipmentPayload';
+import { customerService, type Customer } from '../../services/customerService';
 import { Edit3, Send, CheckCircle2, FileCheck, CheckSquare } from 'lucide-react';
 import { WorkflowStepper, type WorkflowStep } from '../../components/ui/WorkflowStepper';
 
 export const QUOTATION_STATUS_STEPS: WorkflowStep<QuotationStatus>[] = [
   { id: 'draft', label: 'Draft', icon: Edit3 },
-  { id: 'sent', label: 'Sent', icon: Send },
-  { id: 'converted', label: 'Converted', icon: CheckCircle2 },
   { id: 'confirmed', label: 'Confirmed', icon: CheckSquare },
-  { id: 'final', label: 'Final', icon: FileCheck },
+  { id: 'sent', label: 'Sent', icon: Send },
+  { id: 'won', label: 'Won', icon: CheckCircle2 },
+  { id: 'lost', label: 'Lost', icon: FileCheck },
 ];
 
 
 const INITIAL_FORM_STATE: SalesFormState = {
-  shipment_id: '',
+  customer_id: '',
   status: 'draft',
   priority_rank: 1,
   quotation_type: 'service_breakdown',
@@ -77,7 +74,7 @@ interface SalesEditorFormProps {
   formState: SalesFormState;
   setFormField: <K extends keyof SalesFormState>(key: K, value: SalesFormState[K]) => void;
   patchFormState: (patch: Partial<SalesFormState>) => void;
-  shipmentOptions: (Shipment & { value: string; label: string })[];
+  customerOptions: (Customer & { value: string; label: string })[];
   exchangeRates: ExchangeRate[];
   employees: Employee[];
   chargeCatalog: SalesChargeCatalog[];
@@ -98,6 +95,8 @@ const formatQuotationBreadcrumbLabel = (noDoc: string | undefined, saleId: strin
 };
 
 const normalizeQuotationStatus = (s?: string): QuotationStatus => {
+  if (s === 'converted') return 'won';
+  if (s === 'final') return 'sent';
   const allowed = QUOTATION_STATUS_STEPS.map((x) => x.id);
   if (s && (allowed as string[]).includes(s)) return s as QuotationStatus;
   return 'draft';
@@ -403,7 +402,7 @@ const SalesEditorPage: React.FC<Props> = ({ mode }) => {
     return () => setDynamicTitle(null);
   }, [mode, formState.no_doc, formState.id, id, setDynamicTitle]);
 
-  const [shipments, setShipments] = useState<(Shipment & { value: string; label: string })[]>([]);
+  const [customers, setCustomers] = useState<(Customer & { value: string; label: string })[]>([]);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [chargeCatalog, setChargeCatalog] = useState<SalesChargeCatalog[]>([]);
@@ -417,33 +416,14 @@ const SalesEditorPage: React.FC<Props> = ({ mode }) => {
     setFormState((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  const logisticsPrefillShipmentIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (mode !== 'add') return;
-    if (!formState.shipment_id) {
-      logisticsPrefillShipmentIdRef.current = null;
-      return;
-    }
-    const ship = shipments.find((s) => s.value === formState.shipment_id);
-    if (!ship) return;
-    if (logisticsPrefillShipmentIdRef.current === formState.shipment_id) return;
-    logisticsPrefillShipmentIdRef.current = formState.shipment_id;
-    setFormState((prev) => ({
-      ...prev,
-      bill_no: ship.bill_no || '',
-      customs_declaration_no: ship.customs_declaration_no || '',
-      incoterms: ship.term || '',
-    }));
-  }, [mode, formState.shipment_id, shipments]);
-
   const setFormStateFromItem = (item: Sales) => {
     const mapped: SalesFormState = {
       id: item.id,
       no_doc: item.no_doc,
+      customer_id: item.customer_id || item.shipments?.customer_id || '',
       shipment_id: item.shipment_id,
       quote_date: item.quote_date,
-      status: item.status,
+      status: normalizeQuotationStatus(item.status),
       priority_rank: item.priority_rank,
       quotation_type: item.quotation_type,
       due_date: item.due_date,
@@ -493,24 +473,20 @@ const SalesEditorPage: React.FC<Props> = ({ mode }) => {
   useEffect(() => {
     const fetchStaticData = async () => {
       try {
-        const [shipmentsData, ratesData, employeesData, chargeCatalogData, unitCatalogData] =
+        const [customersData, ratesData, employeesData, chargeCatalogData, unitCatalogData] =
           await Promise.all([
-            shipmentService.getShipments(1, 100),
+            customerService.getCustomers(),
             exchangeRateService.getAll(),
             employeeService.getEmployees(),
             salesChargeCatalogService.getAll().catch(() => [] as SalesChargeCatalog[]),
             salesUnitCatalogService.getAll().catch(() => [] as SalesUnitCatalog[]),
           ]);
 
-        const shipmentList = Array.isArray(shipmentsData)
-          ? shipmentsData
-          : (shipmentsData as { data?: Shipment[] }).data || [];
-
-        setShipments(
-          shipmentList.map((shipment: Shipment) => ({
-            ...shipment,
-            value: shipment.id,
-            label: `${shipment.code || `#${shipment.id.slice(0, 8)}`} - ${shipment.customers?.company_name || 'No Customer'}`,
+        setCustomers(
+          (customersData || []).map((customer) => ({
+            ...customer,
+            value: customer.id,
+            label: `${customer.code || customer.id.slice(0, 8)} - ${customer.company_name}`,
           })),
         );
         setExchangeRates(ratesData || []);
@@ -556,8 +532,8 @@ const SalesEditorPage: React.FC<Props> = ({ mode }) => {
 
   const handleSave = async () => {
     try {
-      if (!formState.shipment_id) {
-        toastError('Please select a shipment');
+      if (!formState.customer_id) {
+        toastError('Please select a customer');
         return;
       }
 
@@ -630,7 +606,7 @@ const SalesEditorPage: React.FC<Props> = ({ mode }) => {
         formState={formState}
         setFormField={setFormField}
         patchFormState={patchFormState}
-        shipmentOptions={shipments}
+        customerOptions={customers}
         exchangeRates={exchangeRates}
         employees={employees}
         chargeCatalog={chargeCatalog}
@@ -676,7 +652,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
   formState,
   setFormField,
   patchFormState,
-  shipmentOptions,
+  customerOptions,
   exchangeRates,
   employees,
   chargeCatalog,
@@ -688,7 +664,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
   onPersistedStatusChange,
 }) => {
   const navigate = useNavigate();
-  const { success: toastSuccess, error: toastError, info: toastInfo } = useToastContext();
+  const { success: toastSuccess, error: toastError } = useToastContext();
   const [statusSaving, setStatusSaving] = useState(false);
   const [catalogBrowserOpen, setCatalogBrowserOpen] = useState(false);
   const [catalogBrowserTarget, setCatalogBrowserTarget] = useState<{
@@ -717,33 +693,13 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
     navigate(`/financials/sales/quotation/${formState.id}`);
   };
 
-  const handleCreateShipmentFromQuotation = useCallback(async () => {
-    if (!formState.id || !formState.shipment_id) return;
+  const handleCreateJobFromQuotation = useCallback(async () => {
+    if (!formState.id) return;
     setCreatingJob(true);
     try {
-      const ship =
-        formState.relatedShipment || shipmentOptions.find((s) => s.value === formState.shipment_id);
-      const payload = await buildShipmentFieldsFromQuotation({ ...formState, relatedShipment: ship });
-      const created = await shipmentService.createShipment(payload as Parameters<typeof shipmentService.createShipment>[0]);
-
-      try {
-        await salesService.updateSalesItem(formState.id, { status: 'converted' });
-        setFormField('status', 'converted');
-        onPersistedStatusChange?.('converted');
-      } catch (statusErr: unknown) {
-        const sm =
-          statusErr && typeof statusErr === 'object' && 'message' in statusErr
-            ? String((statusErr as { message?: unknown }).message ?? '')
-            : '';
-        toastError(
-          sm
-            ? `${sm} Shipment ${created.code || created.id} was created; set quotation to Converted manually if needed.`
-            : `Shipment ${created.code || created.id} was created, but the quotation could not be marked Converted.`,
-        );
-      }
-
-      toastSuccess(`Shipment ${created.code || created.id} created from quotation`);
-      navigate(`/shipments/sop/${created.id}`, {
+      const result = await salesService.createJobFromQuotation(formState.id);
+      toastSuccess(result.already_created ? 'Job already existed for this quotation' : `Job ${result.shipment.code || result.shipment.id} created`);
+      navigate(`/shipments/sop/${result.shipment.id}`, {
         state: {
           shipmentCreatedFromQuotation: true,
           quotationBreadcrumb: {
@@ -759,20 +715,19 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
         e && typeof e === 'object' && 'message' in e
           ? String((e as { message?: unknown }).message ?? '')
           : '';
-      toastError(msg || 'Could not create shipment');
+      toastError(msg || 'Could not create job');
     } finally {
       setCreatingJob(false);
     }
   }, [
     formState,
     onPersistedStatusChange,
-    shipmentOptions,
     navigate,
-    setFormField,
     toastSuccess,
     toastError,
   ]);
-  const selectedShipment = formState.relatedShipment || shipmentOptions.find((s) => s.value === formState.shipment_id);
+  const selectedCustomer = customerOptions.find((c) => c.value === formState.customer_id);
+  const selectedShipment = formState.relatedShipment;
   const salesPersonOptions = employees.map((employee) => ({
     value: employee.id,
     label: employee.full_name,
@@ -780,8 +735,10 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
   const selectedEmployee = employees.find((employee) => employee.id === formState.sales_person_id);
 
   const quotationStatus = normalizeQuotationStatus(formState.status);
-  const canCreateShipmentFromQuotation =
-    isReadOnly && quotationStatus === 'sent' && !!formState.id && !!formState.shipment_id;
+  const canCreateJobFromQuotation =
+    isReadOnly && quotationStatus === 'won' && !!formState.id;
+  const canCreateShipmentFromQuotation = canCreateJobFromQuotation;
+  const handleCreateShipmentFromQuotation = handleCreateJobFromQuotation;
 
   const quotationDocLabel = formatQuotationBreadcrumbLabel(formState.no_doc, formState.id);
   const pageHeading =
@@ -796,7 +753,20 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
       if (!id) return;
       try {
         setStatusSaving(true);
-        await salesService.updateSalesItem(id, { status: next });
+        if (next === 'confirmed') {
+          await salesService.confirmQuotation(id);
+        } else if (next === 'sent') {
+          await salesService.sendQuotationEmail(id, {
+            to_email: formState.customer_contact_email,
+            subject: `Quotation ${formState.no_doc || id}`,
+          });
+        } else if (next === 'won') {
+          await salesService.markQuotationWon(id);
+        } else if (next === 'lost') {
+          await salesService.markQuotationLost(id);
+        } else {
+          await salesService.updateSalesItem(id, { status: next });
+        }
         onPersistedStatusChange?.(next);
         const prevLabel = QUOTATION_STATUS_STEPS.find(s => s.id === prev)?.label || prev;
         const nextLabel = QUOTATION_STATUS_STEPS.find(s => s.id === next)?.label || next;
@@ -815,6 +785,8 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
     [
       formState.status,
       formState.id,
+      formState.customer_contact_email,
+      formState.no_doc,
       setFormField,
       onPersistedStatusChange,
       toastSuccess,
@@ -822,9 +794,27 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
     ],
   );
 
-  const handleSendQuotationEmail = useCallback(() => {
-    toastInfo('This feature is under development.');
-  }, [toastInfo]);
+  const handleSendQuotationEmail = useCallback(async () => {
+    if (!formState.id) return;
+    try {
+      setStatusSaving(true);
+      await salesService.sendQuotationEmail(formState.id, {
+        to_email: formState.customer_contact_email,
+        subject: `Quotation ${formState.no_doc || formState.id}`,
+      });
+      setFormField('status', 'sent');
+      onPersistedStatusChange?.('sent');
+      toastSuccess('Quotation email was logged and status moved to Sent');
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === 'object' && 'message' in e
+          ? String((e as { message?: unknown }).message ?? '')
+          : '';
+      toastError(msg || 'Failed to log quotation send');
+    } finally {
+      setStatusSaving(false);
+    }
+  }, [formState.id, formState.customer_contact_email, formState.no_doc, setFormField, onPersistedStatusChange, toastSuccess, toastError]);
 
   useEffect(() => {
     if (!formState.sales_person_id || !selectedEmployee || isReadOnly) return;
@@ -876,47 +866,36 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
   ]);
 
   useEffect(() => {
-    if (mode !== 'add' || isReadOnly || !formState.shipment_id) return;
-
-    const ship = shipmentOptions.find((s) => s.value === formState.shipment_id);
-    if (!ship?.customer_id) return;
+    if (mode !== 'add' || isReadOnly || !formState.customer_id) return;
 
     let cancelled = false;
-
-    const applyFromNestedOnly = () => {
-      const c = ship.customers;
-      patchFormState({
-        relatedShipment: ship,
-        customer_trade_name: pickCustomerTradeName(c),
-        customer_contact_name: c?.sales_staff?.trim() || '',
-        customer_contact_email: c?.email?.trim() || '',
-        customer_contact_tel: c?.phone?.trim() || '',
-      });
-    };
-
     (async () => {
       try {
-        const details = await customerService.getCustomerDetails(ship.customer_id);
+        const details = await customerService.getCustomerDetails(formState.customer_id!);
         if (cancelled) return;
-
         const primary = details.contacts?.[0];
         patchFormState({
-          relatedShipment: ship,
           customer_trade_name: pickCustomerTradeName(details),
-          customer_contact_name:
-            primary?.full_name?.trim() || details.sales_staff?.trim() || '',
+          customer_contact_name: primary?.full_name?.trim() || details.sales_staff?.trim() || '',
           customer_contact_email: primary?.email?.trim() || details.email?.trim() || '',
           customer_contact_tel: primary?.phone?.trim() || details.phone?.trim() || '',
         });
       } catch {
-        if (!cancelled) applyFromNestedOnly();
+        const c = customerOptions.find((x) => x.id === formState.customer_id);
+        if (!cancelled && c) {
+          patchFormState({
+            customer_trade_name: c.company_name || '',
+            customer_contact_email: c.email?.trim() || '',
+            customer_contact_tel: c.phone?.trim() || '',
+          });
+        }
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [mode, isReadOnly, formState.shipment_id, shipmentOptions, patchFormState]);
+  }, [mode, isReadOnly, formState.customer_id, customerOptions, patchFormState]);
 
   useLayoutEffect(() => {
     if (isReadOnly) return;
@@ -1435,12 +1414,12 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
               {quotationDocLabel ? (
                 <>
                   <span className="text-primary font-bold">{quotationDocLabel}</span>
-                  {selectedShipment?.customers?.company_name ? (
-                    <span className="text-slate-400 font-medium"> · {selectedShipment.customers.company_name}</span>
+                  {selectedCustomer?.company_name ? (
+                    <span className="text-slate-400 font-medium"> · {selectedCustomer.company_name}</span>
                   ) : null}
                 </>
               ) : (
-                selectedShipment?.customers?.company_name || 'New quotation'
+                selectedCustomer?.company_name || 'New quotation'
               )}
             </p>
           </div>
@@ -1482,14 +1461,14 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                   {quotationDocLabel ? (
                     <>
                       <span className="font-bold text-primary">{quotationDocLabel}</span>
-                      {selectedShipment?.customers?.company_name ? (
-                        <span className="text-slate-500"> · {selectedShipment.customers.company_name}</span>
+                      {selectedCustomer?.company_name ? (
+                        <span className="text-slate-500"> · {selectedCustomer.company_name}</span>
                       ) : null}
                     </>
                   ) : mode === 'add' ? (
-                    'Select a shipment and fill in the quotation'
+                    'Select a customer and fill in the quotation'
                   ) : (
-                    selectedShipment?.customers?.company_name || '—'
+                    selectedCustomer?.company_name || '—'
                   )}
                 </p>
               </div>
@@ -1506,7 +1485,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                       className="inline-flex items-center justify-center gap-2 min-h-10 rounded-xl border border-border bg-white px-4 py-2 text-[12px] font-bold text-slate-700 shadow-sm hover:bg-slate-50 transition-all active:scale-[0.99] disabled:pointer-events-none disabled:opacity-45"
                     >
                       {creatingJob ? <Loader2 size={15} className="animate-spin" /> : <Briefcase size={15} />}
-                      Create Shipment
+                      Create Job
                     </button>
                   ) : null}
                   {canPrintQuotation ? (
@@ -1543,7 +1522,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                   <button
                     type="button"
                     onClick={onSave}
-                    disabled={!formState.shipment_id}
+                    disabled={!formState.customer_id}
                     className="inline-flex items-center justify-center gap-2 min-h-10 rounded-xl bg-primary px-5 py-2 text-[12px] font-bold text-white shadow-md shadow-primary/25 hover:bg-primary/90 transition-all active:scale-[0.99] disabled:pointer-events-none disabled:opacity-45"
                   >
                     <Plus size={15} />
@@ -1574,20 +1553,20 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
       <div className="flex flex-1 flex-col min-h-0 md:min-h-0">
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:px-0 md:py-0 md:pb-6 md:space-y-6">
           <div className="md:hidden space-y-6">
-            <MobileFormSection tone="indigo" title="Quotation & shipment" icon={Ship}>
+            <MobileFormSection tone="indigo" title="Quotation & customer" icon={Ship}>
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2">
                   <Ship size={16} className="text-indigo-600/80 shrink-0" />
                   <label className={mobileLabelClass}>
-                    Shipment <span className="text-red-500">*</span>
+                    Customer <span className="text-red-500">*</span>
                   </label>
                 </div>
                 <SearchableSelect
-                  options={shipmentOptions}
-                  value={formState.shipment_id}
-                  onValueChange={(value) => setFormField('shipment_id', value)}
-                  disabled={isReadOnly || mode === 'edit'}
-                  placeholder="Search shipment…"
+                  options={customerOptions}
+                  value={formState.customer_id || ''}
+                  onValueChange={(value) => setFormField('customer_id', value)}
+                  disabled={isReadOnly}
+                  placeholder="Search customer…"
                   className="min-h-[44px] rounded-xl"
                 />
               </div>
@@ -1632,7 +1611,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
               <div className="space-y-1.5">
                 <label className={mobileLabelClass}>Customer</label>
                 <input
-                  value={selectedShipment?.customers?.company_name || ''}
+                  value={selectedCustomer?.company_name || formState.customer_trade_name || ''}
                   readOnly
                   className={mf('blue', true)}
                 />
@@ -1866,15 +1845,6 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                 />
               </div>
               <div className="space-y-1.5">
-                <label className={mobileLabelClass}>Job No.</label>
-                <input
-                  value={formState.job_no || ''}
-                  onChange={(e) => setFormField('job_no', e.target.value)}
-                  disabled={isReadOnly}
-                  className={mf('violet', isReadOnly)}
-                />
-              </div>
-              <div className="space-y-1.5">
                 <label className={mobileLabelClass}>Sales Inquiry No.</label>
                 <input
                   value={formState.sales_inquiry_no || ''}
@@ -1927,8 +1897,8 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
         <div className="bg-white rounded-2xl border border-border p-3 sm:p-5 space-y-4 sm:space-y-5">
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
             <div className="space-y-3">
-              <label className="text-[12px] font-bold text-slate-600">Shipment</label>
-              <SearchableSelect options={shipmentOptions} value={formState.shipment_id} onValueChange={(value) => setFormField('shipment_id', value)} disabled={isReadOnly || mode === 'edit'} placeholder="Select shipment" />
+              <label className="text-[12px] font-bold text-slate-600">Customer</label>
+              <SearchableSelect options={customerOptions} value={formState.customer_id || ''} onValueChange={(value) => setFormField('customer_id', value)} disabled={isReadOnly} placeholder="Select customer" />
               <label className="text-[12px] font-bold text-slate-600">Quotation No.</label>
               <input value={formState.id ? `Q-${formState.id.slice(0, 8).toUpperCase()}` : 'Auto-generated'} readOnly className="w-full px-3 py-2 bg-slate-100 border border-border rounded-xl text-[13px] font-bold" />
               <label className="text-[12px] font-bold text-slate-600">Quotation Type</label>
@@ -1943,7 +1913,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                 </label>
               </div>
               <label className="text-[12px] font-bold text-slate-600">Customer</label>
-              <input value={selectedShipment?.customers?.company_name || ''} readOnly className="w-full px-3 py-2 bg-slate-100 border border-border rounded-xl text-[13px]" />
+              <input value={selectedCustomer?.company_name || formState.customer_trade_name || ''} readOnly className="w-full px-3 py-2 bg-slate-100 border border-border rounded-xl text-[13px]" />
               <label className="text-[12px] font-bold text-slate-600">Customer Name</label>
               <input value={formState.customer_trade_name || ''} onChange={(e) => setFormField('customer_trade_name', e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 bg-white border border-border rounded-xl text-[13px]" />
               <label className="text-[12px] font-bold text-slate-600">Person in Charge</label>
@@ -2022,8 +1992,6 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
               <input value={formState.direction || ''} onChange={(e) => setFormField('direction', e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 border border-border rounded-xl text-[13px]" />
               <label className="text-[12px] font-bold text-slate-600">Currency</label>
               <SearchableSelect options={[{ value: 'VND', label: 'VND' }, ...exchangeRates.map((rate) => ({ value: rate.currency_code, label: rate.currency_code }))]} value={formState.currency_code || 'VND'} onValueChange={(value) => setFormField('currency_code', value)} disabled={isReadOnly} hideSearch hideClearIcon />
-              <label className="text-[12px] font-bold text-slate-600">Job No.</label>
-              <input value={formState.job_no || ''} onChange={(e) => setFormField('job_no', e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 border border-border rounded-xl text-[13px]" />
               <label className="text-[12px] font-bold text-slate-600">Sales Inquiry No.</label>
               <input value={formState.sales_inquiry_no || ''} onChange={(e) => setFormField('sales_inquiry_no', e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 border border-border rounded-xl text-[13px]" />
               <ThreeStarRating
@@ -2104,7 +2072,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                   className="inline-flex shrink-0 items-center justify-center gap-1.5 min-h-[48px] rounded-xl border border-border bg-white px-3.5 py-2.5 text-[12px] font-bold text-slate-700 shadow-sm hover:bg-slate-50 active:scale-[0.99] touch-manipulation disabled:pointer-events-none disabled:opacity-45"
                 >
                   {creatingJob ? <Loader2 size={16} className="animate-spin" /> : <Briefcase size={16} />}
-                  Create Shipment
+                  Create Job
                 </button>
               ) : null}
               {canPrintQuotation ? (
@@ -2139,7 +2107,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
             <button
               type="button"
               onClick={onSave}
-              disabled={!formState.shipment_id}
+              disabled={!formState.customer_id}
               className="flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-[13px] font-bold text-white shadow-md shadow-primary/20 hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-45 touch-manipulation"
             >
               <Plus size={17} />

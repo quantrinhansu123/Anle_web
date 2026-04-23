@@ -77,6 +77,8 @@ export async function buildShipmentFieldsFromQuotation(form: SalesFormState): Pr
         sea_eta: seaEta,
         air_etd: airEtd,
         air_eta: airEta,
+        loading_date: null,
+        delivery_date: null,
       },
     ],
   };

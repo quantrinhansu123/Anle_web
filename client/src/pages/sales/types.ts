@@ -1,6 +1,6 @@
 import type { Shipment } from '../shipments/types';
 
-export type QuotationStatus = 'draft' | 'sent' | 'converted' | 'confirmed' | 'final';
+export type QuotationStatus = 'draft' | 'confirmed' | 'sent' | 'won' | 'lost' | 'converted' | 'final';
 export type QuotationType = 'service_breakdown' | 'option_based';
 export type ChargeGroup = 'freight' | 'other' | 'on_behalf';
 
@@ -21,7 +21,8 @@ export interface SalesItem {
 
 export interface Sales {
   id: string;
-  shipment_id: string;
+  shipment_id?: string;
+  customer_id?: string;
   quote_date: string;
   no_doc: string;
   status?: QuotationStatus;
@@ -101,7 +102,8 @@ export interface SalesFormState {
   id?: string;
   /** Official quotation / document number from API when present */
   no_doc?: string;
-  shipment_id: string;
+  shipment_id?: string;
+  customer_id?: string;
   quote_date?: string;
   status?: QuotationStatus;
   priority_rank?: number;

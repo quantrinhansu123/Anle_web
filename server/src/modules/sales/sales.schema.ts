@@ -27,9 +27,10 @@ const SalesChargeItemSchema = z.object({
 });
 
 export const CreateSalesSchema = z.object({
-  shipment_id: z.string().uuid(),
+  shipment_id: z.string().uuid().optional(),
+  customer_id: z.string().uuid().optional(),
   quote_date: z.string().optional(),
-  status: z.enum(['draft', 'sent', 'converted', 'confirmed', 'final']).optional(),
+  status: z.enum(['draft', 'confirmed', 'sent', 'won', 'lost', 'converted', 'final']).optional(),
   priority_rank: z.number().min(0.5).max(3).optional(),
   quotation_type: z.enum(['service_breakdown', 'option_based']).optional(),
   due_date: z.string().optional(),
@@ -63,3 +64,10 @@ export const CreateSalesSchema = z.object({
 });
 
 export const UpdateSalesSchema = CreateSalesSchema.partial();
+
+export const SendQuotationEmailSchema = z.object({
+  to_email: z.union([z.string().email(), z.literal('')]).optional(),
+  subject: z.string().min(1).optional(),
+  content_snapshot: z.string().optional(),
+  sent_by: z.string().uuid().optional(),
+});

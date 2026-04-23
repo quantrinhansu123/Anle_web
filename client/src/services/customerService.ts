@@ -1,12 +1,13 @@
 import { apiFetch } from '../lib/api';
 
-export type CustomerStatus = 'new' | 'follow_up' | 'quotation_sent' | 'meeting' | 'lost';
+export type CustomerStatus = 'new' | 'follow_up' | 'quotation_sent' | 'meeting' | 'won' | 'lost';
 
 export const CUSTOMER_STATUS_VALUES: CustomerStatus[] = [
   'new',
   'follow_up',
   'quotation_sent',
   'meeting',
+  'won',
   'lost'
 ];
 

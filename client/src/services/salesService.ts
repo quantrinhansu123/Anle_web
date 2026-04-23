@@ -24,4 +24,31 @@ export const salesService = {
     apiFetch<void>(`/sales/${id}`, {
       method: 'DELETE',
     }),
+
+  confirmQuotation: (id: string) =>
+    apiFetch<Sales>(`/sales/${id}/confirm`, {
+      method: 'POST',
+    }),
+
+  markQuotationWon: (id: string) =>
+    apiFetch<Sales>(`/sales/${id}/mark-won`, {
+      method: 'POST',
+    }),
+
+  markQuotationLost: (id: string) =>
+    apiFetch<Sales>(`/sales/${id}/mark-lost`, {
+      method: 'POST',
+    }),
+
+  sendQuotationEmail: (id: string, payload: { to_email?: string; subject?: string; content_snapshot?: string } = {}) =>
+    apiFetch<{ quotation: Sales }>(`/sales/${id}/send-email`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  createJobFromQuotation: (id: string, shipment?: Record<string, unknown>) =>
+    apiFetch<{ shipment: { id: string; code?: string }; quotation: Sales; already_created: boolean }>(`/sales/${id}/create-job`, {
+      method: 'POST',
+      body: JSON.stringify(shipment ? { shipment } : {}),
+    }),
 };

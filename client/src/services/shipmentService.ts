@@ -100,6 +100,15 @@ export const shipmentService = {
     return apiFetchPaginated<Shipment>(`/shipments?${params.toString()}`);
   },
 
+  findShipmentForTracking: async (trackingCode: string) => {
+    const trimmed = trackingCode.trim();
+    if (!trimmed) return null;
+    const { items } = await apiFetchPaginated<Shipment>(
+      `/shipments?page=1&limit=1&q=${encodeURIComponent(trimmed)}`,
+    );
+    return items[0] ?? null;
+  },
+
   getBlLines: (shipmentId: string) =>
     apiFetch<ShipmentBlLine[]>(`/shipments/${shipmentId}/bl-lines`),
 

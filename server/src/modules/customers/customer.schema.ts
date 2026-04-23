@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const customerStatusSchema = z.enum(['new', 'follow_up', 'quotation_sent', 'meeting', 'lost']);
+const customerStatusSchema = z.enum(['new', 'follow_up', 'quotation_sent', 'meeting', 'won', 'lost']);
 
 const optionalTextSchema = z.preprocess(
   (value) => (value === null ? undefined : value),

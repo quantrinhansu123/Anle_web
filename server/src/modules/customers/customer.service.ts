@@ -102,15 +102,24 @@ export class CustomerService {
     const shipmentIds = (shipments || []).map((s: any) => s.id);
 
     // 5. Fetch Sales/Quotations
-    let sales = [];
+    const salesMap = new Map<string, any>();
+    const { data: directSales } = await supabase
+      .from('sales')
+      .select('*, sales_items(total)')
+      .eq('customer_id', id)
+      .order('created_at', { ascending: false });
+    (directSales || []).forEach((s: any) => salesMap.set(s.id, s));
+
     if (shipmentIds.length > 0) {
-      const { data: salesData } = await supabase
+      const { data: shipmentSales } = await supabase
         .from('sales')
         .select('*, sales_items(total)')
         .in('shipment_id', shipmentIds)
         .order('created_at', { ascending: false });
-      sales = salesData || [];
+      (shipmentSales || []).forEach((s: any) => salesMap.set(s.id, s));
     }
+
+    const sales = Array.from(salesMap.values());
 
     return {
       ...customer,
