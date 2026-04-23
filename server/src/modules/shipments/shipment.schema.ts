@@ -148,3 +148,24 @@ export const updateShipmentStatusSchema = z.object({
 });
 
 export const seaHouseBlPatchSchema = z.record(z.string(), z.any());
+
+export const upsertArrivalNoticeSchema = z.object({
+  doc_no: z.string().max(120).optional().nullable(),
+  status: z.enum(['draft', 'issued']).optional(),
+  issued_at: z.string().datetime().optional().nullable(),
+  issued_by: z.string().uuid().optional().nullable(),
+  snapshot: z.record(z.string(), z.any()).default({}),
+});
+
+export const upsertDeliveryNoteSchema = z.object({
+  doc_no: z.string().max(120).optional().nullable(),
+  status: z.enum(['draft', 'issued']).optional(),
+  delivery_date: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.null()]).optional(),
+  receiver_name: z.string().max(200).optional().nullable(),
+  receiver_contact: z.string().max(200).optional().nullable(),
+  delivery_condition: z.string().max(400).optional().nullable(),
+  remarks: z.string().max(4000).optional().nullable(),
+  issued_at: z.string().datetime().optional().nullable(),
+  issued_by: z.string().uuid().optional().nullable(),
+  snapshot: z.record(z.string(), z.any()).default({}),
+});

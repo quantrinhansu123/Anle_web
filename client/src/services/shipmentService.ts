@@ -3,6 +3,8 @@ import type {
   CreateShipmentDto,
   Shipment,
   ShipmentBlLine,
+  ArrivalNoticeRecord,
+  DeliveryNoteRecord,
   ShipmentReadinessResult,
   UpdateShipmentDto,
   UpdateShipmentStatusDto,
@@ -125,6 +127,30 @@ export const shipmentService = {
     apiFetch<Record<string, unknown>>(`/shipments/${shipmentId}/sea-house-bl`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
+    }),
+
+  getArrivalNotice: (shipmentId: string) =>
+    apiFetch<ArrivalNoticeRecord | null>(`/shipments/${shipmentId}/arrival-notice`),
+
+  upsertArrivalNotice: (
+    shipmentId: string,
+    payload: Partial<Omit<ArrivalNoticeRecord, 'id' | 'shipment_id' | 'created_at' | 'updated_at'>>,
+  ) =>
+    apiFetch<ArrivalNoticeRecord>(`/shipments/${shipmentId}/arrival-notice`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+
+  getDeliveryNote: (shipmentId: string) =>
+    apiFetch<DeliveryNoteRecord | null>(`/shipments/${shipmentId}/delivery-note`),
+
+  upsertDeliveryNote: (
+    shipmentId: string,
+    payload: Partial<Omit<DeliveryNoteRecord, 'id' | 'shipment_id' | 'created_at' | 'updated_at'>>,
+  ) =>
+    apiFetch<DeliveryNoteRecord>(`/shipments/${shipmentId}/delivery-note`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
     }),
 
   getDebitNotes: (shipmentId: string) =>

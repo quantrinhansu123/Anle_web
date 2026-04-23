@@ -19,6 +19,8 @@ import type {
   UpdateFeasibilityDto,
   ShipmentBlLine,
   ShipmentBlLineInput,
+  ArrivalNoticeRecord,
+  DeliveryNoteRecord,
 } from './shipment.types';
 
 const notificationService = new NotificationService();
@@ -546,5 +548,74 @@ export class ShipmentService {
 
     if (error) throw error;
     return this.getSeaHouseBl(shipmentId);
+  }
+
+  async getArrivalNotice(shipmentId: string): Promise<ArrivalNoticeRecord | null> {
+    const { data, error } = await supabase
+      .from('arrival_notices')
+      .select('*')
+      .eq('shipment_id', shipmentId)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  }
+
+  async upsertArrivalNotice(
+    shipmentId: string,
+    payload: Partial<Omit<ArrivalNoticeRecord, 'id' | 'shipment_id' | 'created_at' | 'updated_at'>>,
+  ): Promise<ArrivalNoticeRecord> {
+    const upsertPayload = {
+      shipment_id: shipmentId,
+      doc_no: payload.doc_no ?? null,
+      status: payload.status ?? 'draft',
+      issued_at: payload.issued_at ?? null,
+      issued_by: payload.issued_by ?? null,
+      snapshot: payload.snapshot ?? {},
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase
+      .from('arrival_notices')
+      .upsert(upsertPayload, { onConflict: 'shipment_id' })
+      .select('*')
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  async getDeliveryNote(shipmentId: string): Promise<DeliveryNoteRecord | null> {
+    const { data, error } = await supabase
+      .from('delivery_notes')
+      .select('*')
+      .eq('shipment_id', shipmentId)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  }
+
+  async upsertDeliveryNote(
+    shipmentId: string,
+    payload: Partial<Omit<DeliveryNoteRecord, 'id' | 'shipment_id' | 'created_at' | 'updated_at'>>,
+  ): Promise<DeliveryNoteRecord> {
+    const upsertPayload = {
+      shipment_id: shipmentId,
+      doc_no: payload.doc_no ?? null,
+      status: payload.status ?? 'draft',
+      delivery_date: payload.delivery_date ?? null,
+      receiver_name: payload.receiver_name ?? null,
+      receiver_contact: payload.receiver_contact ?? null,
+      delivery_condition: payload.delivery_condition ?? null,
+      remarks: payload.remarks ?? null,
+      issued_at: payload.issued_at ?? null,
+      issued_by: payload.issued_by ?? null,
+      snapshot: payload.snapshot ?? {},
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase
+      .from('delivery_notes')
+      .upsert(upsertPayload, { onConflict: 'shipment_id' })
+      .select('*')
+      .single();
+    if (error) throw error;
+    return data;
   }
 }

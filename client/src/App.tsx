@@ -39,6 +39,7 @@ import FmsDashboardPage from './pages/shipping/FmsDashboardPage';
 import BusinessDashboardPage from './pages/shipping/BusinessDashboardPage';
 import CreateSeaHouseBLPage from './pages/shipments/CreateSeaHouseBLPage';
 import ArrivalNoticePage from './pages/shipments/ArrivalNoticePage';
+import DeliveryNotePage from './pages/shipments/DeliveryNotePage';
 import HouseSeaBlListPage from './pages/shipments/HouseSeaBlListPage';
 import DebitNotePage from './pages/shipments/DebitNotePage';
 import PaymentNotePage from './pages/shipments/PaymentNotePage';
@@ -88,6 +89,7 @@ function App() {
                 {/* Shipment sub-pages (ported from jobs) */}
                 <Route path="/shipments/sop/:id/sea-house-bl" element={<CreateSeaHouseBLPage />} />
                 <Route path="/shipments/sop/:id/arrival-notice" element={<ArrivalNoticePage />} />
+                <Route path="/shipments/sop/:id/delivery-note" element={<DeliveryNotePage />} />
                 <Route path="/shipments/sop/:id/sea-house-bl/debit-note" element={<DebitNotePage />} />
                 <Route path="/shipments/sop/:id/sea-house-bl/debit-note/:dnId" element={<DebitNotePage />} />
                 <Route path="/shipments/sop/:id/sea-house-bl/payment-note" element={<PaymentNotePage />} />
@@ -101,6 +103,7 @@ function App() {
                 <Route path="/shipping/jobs/:id/edit" element={<Navigate to="/shipments/sop/:id" replace />} />
                 <Route path="/shipping/jobs/:id/sea-house-bl" element={<Navigate to="/shipments/sop/:id/sea-house-bl" replace />} />
                 <Route path="/shipping/jobs/:id/arrival-notice" element={<Navigate to="/shipments/sop/:id/arrival-notice" replace />} />
+                <Route path="/shipping/jobs/:id/delivery-note" element={<Navigate to="/shipments/sop/:id/delivery-note" replace />} />
                 <Route path="/shipping/jobs/:id/*" element={<Navigate to="/shipments/information" replace />} />
                 <Route path="/operations/jobs" element={<Navigate to="/shipments/information" replace />} />
                 <Route path="/customers/directory" element={<CustomerPage />} />

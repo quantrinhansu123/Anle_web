@@ -1,5 +1,5 @@
 import React, { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Printer, ArrowLeft, Loader2, ChevronsDown } from 'lucide-react';
+import { Printer, ArrowLeft, Loader2, ChevronsDown, FileText } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
@@ -555,6 +555,8 @@ const ArrivalNoticePage: React.FC = () => {
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
+  const [issuing, setIssuing] = useState(false);
+  const [issuedAt, setIssuedAt] = useState<string | null>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -591,12 +593,14 @@ const ArrivalNoticePage: React.FC = () => {
         return;
       }
       try {
-        const [shipment, rates] = await Promise.all([
+        const [shipment, rates, existingNotice] = await Promise.all([
           shipmentService.getShipmentById(shipmentId),
           exchangeRateService.getAll(),
+          shipmentService.getArrivalNotice(shipmentId).catch(() => null),
         ]);
         if (cancelled) return;
         setExchangeRates(rates);
+        setIssuedAt(existingNotice?.issued_at || null);
 
         let seaBlob: Record<string, unknown> = {};
         try {
@@ -620,8 +624,9 @@ const ArrivalNoticePage: React.FC = () => {
         if (cancelled) return;
 
         const chargeRows = buildChargeRows(sales);
-        const nextVm = buildViewModel(shipment, topBar, h0, c0, m0, chargeRows, rates);
-        setVm(nextVm);
+        const generatedVm = buildViewModel(shipment, topBar, h0, c0, m0, chargeRows, rates);
+        const snapshotVm = (existingNotice?.snapshot as any)?.viewModel as ArrivalNoticeViewModel | undefined;
+        setVm(snapshotVm || generatedVm);
       } catch {
         if (!cancelled) setVm(null);
       } finally {
@@ -712,6 +717,30 @@ const ArrivalNoticePage: React.FC = () => {
     window.print();
   }, []);
 
+  const handleIssueArrivalNotice = useCallback(async () => {
+    if (!shipmentId || !vm) return;
+    setIssuing(true);
+    try {
+      const now = new Date().toISOString();
+      await shipmentService.upsertArrivalNotice(shipmentId, {
+        status: 'issued',
+        issued_at: now,
+        snapshot: {
+          viewModel: vm,
+          subtotalVnd,
+          vatVnd,
+          totalVnd,
+        },
+      });
+      setIssuedAt(now);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to issue arrival notice';
+      queueMicrotask(() => toastError(msg));
+    } finally {
+      setIssuing(false);
+    }
+  }, [shipmentId, vm, subtotalVnd, vatVnd, totalVnd, toastError]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -755,42 +784,58 @@ const ArrivalNoticePage: React.FC = () => {
           <ArrowLeft size={16} />
           Back
         </button>
-        <div className="relative" ref={exportMenuRef}>
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            disabled={exportBusy}
-            onClick={() => setExportMenuOpen((o) => !o)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg shadow-md hover:bg-primary/90 transition-all font-bold text-[13px] disabled:opacity-60"
+            onClick={() => void handleIssueArrivalNotice()}
+            disabled={issuing}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg shadow-md hover:bg-emerald-700 transition-all font-bold text-[13px] disabled:opacity-60"
           >
-            {exportBusy ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
-            Print / Export
-            <ChevronsDown size={16} className="opacity-90" />
+            {issuing ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+            {issuedAt ? 'Re-issue' : 'Issue'}
           </button>
-          {exportMenuOpen ? (
-            <div className="absolute right-0 top-full mt-1 z-50 min-w-[220px] rounded-xl border border-border bg-white py-1 shadow-lg">
-              <button
-                type="button"
-                className="w-full text-left px-4 py-2.5 text-[13px] font-semibold text-slate-800 hover:bg-slate-50"
-                onClick={handleExportExcel}
-              >
-                Save as Excel
-              </button>
-              <button
-                type="button"
-                className="w-full text-left px-4 py-2.5 text-[13px] font-semibold text-slate-800 hover:bg-slate-50"
-                onClick={() => void handleExportPdf()}
-              >
-                Save as PDF
-              </button>
-              <button
-                type="button"
-                className="w-full text-left px-4 py-2.5 text-[13px] font-semibold text-slate-800 hover:bg-slate-50 border-t border-border"
-                onClick={handlePrint}
-              >
-                In trang
-              </button>
-            </div>
+          {issuedAt ? (
+            <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-2 py-1">
+              Issued {formatDate(issuedAt)}
+            </span>
           ) : null}
+          <div className="relative" ref={exportMenuRef}>
+            <button
+              type="button"
+              disabled={exportBusy}
+              onClick={() => setExportMenuOpen((o) => !o)}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg shadow-md hover:bg-primary/90 transition-all font-bold text-[13px] disabled:opacity-60"
+            >
+              {exportBusy ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
+              Print / Export
+              <ChevronsDown size={16} className="opacity-90" />
+            </button>
+            {exportMenuOpen ? (
+              <div className="absolute right-0 top-full mt-1 z-50 min-w-[220px] rounded-xl border border-border bg-white py-1 shadow-lg">
+                <button
+                  type="button"
+                  className="w-full text-left px-4 py-2.5 text-[13px] font-semibold text-slate-800 hover:bg-slate-50"
+                  onClick={handleExportExcel}
+                >
+                  Save as Excel
+                </button>
+                <button
+                  type="button"
+                  className="w-full text-left px-4 py-2.5 text-[13px] font-semibold text-slate-800 hover:bg-slate-50"
+                  onClick={() => void handleExportPdf()}
+                >
+                  Save as PDF
+                </button>
+                <button
+                  type="button"
+                  className="w-full text-left px-4 py-2.5 text-[13px] font-semibold text-slate-800 hover:bg-slate-50 border-t border-border"
+                  onClick={handlePrint}
+                >
+                  In trang
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 

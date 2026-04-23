@@ -156,4 +156,40 @@ export const ShipmentController = {
       next(err);
     }
   },
+
+  async getArrivalNotice(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await service.getArrivalNotice(req.params.id);
+      res.json(successResponse(data));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async upsertArrivalNotice(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await service.upsertArrivalNotice(req.params.id, req.body);
+      res.json(successResponse(data, 'Arrival notice saved'));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async getDeliveryNote(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await service.getDeliveryNote(req.params.id);
+      res.json(successResponse(data));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async upsertDeliveryNote(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await service.upsertDeliveryNote(req.params.id, req.body);
+      res.json(successResponse(data, 'Delivery note saved'));
+    } catch (err) {
+      next(err);
+    }
+  },
 };

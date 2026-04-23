@@ -205,6 +205,7 @@ const CreateSeaHouseBLPage: React.FC = () => {
   const [quotationLink, setQuotationLink] = useState<{ id: string; label: string } | null>(null);
   const [debitNoteCount, setDebitNoteCount] = useState(0);
   const [paymentNoteCount, setPaymentNoteCount] = useState(0);
+  const [deliveryNoteCount, setDeliveryNoteCount] = useState(0);
   const skipBlAutosaveRef = useRef(true);
   const [blHydrateEpoch, setBlHydrateEpoch] = useState(0);
 
@@ -445,6 +446,25 @@ const CreateSeaHouseBLPage: React.FC = () => {
 
   useEffect(() => {
     if (!shipmentId) {
+      setDeliveryNoteCount(0);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const item = await shipmentService.getDeliveryNote(shipmentId);
+        if (!cancelled) setDeliveryNoteCount(item ? 1 : 0);
+      } catch {
+        if (!cancelled) setDeliveryNoteCount(0);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [shipmentId]);
+
+  useEffect(() => {
+    if (!shipmentId) {
       setPaymentNoteCount(0);
       return;
     }
@@ -466,7 +486,7 @@ const CreateSeaHouseBLPage: React.FC = () => {
     expenses: 0,
     paymentNotes: paymentNoteCount,
     debitNotes: debitNoteCount,
-    dcNotes: 0,
+    dcNotes: deliveryNoteCount,
   };
 
   return (
@@ -551,6 +571,15 @@ const CreateSeaHouseBLPage: React.FC = () => {
             >
               <FileText size={15} />
               Arrival Notice
+            </button>
+            <button
+              type="button"
+              disabled={!shipmentId}
+              onClick={() => navigate(`/shipments/sop/${shipmentId}/delivery-note`)}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-violet-300 bg-violet-50 px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-violet-700 shadow-sm transition-all hover:bg-violet-100 hover:border-violet-400 disabled:pointer-events-none disabled:opacity-40"
+            >
+              <Receipt size={15} />
+              Delivery Note
             </button>
             <div className="relative" ref={printDropdownRef}>
               <button

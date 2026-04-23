@@ -115,6 +115,35 @@ export interface ShipmentBlLine {
   delivery_date: string | null;
 }
 
+export interface ArrivalNoticeRecord {
+  id: string;
+  shipment_id: string;
+  doc_no?: string | null;
+  status: 'draft' | 'issued';
+  issued_at?: string | null;
+  issued_by?: string | null;
+  snapshot: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DeliveryNoteRecord {
+  id: string;
+  shipment_id: string;
+  doc_no?: string | null;
+  status: 'draft' | 'issued';
+  delivery_date?: string | null;
+  receiver_name?: string | null;
+  receiver_contact?: string | null;
+  delivery_condition?: string | null;
+  remarks?: string | null;
+  issued_at?: string | null;
+  issued_by?: string | null;
+  snapshot: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CreateShipmentDto {
   customer_id: string;
   supplier_id?: string | null;

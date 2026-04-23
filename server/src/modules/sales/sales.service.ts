@@ -3,6 +3,7 @@ import { CreateSalesDto, UpdateSalesDto } from './sales.types';
 import { AppError } from '../../middlewares/error.middleware';
 import { ShipmentService } from '../shipments/shipment.service';
 import type { CreateShipmentDto } from '../shipments/shipment.types';
+import { assertStatusTransition, normalizeStatus, type CanonicalStatus } from './sales.workflow';
 
 const SALES_SELECT = '*, sales_items(*), sales_charge_items(*), shipments!sales_shipment_id_fkey(*, customers(*), suppliers(*)), sales_person:employees(*)';
 const shipmentService = new ShipmentService();
@@ -41,25 +42,6 @@ const HEADER_FIELDS: Array<keyof CreateSalesDto> = [
   'exchange_rate',
   'exchange_rate_date',
 ];
-
-const CANONICAL_STATUS = ['draft', 'confirmed', 'sent', 'won', 'lost'] as const;
-type CanonicalStatus = (typeof CANONICAL_STATUS)[number];
-
-const normalizeStatus = (status?: string | null): CanonicalStatus => {
-  const current = String(status || 'draft').toLowerCase();
-  if (current === 'converted') return 'won';
-  if (current === 'final') return 'sent';
-  if ((CANONICAL_STATUS as readonly string[]).includes(current)) return current as CanonicalStatus;
-  return 'draft';
-};
-
-const ALLOWED_STATUS_TRANSITIONS: Record<CanonicalStatus, CanonicalStatus[]> = {
-  draft: ['confirmed'],
-  confirmed: ['sent'],
-  sent: ['won', 'lost'],
-  won: [],
-  lost: [],
-};
 
 const pickHeaderPayload = (dto: Partial<CreateSalesDto>) => {
   const payload: Record<string, unknown> = {};
@@ -261,11 +243,7 @@ export const salesService = {
   },
 
   assertStatusTransition(current: CanonicalStatus, next: CanonicalStatus) {
-    if (current === next) return;
-    const allowed = ALLOWED_STATUS_TRANSITIONS[current] || [];
-    if (!allowed.includes(next)) {
-      throw new AppError(`Invalid quotation status transition: ${current} -> ${next}`, 400);
-    }
+    assertStatusTransition(current, next);
   },
 
   async syncCustomerStatus(sale: any, status: CanonicalStatus) {

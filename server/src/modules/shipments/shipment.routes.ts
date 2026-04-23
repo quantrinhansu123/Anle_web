@@ -6,6 +6,8 @@ import {
 	updateShipmentSchema,
 	updateShipmentStatusSchema,
 	seaHouseBlPatchSchema,
+	upsertArrivalNoticeSchema,
+	upsertDeliveryNoteSchema,
 } from './shipment.schema';
 import { FmsJobDebitNoteController } from '../fms-job-debit-notes/fms-job-debit-note.controller';
 import { createFmsJobDebitNoteSchema, updateFmsJobDebitNoteSchema } from '../fms-job-debit-notes/fms-job-debit-note.schema';
@@ -30,6 +32,10 @@ router.get('/:id/bl-lines', ShipmentController.getBlLines);
 router.put('/:id/bl-lines', ShipmentController.replaceBlLines);
 router.get('/:id/sea-house-bl', ShipmentController.getSeaHouseBl);
 router.patch('/:id/sea-house-bl', validate(seaHouseBlPatchSchema), ShipmentController.patchSeaHouseBl);
+router.get('/:id/arrival-notice', ShipmentController.getArrivalNotice);
+router.put('/:id/arrival-notice', validate(upsertArrivalNoticeSchema), ShipmentController.upsertArrivalNotice);
+router.get('/:id/delivery-note', ShipmentController.getDeliveryNote);
+router.put('/:id/delivery-note', validate(upsertDeliveryNoteSchema), ShipmentController.upsertDeliveryNote);
 
 router.get('/:id/debit-notes', FmsJobDebitNoteController.list);
 router.post('/:id/debit-notes', validate(createFmsJobDebitNoteSchema), FmsJobDebitNoteController.create);
