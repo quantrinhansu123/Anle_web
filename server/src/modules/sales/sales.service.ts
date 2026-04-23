@@ -54,6 +54,17 @@ const pickHeaderPayload = (dto: Partial<CreateSalesDto>) => {
   return payload;
 };
 
+const toLegacySalesStatus = (status: CanonicalStatus): string => {
+  if (status === 'won') return 'converted';
+  if (status === 'lost') return 'final';
+  return status;
+};
+
+const isSalesStatusConstraintError = (error: unknown): boolean => {
+  const msg = (error as { message?: string } | null)?.message || '';
+  return msg.includes('sales_status_check');
+};
+
 const syncSalesItems = async (salesId: string, incomingItems: NonNullable<UpdateSalesDto['items']>) => {
   const { data: currentItems } = await supabase
     .from('sales_items')
@@ -147,16 +158,32 @@ export const salesService = {
   async create(dto: CreateSalesDto) {
     const { items = [], charge_items = [], ...headerDto } = dto;
     const normalizedStatus = normalizeStatus(headerDto.status);
+    const baseInsertPayload = {
+      ...pickHeaderPayload(headerDto),
+      status: normalizedStatus,
+    };
 
     // 1. Insert header
-    const { data: header, error: headerError } = await supabase
+    let { data: header, error: headerError } = await supabase
       .from('sales')
-      .insert({
-        ...pickHeaderPayload(headerDto),
-        status: normalizedStatus,
-      })
+      .insert(baseInsertPayload)
       .select()
       .single();
+
+    // Backward compatibility for databases still using legacy sales_status_check.
+    if (headerError && isSalesStatusConstraintError(headerError)) {
+      const legacyPayload = {
+        ...baseInsertPayload,
+        status: toLegacySalesStatus(normalizedStatus),
+      };
+      const retry = await supabase
+        .from('sales')
+        .insert(legacyPayload)
+        .select()
+        .single();
+      header = retry.data;
+      headerError = retry.error;
+    }
 
     if (headerError) throw new AppError(headerError.message, 400);
 
@@ -211,10 +238,23 @@ export const salesService = {
     }
 
     if (Object.keys(headerPayload).length > 0) {
-       const { error: headerErr } = await supabase
+       let { error: headerErr } = await supabase
          .from('sales')
          .update(headerPayload)
          .eq('id', id);
+
+       if (headerErr && isSalesStatusConstraintError(headerErr) && typeof headerPayload.status === 'string') {
+         const legacyPayload = {
+           ...headerPayload,
+           status: toLegacySalesStatus(headerPayload.status as CanonicalStatus),
+         };
+         const retry = await supabase
+           .from('sales')
+           .update(legacyPayload)
+           .eq('id', id);
+         headerErr = retry.error;
+       }
+
        if (headerErr) throw new AppError(headerErr.message, 400);
     }
 
@@ -274,10 +314,19 @@ export const salesService = {
     const current = normalizeStatus(sale.status);
     this.assertStatusTransition(current, next);
 
-    const { error } = await supabase
+    let { error } = await supabase
       .from('sales')
       .update({ status: next })
       .eq('id', id);
+
+    if (error && isSalesStatusConstraintError(error)) {
+      const retry = await supabase
+        .from('sales')
+        .update({ status: toLegacySalesStatus(next) })
+        .eq('id', id);
+      error = retry.error;
+    }
+
     if (error) throw new AppError(error.message, 400);
 
     const updated = await this.getById(id);

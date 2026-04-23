@@ -10,6 +10,22 @@ import type {
   UpdateShipmentStatusDto,
 } from '../pages/shipments/types';
 
+const toApiShipmentStatus = (status?: string | null) => {
+  if (!status) return status;
+  switch (status) {
+    case 'feasibility_check':
+      return 'feasibility_checked';
+    case 'approved':
+      return 'planned';
+    case 'customs_cleared':
+      return 'customs_ready';
+    case 'completed':
+      return 'cost_closed';
+    default:
+      return status;
+  }
+};
+
 export interface BlockedTransition {
   status: string;
   reason: string;
@@ -74,19 +90,28 @@ export const shipmentService = {
   createShipment: (dto: CreateShipmentDto) => 
     apiFetch<Shipment>('/shipments', {
       method: 'POST',
-      body: JSON.stringify(dto),
+      body: JSON.stringify({
+        ...dto,
+        status: toApiShipmentStatus(dto.status),
+      }),
     }),
 
   updateShipment: (id: string, dto: UpdateShipmentDto) => 
     apiFetch<Shipment>(`/shipments/${id}`, {
       method: 'PATCH',
-      body: JSON.stringify(dto),
+      body: JSON.stringify({
+        ...dto,
+        status: toApiShipmentStatus(dto.status),
+      }),
     }),
 
   updateShipmentStatus: (id: string, dto: UpdateShipmentStatusDto) =>
     apiFetch<Shipment>(`/shipments/${id}/status`, {
       method: 'PATCH',
-      body: JSON.stringify(dto),
+      body: JSON.stringify({
+        ...dto,
+        status: toApiShipmentStatus(dto.status),
+      }),
     }),
 
   deleteShipment: (id: string) => 

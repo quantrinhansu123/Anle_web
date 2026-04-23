@@ -26,6 +26,33 @@ import type {
 const notificationService = new NotificationService();
 const shipmentCostService = new ShipmentCostService();
 
+const normalizeShipmentStatus = (status?: string | null): ShipmentStatus => {
+  switch (status) {
+    case 'feasibility_checked':
+      return 'feasibility_check';
+    case 'planned':
+      return 'approved';
+    case 'customs_ready':
+      return 'customs_cleared';
+    case 'cost_closed':
+      return 'completed';
+    case 'feasibility_check':
+    case 'approved':
+    case 'cost_locked':
+    case 'docs_ready':
+    case 'booked':
+    case 'customs_cleared':
+    case 'in_transit':
+    case 'delivered':
+    case 'completed':
+    case 'cancelled':
+    case 'draft':
+      return status;
+    default:
+      return 'draft';
+  }
+};
+
 const STATUS_TRANSITIONS: Record<ShipmentStatus, ShipmentStatus[]> = {
   draft: ['feasibility_check', 'cancelled'],
   feasibility_check: ['draft', 'approved', 'cancelled'], // can rollback to draft
@@ -42,6 +69,8 @@ const STATUS_TRANSITIONS: Record<ShipmentStatus, ShipmentStatus[]> = {
 
 export class ShipmentService {
   private assertCanTransition(current: ShipmentStatus, next: ShipmentStatus) {
+    current = normalizeShipmentStatus(current);
+    next = normalizeShipmentStatus(next);
     if (current === next) return;
     const allowed = STATUS_TRANSITIONS[current] ?? [];
     if (!allowed.includes(next)) {
@@ -65,6 +94,7 @@ export class ShipmentService {
   }
 
   private async assertStatusGates(next: ShipmentStatus, current: Shipment) {
+    next = normalizeShipmentStatus(next);
     if (next === 'cost_locked') {
       if (!current.planned_cost || Object.keys(current.planned_cost).length === 0) {
         throw new AppError('Cannot lock cost without planned cost data.', 400);
@@ -191,7 +221,7 @@ export class ShipmentService {
 
     const normalizedDto: CreateShipmentDto = {
       ...dto,
-      status: dto.status ?? 'draft',
+      status: normalizeShipmentStatus(dto.status ?? 'draft'),
     };
 
     // 4. Insert Shipment
@@ -225,9 +255,11 @@ export class ShipmentService {
     }
 
     if (dto.status) {
-      const currentStatus = current.status ?? 'draft';
-      this.assertCanTransition(currentStatus, dto.status);
-      await this.assertStatusGates(dto.status, { ...current, ...patch });
+      const currentStatus = normalizeShipmentStatus(current.status ?? 'draft');
+      const nextStatus = normalizeShipmentStatus(dto.status);
+      patch.status = nextStatus;
+      this.assertCanTransition(currentStatus, nextStatus);
+      await this.assertStatusGates(nextStatus, { ...current, ...patch });
     }
 
     patch.version = (current.version ?? 1) + 1;
@@ -247,28 +279,30 @@ export class ShipmentService {
     }
 
     // ─── Side Effects on Status Change ────────────────────────────
-    if (dto.status && dto.status !== current.status) {
+    if (dto.status && normalizeShipmentStatus(dto.status) !== normalizeShipmentStatus(current.status)) {
+       const nextStatus = normalizeShipmentStatus(dto.status);
+       const prevStatus = normalizeShipmentStatus(current.status);
        // Log the change
        await supabase.from('shipment_logs').insert({
          shipment_id: id,
          action: 'status_change',
-         from_value: current.status,
-         to_value: dto.status,
+         from_value: prevStatus,
+         to_value: nextStatus,
          note: 'Status transitioned via API'
        });
 
        // Dispatch notification (non-blocking)
        notificationService.notifyOnStatusChange(
          id,
-         current.status ?? 'draft',
-         dto.status,
+         prevStatus,
+         nextStatus,
          current.code,
        ).catch(err => console.error('Failed to notify status change:', err));
 
        // Vendor KPI update on completion or cancellation
-       if ((dto.status === 'completed' || dto.status === 'cancelled') && current.supplier_id) {
+       if ((nextStatus === 'completed' || nextStatus === 'cancelled') && current.supplier_id) {
          // Merge dto status so updateVendorKpi knows the final status
-         this.updateVendorKpi({ ...current, status: dto.status }).catch(err => 
+         this.updateVendorKpi({ ...current, status: nextStatus }).catch(err =>
            console.error('Failed to update vendor KPI:', err)
          );
        }
@@ -324,8 +358,8 @@ export class ShipmentService {
       .eq('id', supplierId);
   }
 
-  async updateStatus(id: string, status: ShipmentStatus): Promise<Shipment> {
-    return this.update(id, { status });
+  async updateStatus(id: string, status: ShipmentStatus | string): Promise<Shipment> {
+    return this.update(id, { status: normalizeShipmentStatus(status) });
   }
 
   async delete(id: string): Promise<void> {
@@ -342,7 +376,7 @@ export class ShipmentService {
     const item = await this.findById(id);
     if (!item) throw new AppError('Shipment not found', 404);
 
-    const currentStatus = (item.status ?? 'draft') as ShipmentStatus;
+    const currentStatus = normalizeShipmentStatus(item.status ?? 'draft');
     const candidates = STATUS_TRANSITIONS[currentStatus] ?? [];
     const allowed: ShipmentStatus[] = [];
     const blocked: BlockedTransition[] = [];
@@ -424,7 +458,8 @@ export class ShipmentService {
     // Guard: only allow updates during feasibility_check status
     const shipment = await this.findById(shipmentId);
     if (!shipment) throw new AppError('Shipment not found', 404);
-    if (shipment.status !== 'feasibility_check' && shipment.status !== 'draft') {
+    const shipmentStatus = normalizeShipmentStatus(shipment.status);
+    if (shipmentStatus !== 'feasibility_check' && shipmentStatus !== 'draft') {
       throw new AppError(
         `Cannot update feasibility after approval stage. Current status: ${shipment.status}`,
         400,

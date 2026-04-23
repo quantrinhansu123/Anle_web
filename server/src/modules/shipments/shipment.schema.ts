@@ -1,17 +1,39 @@
 import { z } from 'zod';
 
-const shipmentStatusEnum = z.enum([
+const shipmentStatusInputEnum = z.enum([
+  // Legacy values currently used by shipment service/state machine
   'draft',
-  'feasibility_checked',
-  'planned',
+  'feasibility_check',
+  'approved',
+  'cost_locked',
   'docs_ready',
   'booked',
-  'customs_ready',
+  'customs_cleared',
   'in_transit',
   'delivered',
-  'cost_closed',
+  'completed',
   'cancelled',
+  // Canonical aliases accepted for backward/forward compatibility
+  'feasibility_checked',
+  'planned',
+  'customs_ready',
+  'cost_closed',
 ]);
+
+const shipmentStatusSchema = shipmentStatusInputEnum.transform((value) => {
+  switch (value) {
+    case 'feasibility_checked':
+      return 'feasibility_check';
+    case 'planned':
+      return 'approved';
+    case 'customs_ready':
+      return 'customs_cleared';
+    case 'cost_closed':
+      return 'completed';
+    default:
+      return value;
+  }
+});
 
 const incotermEnum = z.enum([
   'EXW',
@@ -78,7 +100,7 @@ const shipmentBaseSchema = z.object({
   etd: dateStringSchema,
   eta: dateStringSchema,
   pic_id: z.string().uuid().optional().nullable(),
-  status: shipmentStatusEnum.optional(),
+  status: shipmentStatusSchema.optional(),
   is_docs_ready: z.boolean().optional(),
   is_hs_confirmed: z.boolean().optional(),
   is_phytosanitary_ready: z.boolean().optional(),
@@ -144,7 +166,7 @@ export const createShipmentSchema = shipmentBaseSchema.superRefine(shipmentBusin
 export const updateShipmentSchema = shipmentBaseSchema.partial().superRefine(shipmentBusinessRuleRefine);
 
 export const updateShipmentStatusSchema = z.object({
-  status: shipmentStatusEnum,
+  status: shipmentStatusSchema,
 });
 
 export const seaHouseBlPatchSchema = z.record(z.string(), z.any());
