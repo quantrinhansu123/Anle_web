@@ -39,7 +39,6 @@ function CardSection({ title, children }: { title: string; children: React.React
   );
 }
 
-const textInputClass = () => 'w-full rounded-xl border border-border bg-muted/10 px-3 py-2 text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary/40 transition-colors';
 const cell = 'w-full rounded border border-transparent bg-transparent px-1 py-1 text-[11px] font-medium hover:border-border hover:bg-white focus:border-primary focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20';
 
 const emptyTruckingTruckRow = (): TruckingTruckRow => ({ house_bl: '', pol: '', pod: '', plate_number: '', customs_declaration: '', salesman: '', load_type: '', service_terms: '', bound: '', incoterm: '', transport_mode: '', area: '', partner: '' });

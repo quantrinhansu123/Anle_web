@@ -90,12 +90,12 @@ const CostControlTab: React.FC<Props> = ({ shipmentId }) => {
       const res = await shipmentService.getShipmentById(shipmentId);
       if (res) {
         if (res.planned_cost && typeof res.planned_cost === 'object') {
+          const planned = res.planned_cost as Partial<CostBreakdown>;
           setPlannedCost({
-            trucking: 0,
-            agent: 0,
-            customs: 0,
-            other: 0,
-            ...(res.planned_cost as CostBreakdown),
+            trucking: Number(planned.trucking) || 0,
+            agent: Number(planned.agent) || 0,
+            customs: Number(planned.customs) || 0,
+            other: Number(planned.other) || 0,
           });
         }
         if (res.actual_cost && typeof res.actual_cost === 'object') {
