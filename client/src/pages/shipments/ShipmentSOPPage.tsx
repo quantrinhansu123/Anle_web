@@ -96,6 +96,10 @@ const STATUS_MAP: Record<string, { label: string; classes: string }> = {
   cancelled:           { label: 'Cancelled',        classes: 'bg-red-50 text-red-600 border-red-200' },
 };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const isUuidOrNullish = (value: unknown) =>
+  value == null || value === '' || (typeof value === 'string' && UUID_RE.test(value));
+
 // ─── Component ─────────────────────────────────────────
 const ShipmentSOPPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -175,6 +179,36 @@ const ShipmentSOPPage: React.FC = () => {
   const cancelNavigate = () => {
     setShowUnsavedDialog(false);
     setPendingNavigation(null);
+  };
+
+  const handleChecklistToggle = (
+    field:
+      | 'contract_id'
+      | 'is_docs_ready'
+      | 'is_hs_confirmed'
+      | 'is_phytosanitary_ready'
+      | 'is_cost_locked'
+      | 'is_truck_booked'
+      | 'is_agent_booked',
+    checked: boolean,
+  ) => {
+    if (field === 'contract_id') {
+      if (!checked) {
+        setField('contract_id', null);
+        return;
+      }
+
+      if (form.contract_id) return;
+      if (overviewContractOptions.length === 1) {
+        setField('contract_id', overviewContractOptions[0]!.value);
+        return;
+      }
+
+      toast.error('Please select or create a valid Contract before linking.');
+      return;
+    }
+
+    setField(field, checked as ShipmentFormState[typeof field]);
   };
 
   // ─── Load Data ─────────────────────────────────────
@@ -351,6 +385,34 @@ const ShipmentSOPPage: React.FC = () => {
   const handleSave = async () => {
     if (!form.customer_id || !form.supplier_id || !form.commodity) {
       toast.error('Please fill in Customer, Supplier, and Commodity');
+      return;
+    }
+    if (form.transport_sea) {
+      if (!form.hs_code?.trim()) {
+        toast.error('HS code is required for sea transport shipments');
+        return;
+      }
+      if (!form.pol?.trim() || !form.pod?.trim()) {
+        toast.error('POL/POD are required for sea transport shipments');
+        return;
+      }
+    }
+    if (form.etd && form.eta) {
+      const etdTs = new Date(form.etd).getTime();
+      const etaTs = new Date(form.eta).getTime();
+      if (!Number.isNaN(etdTs) && !Number.isNaN(etaTs) && etaTs < etdTs) {
+        toast.error('ETA must be greater than or equal to ETD');
+        return;
+      }
+    }
+    if (
+      !isUuidOrNullish(form.contract_id) ||
+      !isUuidOrNullish(form.quotation_id) ||
+      !isUuidOrNullish(form.salesperson_id) ||
+      !isUuidOrNullish(form.product_pic_id) ||
+      !isUuidOrNullish(form.pic_id)
+    ) {
+      toast.error('One or more linked IDs are invalid. Please re-select linked records.');
       return;
     }
     try {
@@ -674,7 +736,7 @@ const ShipmentSOPPage: React.FC = () => {
                 const missingItem = runGates.missing.find(m => m.key === gate.key);
                 return (
                   <label key={gate.key} className="flex items-center gap-3 cursor-pointer p-2.5 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-colors">
-                    <input type="checkbox" checked={Boolean((form as any)[gate.field])} onChange={e => setField(gate.field, e.target.checked)}
+                    <input type="checkbox" checked={Boolean((form as any)[gate.field])} onChange={e => handleChecklistToggle(gate.field, e.target.checked)}
                       className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
@@ -714,7 +776,7 @@ const ShipmentSOPPage: React.FC = () => {
                 { label: 'Agent Booked', field: 'is_agent_booked' as const },
               ].map(gate => (
                 <label key={gate.field} className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-colors">
-                  <input type="checkbox" checked={Boolean((form as any)[gate.field])} onChange={e => setField(gate.field, e.target.checked)}
+                  <input type="checkbox" checked={Boolean((form as any)[gate.field])} onChange={e => handleChecklistToggle(gate.field, e.target.checked)}
                     className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20" />
                   <span className={clsx('text-[13px] font-medium', (form as any)[gate.field] ? 'text-emerald-700' : 'text-slate-600')}>
                     {gate.label}
