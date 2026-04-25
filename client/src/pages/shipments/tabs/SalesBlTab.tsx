@@ -185,6 +185,8 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
       })),
     [quotations],
   );
+  const showSeaColumns = form.transport_sea || !form.transport_air;
+  const showAirColumns = form.transport_air;
 
   const updateBlLine = (index: number, patch: Partial<ShipmentBlLine>) => {
     setBlLines((rows) => rows.map((r, i) => (i === index ? { ...r, ...patch } : r)));
@@ -380,7 +382,18 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
               <table className="w-full text-left text-[11px]">
                 <thead className="bg-slate-50 border-b border-border">
                   <tr>
-                    {['Name', 'Sea customer', 'Air customer', 'Name', 'Package', 'Unit', 'Sea ETD', 'Sea ETA', 'Air ETD', 'Air ETA', 'Loading Date', 'Delivery Date', ''].map((h) => (
+                    {[
+                      'Name',
+                      ...(showSeaColumns ? ['Sea customer'] : []),
+                      ...(showAirColumns ? ['Air customer'] : []),
+                      'Package',
+                      'Unit',
+                      ...(showSeaColumns ? ['Sea ETD', 'Sea ETA'] : []),
+                      ...(showAirColumns ? ['Air ETD', 'Air ETA'] : []),
+                      'Loading Date',
+                      'Delivery Date',
+                      '',
+                    ].map((h) => (
                       <th key={h} className="px-2 py-2 font-bold text-muted-foreground uppercase whitespace-nowrap">
                         {h}
                       </th>
@@ -397,27 +410,24 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
                           className="box-border h-8 w-[100px] min-w-0 rounded border border-border px-1.5 text-[11px]"
                         />
                       </td>
-                      <td className="p-1 align-middle">
-                        <input
-                          value={row.sea_customer || ''}
-                          onChange={(e) => updateBlLine(idx, { sea_customer: e.target.value })}
-                          className="box-border h-8 w-[100px] min-w-0 rounded border border-border px-1.5 text-[11px]"
-                        />
-                      </td>
-                      <td className="p-1 align-middle">
-                        <input
-                          value={row.air_customer || ''}
-                          onChange={(e) => updateBlLine(idx, { air_customer: e.target.value })}
-                          className="box-border h-8 w-[100px] min-w-0 rounded border border-border px-1.5 text-[11px]"
-                        />
-                      </td>
-                      <td className="p-1 align-middle">
-                        <input
-                          value={row.name_2 || ''}
-                          onChange={(e) => updateBlLine(idx, { name_2: e.target.value })}
-                          className="box-border h-8 w-[100px] min-w-0 rounded border border-border px-1.5 text-[11px]"
-                        />
-                      </td>
+                      {showSeaColumns && (
+                        <td className="p-1 align-middle">
+                          <input
+                            value={row.sea_customer || ''}
+                            onChange={(e) => updateBlLine(idx, { sea_customer: e.target.value })}
+                            className="box-border h-8 w-[100px] min-w-0 rounded border border-border px-1.5 text-[11px]"
+                          />
+                        </td>
+                      )}
+                      {showAirColumns && (
+                        <td className="p-1 align-middle">
+                          <input
+                            value={row.air_customer || ''}
+                            onChange={(e) => updateBlLine(idx, { air_customer: e.target.value })}
+                            className="box-border h-8 w-[100px] min-w-0 rounded border border-border px-1.5 text-[11px]"
+                          />
+                        </td>
+                      )}
                       <td className="p-1 align-middle">
                         <input
                           value={row.package_text || ''}
@@ -432,38 +442,46 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
                           className="box-border h-8 w-[56px] min-w-0 rounded border border-border px-1.5 text-[11px]"
                         />
                       </td>
-                      <td className="p-1 align-middle">
-                        <DateInput
-                          dense
-                          value={row.sea_etd || ''}
-                          onChange={(v) => updateBlLine(idx, { sea_etd: v })}
-                          className="min-w-[108px]"
-                        />
-                      </td>
-                      <td className="p-1 align-middle">
-                        <DateInput
-                          dense
-                          value={row.sea_eta || ''}
-                          onChange={(v) => updateBlLine(idx, { sea_eta: v })}
-                          className="min-w-[108px]"
-                        />
-                      </td>
-                      <td className="p-1 align-middle">
-                        <DateInput
-                          dense
-                          value={row.air_etd || ''}
-                          onChange={(v) => updateBlLine(idx, { air_etd: v })}
-                          className="min-w-[108px]"
-                        />
-                      </td>
-                      <td className="p-1 align-middle">
-                        <DateInput
-                          dense
-                          value={row.air_eta || ''}
-                          onChange={(v) => updateBlLine(idx, { air_eta: v })}
-                          className="min-w-[108px]"
-                        />
-                      </td>
+                      {showSeaColumns && (
+                        <td className="p-1 align-middle">
+                          <DateInput
+                            dense
+                            value={row.sea_etd || ''}
+                            onChange={(v) => updateBlLine(idx, { sea_etd: v })}
+                            className="min-w-[108px]"
+                          />
+                        </td>
+                      )}
+                      {showSeaColumns && (
+                        <td className="p-1 align-middle">
+                          <DateInput
+                            dense
+                            value={row.sea_eta || ''}
+                            onChange={(v) => updateBlLine(idx, { sea_eta: v })}
+                            className="min-w-[108px]"
+                          />
+                        </td>
+                      )}
+                      {showAirColumns && (
+                        <td className="p-1 align-middle">
+                          <DateInput
+                            dense
+                            value={row.air_etd || ''}
+                            onChange={(v) => updateBlLine(idx, { air_etd: v })}
+                            className="min-w-[108px]"
+                          />
+                        </td>
+                      )}
+                      {showAirColumns && (
+                        <td className="p-1 align-middle">
+                          <DateInput
+                            dense
+                            value={row.air_eta || ''}
+                            onChange={(v) => updateBlLine(idx, { air_eta: v })}
+                            className="min-w-[108px]"
+                          />
+                        </td>
+                      )}
                       <td className="p-1 align-middle">
                         <DateInput
                           dense

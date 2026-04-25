@@ -26,6 +26,13 @@ import { useToastContext } from '../contexts/ToastContext';
 
 // --- CONFIGURATION ---
 type ColDef = { label: string; thClass: string; tdClass: string; renderContent: (r: PaymentRequest) => React.ReactNode };
+const getRequestAgeDays = (requestDate: string): number => {
+  const start = DateTime.fromISO(requestDate);
+  if (!start.isValid) return 0;
+  const diffDays = Math.floor(DateTime.now().startOf('day').diff(start.startOf('day'), 'days').days);
+  return Math.max(0, diffDays);
+};
+
 const COLUMN_DEFS: Record<string, ColDef> = {
   no_doc: {
     label: 'Doc No',
@@ -61,6 +68,19 @@ const COLUMN_DEFS: Record<string, ColDef> = {
         </span>
       </div>
     )
+  },
+  aging_days: {
+    label: 'Aging (Days)',
+    thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight border-b border-border/40 border-r border-border/40 w-36 text-center',
+    tdClass: 'px-4 py-4 border-b border-border/60 border-r border-border/40 text-center',
+    renderContent: (r) => {
+      const days = getRequestAgeDays(r.request_date);
+      return (
+        <span className="inline-flex min-w-[72px] items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[12px] font-bold text-amber-700 tabular-nums">
+          {days} ngày
+        </span>
+      );
+    }
   },
   supplier: {
     label: 'Supplier',

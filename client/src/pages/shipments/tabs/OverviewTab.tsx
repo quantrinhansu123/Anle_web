@@ -12,6 +12,7 @@ interface OverviewTabProps {
   customers: any[];
   suppliers: any[];
   contracts: { value: string; label: string }[];
+  quotations: { value: string; label: string }[];
   selectedCustomer: any;
   selectedSupplier: any;
   handleCreateNewCustomer: () => void;
@@ -22,7 +23,7 @@ interface OverviewTabProps {
 }
 
 const OverviewTab: React.FC<OverviewTabProps> = ({
-  form, setField, customers, suppliers, contracts, selectedCustomer, selectedSupplier,
+  form, setField, customers, suppliers, contracts, quotations, selectedCustomer, selectedSupplier,
   handleCreateNewCustomer, handleCreateNewSupplier, isSavingCustomer, isSavingSupplier,
   onOpenContractDialog
 }) => {
@@ -204,6 +205,20 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                 <span className="text-[12px] font-medium">LCL</span>
               </label>
             </div>
+          </div>
+          <div className="space-y-1.5 col-span-2">
+            <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5">
+              <ScrollText size={12} /> Link Quotation
+            </label>
+            <SearchableSelect
+              options={quotations}
+              value={form.quotation_id || ''}
+              onValueChange={(v) => setField('quotation_id', v || null)}
+              placeholder={form.customer_id ? 'Select quotation...' : 'Select customer first to filter quotations'}
+            />
+            <p className="text-[10px] text-slate-500 font-medium">
+              Link shipment with quotation to keep reference and documents synced.
+            </p>
           </div>
 
           {/* POL / POD / ETD / ETA */}

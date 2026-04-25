@@ -1,4 +1,3 @@
-import { CalendarDays } from 'lucide-react';
 import { DateInput } from '../../../components/ui/DateInput';
 import { FieldLabel, SectionCard, inputClass } from './blSharedHelpers';
 
@@ -235,15 +234,6 @@ export function HeaderTab({
               className={inputClass}
               placeholder="Place of Delivery"
             />
-          </div>
-          <div className="sm:col-span-2 pt-1">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-primary shadow-sm hover:bg-primary/10 transition-colors"
-            >
-              <CalendarDays size={13} />
-              Schedules
-            </button>
           </div>
         </div>
       </SectionCard>

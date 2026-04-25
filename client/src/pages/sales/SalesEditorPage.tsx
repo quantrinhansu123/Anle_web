@@ -677,6 +677,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
     index: number;
   } | null>(null);
   const [creatingJob, setCreatingJob] = useState(false);
+  const lastAutoRateCurrencyRef = useRef<string | null>(null);
 
   const exchangeRateByCode = useMemo(() => {
     const m = new Map<string, number>();
@@ -835,27 +836,38 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
   ]);
 
   useEffect(() => {
-    if (!formState.currency_code || isReadOnly) return;
+    const currentCurrency = formState.currency_code;
+    if (!currentCurrency || isReadOnly) return;
 
-    if (formState.currency_code === 'VND') {
+    const currencyChanged = lastAutoRateCurrencyRef.current !== currentCurrency;
+
+    if (currentCurrency === 'VND') {
       if ((formState.exchange_rate || 0) !== 1) {
         setFormField('exchange_rate', 1);
       }
-      if (!formState.exchange_rate_date) {
+      if (!formState.exchange_rate_date || currencyChanged) {
         setFormField('exchange_rate_date', new Date().toISOString());
       }
+      lastAutoRateCurrencyRef.current = currentCurrency;
       return;
     }
 
-    const rateObj = exchangeRates.find((rate) => rate.currency_code === formState.currency_code);
+    const rateObj = exchangeRates.find((rate) => rate.currency_code === currentCurrency);
     if (!rateObj) return;
 
-    if ((formState.exchange_rate || 0) !== rateObj.rate) {
-      setFormField('exchange_rate', rateObj.rate);
-    }
-    if (formState.exchange_rate_date !== rateObj.updated_at) {
+    const hasManualRate = (formState.exchange_rate || 0) > 0;
+    if (currencyChanged || !hasManualRate) {
+      if ((formState.exchange_rate || 0) !== rateObj.rate) {
+        setFormField('exchange_rate', rateObj.rate);
+      }
+      if (formState.exchange_rate_date !== rateObj.updated_at) {
+        setFormField('exchange_rate_date', rateObj.updated_at);
+      }
+    } else if (!formState.exchange_rate_date) {
       setFormField('exchange_rate_date', rateObj.updated_at);
     }
+
+    lastAutoRateCurrencyRef.current = currentCurrency;
   }, [
     formState.currency_code,
     formState.exchange_rate,
@@ -1160,7 +1172,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                         <input
                           type="number"
                           step="0.01"
-                          value={row.quantity || 0}
+                          value={Number(row.quantity) || 0}
                           onChange={(e) => updateChargeRow(group, index, 'quantity', Number(e.target.value) || 0)}
                           disabled={isReadOnly}
                           className={`${fieldClassMobile} text-right`}
@@ -1172,7 +1184,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                         <input
                           type="number"
                           step="0.01"
-                          value={row.unit_price || 0}
+                          value={Number(row.unit_price) || 0}
                           onChange={(e) => updateChargeRow(group, index, 'unit_price', Number(e.target.value) || 0)}
                           disabled={isReadOnly}
                           className={`${fieldClassMobile} text-right`}
@@ -1184,7 +1196,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                         <input
                           type="number"
                           step="0.1"
-                          value={row.vat_percent || 0}
+                          value={Number(row.vat_percent) || 0}
                           onChange={(e) => updateChargeRow(group, index, 'vat_percent', Number(e.target.value) || 0)}
                           disabled={isReadOnly}
                           className={`${fieldClassMobile} text-right`}
@@ -1345,13 +1357,13 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                           />
                         </td>
                         <td className="px-3 py-2 border-b border-border/60">
-                          <input type="number" step="0.01" value={row.quantity || 0} onChange={(e) => updateChargeRow(group, index, 'quantity', Number(e.target.value) || 0)} disabled={isReadOnly} className="w-full px-2 py-1 border border-border rounded-md text-[12px] text-right" />
+                          <input type="number" step="0.01" value={Number(row.quantity) || 0} onChange={(e) => updateChargeRow(group, index, 'quantity', Number(e.target.value) || 0)} disabled={isReadOnly} className="w-full px-2 py-1 border border-border rounded-md text-[12px] text-right" />
                         </td>
                         <td className="px-3 py-2 border-b border-border/60">
-                          <input type="number" step="0.01" value={row.unit_price || 0} onChange={(e) => updateChargeRow(group, index, 'unit_price', Number(e.target.value) || 0)} disabled={isReadOnly} className="w-full px-2 py-1 border border-border rounded-md text-[12px] text-right" />
+                          <input type="number" step="0.01" value={Number(row.unit_price) || 0} onChange={(e) => updateChargeRow(group, index, 'unit_price', Number(e.target.value) || 0)} disabled={isReadOnly} className="w-full px-2 py-1 border border-border rounded-md text-[12px] text-right" />
                         </td>
                         <td className="px-3 py-2 border-b border-border/60">
-                          <input type="number" step="0.1" value={row.vat_percent || 0} onChange={(e) => updateChargeRow(group, index, 'vat_percent', Number(e.target.value) || 0)} disabled={isReadOnly} className="w-full px-2 py-1 border border-border rounded-md text-[12px] text-right" />
+                          <input type="number" step="0.1" value={Number(row.vat_percent) || 0} onChange={(e) => updateChargeRow(group, index, 'vat_percent', Number(e.target.value) || 0)} disabled={isReadOnly} className="w-full px-2 py-1 border border-border rounded-md text-[12px] text-right" />
                         </td>
                         <td className="px-3 py-2 border-b border-border/60 text-[12px] font-bold text-right tabular-nums">
                           {amountExVnd}

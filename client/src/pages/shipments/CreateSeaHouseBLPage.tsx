@@ -1,17 +1,14 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { clsx } from 'clsx';
 import {
   Anchor,
-  ChevronDown,
   ChevronLeft,
   Pencil,
   DollarSign,
   FileText,
-  Printer,
   Receipt,
   Ship,
-  Upload,
 } from 'lucide-react';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { useToastContext } from '../../contexts/ToastContext';
@@ -28,7 +25,6 @@ import {
   buildSeaHousePrefillFromSales,
   seaHouseBlBlobHasContent,
 } from './mapQuotationToSeaHousePrefill';
-import UploadBOLDialog from './dialogs/UploadBOLDialog';
 import { HeaderTab, emptyHeaderState } from './bl-tabs/HeaderTab';
 import type { HeaderTabState } from './bl-tabs/HeaderTab';
 import { ContainerTab, emptyContainerState } from './bl-tabs/ContainerTab';
@@ -101,6 +97,12 @@ const SERVICE_TERMS = [
   { value: 'cy-door', label: 'CY / Door' },
 ];
 
+const toDateOnly = (v?: string | null): string => {
+  if (!v) return '';
+  const s = String(v).trim().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
+};
+
 function StatCard({
   icon: Icon,
   label,
@@ -155,40 +157,6 @@ const CreateSeaHouseBLPage: React.FC = () => {
   const { setCustomBreadcrumbs } = useBreadcrumb();
 
   const [activeTab, setActiveTab] = useState<HBLTab>('header');
-  const [showUploadDialog, setShowUploadDialog] = useState(false);
-  const [printDropdownOpen, setPrintDropdownOpen] = useState(false);
-  const printDropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!printDropdownOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (printDropdownRef.current && !printDropdownRef.current.contains(e.target as Node)) {
-        setPrintDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [printDropdownOpen]);
-
-  const PRINT_OPTIONS = [
-    'Delivery Request',
-    'HAWB',
-    'Proof Of Delivery',
-    'ISF 10+2',
-    'ISF 5+2',
-    'HBL',
-    'HBL Origin',
-    'Manifest XLSX',
-  ];
-
-  const handlePrintOption = useCallback(
-    (option: string) => {
-      setPrintDropdownOpen(false);
-      toastOk(`Print: ${option} — coming soon`);
-    },
-    [toastOk],
-  );
-
   const [hbl, setHbl] = useState('');
   const [blType, setBlType] = useState('');
   const [blReleaseStatus, setBlReleaseStatus] = useState('');
@@ -207,6 +175,7 @@ const CreateSeaHouseBLPage: React.FC = () => {
   const [paymentNoteCount, setPaymentNoteCount] = useState(0);
   const [deliveryNoteCount, setDeliveryNoteCount] = useState(0);
   const skipBlAutosaveRef = useRef(true);
+  const skipShipmentLinkAutosaveRef = useRef(true);
   const [blHydrateEpoch, setBlHydrateEpoch] = useState(0);
 
   const [headerState, setHeaderState] = useState<HeaderTabState>(emptyHeaderState);
@@ -293,8 +262,20 @@ const CreateSeaHouseBLPage: React.FC = () => {
         if (cancelled) return;
 
         const mjn = shipmentData.master_job_no || '';
+        const autoFileNo =
+          (shipmentData.code || '').trim() ||
+          mjn.trim() ||
+          (shipmentId ? `HBL-${shipmentId.slice(0, 8).toUpperCase()}` : '');
         setMasterJobLabel(mjn);
         setShipmentCodeLabel(shipmentData.code || '');
+        if (shipmentData.master_bl_number) setMasterBl(shipmentData.master_bl_number);
+        if (shipmentData.bl_status) setBlReleaseStatus(shipmentData.bl_status);
+        if (shipmentData.bl_status_detail) setSwitchBl(shipmentData.bl_status_detail);
+        if (shipmentData.bound) setBound(shipmentData.bound);
+        if (shipmentData.term) setIncoterm(String(shipmentData.term).toLowerCase());
+        if (shipmentData.services) setServiceTerm(shipmentData.services);
+        if (shipmentData.load_fcl) setLoadType('fcl');
+        else if (shipmentData.load_lcl) setLoadType('lcl');
 
         if (shipmentData.quotation_id) {
           const qLabel =
@@ -305,10 +286,36 @@ const CreateSeaHouseBLPage: React.FC = () => {
           setQuotationLink(null);
         }
 
+        const shipmentHeaderDefaults: Partial<HeaderTabState> = {
+          carrier: (shipmentData.master_bl_carrier || '').trim(),
+          firstVessel: (shipmentData.vessel_voyage || '').trim(),
+          mvvd: (shipmentData.vessel_voyage || '').trim(),
+          etd: toDateOnly(shipmentData.etd),
+          eta: toDateOnly(shipmentData.eta),
+          ata: toDateOnly(shipmentData.actual_eta),
+          onboardDate: toDateOnly(shipmentData.etd),
+          performanceDate: toDateOnly(shipmentData.performance_date),
+          pol: (shipmentData.pol || '').trim(),
+          pod: (shipmentData.pod || '').trim(),
+          por: (shipmentData.pol || '').trim(),
+          pvy: (shipmentData.pod || '').trim(),
+        };
+        const mergeHeaderWithShipmentDefaults = (prev: HeaderTabState): HeaderTabState => {
+          const next = { ...prev };
+          (Object.keys(shipmentHeaderDefaults) as Array<keyof HeaderTabState>).forEach((k) => {
+            const current = String(prev[k] || '').trim();
+            const fallback = String(shipmentHeaderDefaults[k] || '').trim();
+            if (!current && fallback) {
+              next[k] = fallback as HeaderTabState[typeof k];
+            }
+          });
+          return next;
+        };
+
         const parsed = parseSeaHouseBlV1(sea);
         if (parsed) {
           const tb = parsed.topBar;
-          setHbl(tb.hbl);
+          setHbl(tb.hbl || autoFileNo);
           setBlType(tb.blType);
           setBlReleaseStatus(tb.blReleaseStatus);
           setBound(tb.bound);
@@ -319,23 +326,26 @@ const CreateSeaHouseBLPage: React.FC = () => {
           setJobNo(mjn);
           setIncoterm(tb.incoterm);
           setServiceTerm(tb.serviceTerm);
-          setHeaderState(parsed.header);
+          setHeaderState(mergeHeaderWithShipmentDefaults(parsed.header));
           setContainerState(parsed.container);
           setMarksState(parsed.marks);
           setFreightState(parsed.freight);
         } else {
+          setHbl(autoFileNo);
           setJobNo(mjn);
           if (!seaHouseBlBlobHasContent(sea) && shipmentData.quotation_id) {
             const sales = await salesService.getSalesItemById(shipmentData.quotation_id);
             if (cancelled) return;
             const { headerPatch, topBar } = buildSeaHousePrefillFromSales(sales);
-            setHeaderState((prev) => ({ ...prev, ...headerPatch }));
+            setHeaderState((prev) => mergeHeaderWithShipmentDefaults({ ...prev, ...headerPatch }));
             if (topBar.masterBl) setMasterBl(topBar.masterBl);
             if (topBar.bound) setBound(topBar.bound);
             if (topBar.incoterm) setIncoterm(topBar.incoterm);
             if (topBar.loadType) setLoadType(topBar.loadType);
             if (topBar.shipmentLabel) setShipment(topBar.shipmentLabel);
             toastOk('Sea House B/L prefilled from quotation.');
+          } else {
+            setHeaderState((prev) => mergeHeaderWithShipmentDefaults(prev));
           }
         }
       } catch {
@@ -344,6 +354,7 @@ const CreateSeaHouseBLPage: React.FC = () => {
         window.setTimeout(() => {
           if (!cancelled) {
             skipBlAutosaveRef.current = false;
+            skipShipmentLinkAutosaveRef.current = false;
             setBlHydrateEpoch((n) => n + 1);
           }
         }, 500);
@@ -386,6 +397,43 @@ const CreateSeaHouseBLPage: React.FC = () => {
     }, 1400);
     return () => window.clearTimeout(t);
   }, [blHydrateEpoch, shipmentId, isViewMode, seaHousePersistKey, toastErr]);
+
+  useEffect(() => {
+    if (!shipmentId || skipShipmentLinkAutosaveRef.current || isViewMode) return;
+
+    const loadTypeNorm = (loadType || '').trim().toLowerCase();
+    const linkedPayload = {
+      master_bl_number: masterBl || null,
+      bl_status: blReleaseStatus || null,
+      bl_status_detail: switchBl || null,
+      bound: bound || null,
+      term: incoterm || null,
+      services: serviceTerm || null,
+      master_job_no: jobNo || null,
+      load_fcl: loadTypeNorm === 'fcl',
+      load_lcl: loadTypeNorm === 'lcl',
+    };
+
+    const t = window.setTimeout(() => {
+      void shipmentService.updateShipment(shipmentId, linkedPayload).catch((e: unknown) => {
+        toastErr(e instanceof Error ? e.message : 'Could not link B/L details to shipment bill form');
+      });
+    }, 1200);
+
+    return () => window.clearTimeout(t);
+  }, [
+    shipmentId,
+    isViewMode,
+    masterBl,
+    blReleaseStatus,
+    switchBl,
+    bound,
+    incoterm,
+    serviceTerm,
+    jobNo,
+    loadType,
+    toastErr,
+  ]);
 
   useEffect(() => {
     const shipmentLabel = shipmentCodeLabel || masterJobLabel || (shipmentId ? `Shipment ${shipmentId.slice(0, 8)}...` : 'New Shipment');
@@ -556,15 +604,6 @@ const CreateSeaHouseBLPage: React.FC = () => {
             </button>
             <button
               type="button"
-              disabled={isViewMode}
-              onClick={() => setShowUploadDialog(true)}
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-indigo-300 bg-indigo-50 px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-indigo-700 shadow-sm transition-all hover:bg-indigo-100 hover:border-indigo-400 disabled:pointer-events-none disabled:opacity-40"
-            >
-              <Upload size={15} />
-              Upload BOL
-            </button>
-            <button
-              type="button"
               disabled={!shipmentId}
               onClick={() => navigate(`/shipments/sop/${shipmentId}/arrival-notice`)}
               className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-sky-300 bg-sky-50 px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-sky-700 shadow-sm transition-all hover:bg-sky-100 hover:border-sky-400 disabled:pointer-events-none disabled:opacity-40"
@@ -572,40 +611,6 @@ const CreateSeaHouseBLPage: React.FC = () => {
               <FileText size={15} />
               Arrival Notice
             </button>
-            <button
-              type="button"
-              disabled={!shipmentId}
-              onClick={() => navigate(`/shipments/sop/${shipmentId}/delivery-note`)}
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-violet-300 bg-violet-50 px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-violet-700 shadow-sm transition-all hover:bg-violet-100 hover:border-violet-400 disabled:pointer-events-none disabled:opacity-40"
-            >
-              <Receipt size={15} />
-              Delivery Note
-            </button>
-            <div className="relative" ref={printDropdownRef}>
-              <button
-                type="button"
-                onClick={() => setPrintDropdownOpen((v) => !v)}
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-400"
-              >
-                <Printer size={15} />
-                Print
-                <ChevronDown size={14} className={clsx('transition-transform', printDropdownOpen && 'rotate-180')} />
-              </button>
-              {printDropdownOpen && (
-                <div className="absolute right-0 z-[9999] mt-1.5 w-52 animate-in fade-in slide-in-from-top-1 duration-150 rounded-xl border border-border bg-white py-1 shadow-xl shadow-slate-200/60">
-                  {PRINT_OPTIONS.map((opt) => (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => handlePrintOption(opt)}
-                      className="flex w-full items-center px-4 py-2.5 text-left text-[12px] font-semibold text-slate-700 transition-colors hover:bg-primary/5 hover:text-primary"
-                    >
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         </div>
       </div>
@@ -812,15 +817,6 @@ const CreateSeaHouseBLPage: React.FC = () => {
           </div>
         </fieldset>
       </div>
-
-      <UploadBOLDialog
-        open={showUploadDialog}
-        onClose={() => setShowUploadDialog(false)}
-        onExtract={(file) => {
-          setShowUploadDialog(false);
-          toastOk(`Extracting data from ${file.name}…`);
-        }}
-      />
     </div>
   );
 };

@@ -13,7 +13,9 @@ import { customerService, type Customer } from '../../services/customerService';
 import { supplierService, type Supplier, type CreateSupplierDto } from '../../services/supplierService';
 import { contractService } from '../../services/contractService';
 import { employeeService } from '../../services/employeeService';
+import { salesService } from '../../services/salesService';
 import type { Contract } from '../contracts/types';
+import type { Sales } from '../sales/types';
 import ContractDialog from '../contracts/dialogs/ContractDialog';
 import {
   shipmentDocumentService,
@@ -152,6 +154,7 @@ const ShipmentSOPPage: React.FC = () => {
   const [customers, setCustomers] = useState<(Partial<Customer> & { value: string; label: string })[]>([]);
   const [suppliers, setSuppliers] = useState<(Partial<Supplier> & { value: string; label: string })[]>([]);
   const [contracts, setContracts] = useState<{ value: string; label: string; customer_id?: string; supplier_id?: string }[]>([]);
+  const [quotations, setQuotations] = useState<Sales[]>([]);
   const [documents, setDocuments] = useState<ShipmentDocument[]>([]);
   const [customsClearances, setCustomsClearances] = useState<CustomsClearance[]>([]);
   
@@ -277,11 +280,12 @@ const ShipmentSOPPage: React.FC = () => {
   // ─── Load Data ─────────────────────────────────────
   const loadMasterData = useCallback(async () => {
     try {
-      const [custData, suppData, contractData, empData] = await Promise.all([
+      const [custData, suppData, contractData, empData, salesData] = await Promise.all([
         customerService.getCustomers(),
         supplierService.getSuppliers(),
         contractService.getContracts(1, 500),
         employeeService.getEmployees(),
+        salesService.getSalesItems(1, 500),
       ]);
       setCustomers((custData || []).map((c: any) => ({
         ...c, value: c.id, label: c.company_name || c.name || c.id,
@@ -296,6 +300,7 @@ const ShipmentSOPPage: React.FC = () => {
         supplier_id: ct.supplier_id,
       })));
       setEmployees(empData || []);
+      setQuotations(Array.isArray(salesData) ? salesData : []);
     } catch (err) { console.error('Failed to load master data:', err); }
   }, []);
 
@@ -385,6 +390,34 @@ const ShipmentSOPPage: React.FC = () => {
     }
     return base;
   }, [partyMatchedContracts, contracts, form.contract_id]);
+
+  const overviewQuotationOptions = useMemo(() => {
+    const customerId = (form.customer_id || '').trim();
+    const base = quotations
+      .filter((q) => {
+        if (!customerId) return true;
+        const qCustomer = (q.customer_id || q.shipments?.customer_id || '').trim();
+        return qCustomer === customerId;
+      })
+      .map((q) => ({
+        value: q.id,
+        label: `${q.no_doc || `Q-${q.id.slice(0, 8).toUpperCase()}`} · ${(q.status || 'draft').toUpperCase()}${q.customer_trade_name ? ` · ${q.customer_trade_name}` : ''}`,
+      }));
+
+    if (form.quotation_id && !base.some((q) => q.value === form.quotation_id)) {
+      const selected = quotations.find((q) => q.id === form.quotation_id);
+      if (selected) {
+        return [
+          {
+            value: selected.id,
+            label: `${selected.no_doc || `Q-${selected.id.slice(0, 8).toUpperCase()}`} · ${(selected.status || 'draft').toUpperCase()}`,
+          },
+          ...base,
+        ];
+      }
+    }
+    return base;
+  }, [quotations, form.customer_id, form.quotation_id]);
 
   /** When there is exactly one contract for this customer/supplier, link it and persist (no ambiguous multi-match). */
   useEffect(() => {
@@ -760,6 +793,7 @@ const ShipmentSOPPage: React.FC = () => {
                <OverviewTab 
                    form={form} setField={setField}
                    customers={customers} suppliers={suppliers} contracts={overviewContractOptions}
+                   quotations={overviewQuotationOptions}
                    selectedCustomer={selectedCustomer} selectedSupplier={selectedSupplier}
                    handleCreateNewCustomer={handleCreateNewCustomer} handleCreateNewSupplier={handleCreateNewSupplier}
                    isSavingCustomer={isSavingCustomer} isSavingSupplier={isSavingSupplier}

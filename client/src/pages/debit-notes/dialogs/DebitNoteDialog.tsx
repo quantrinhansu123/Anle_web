@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X, Plus, Hash, Ship, Calendar, Receipt, Trash2, DollarSign, ChevronRight, Edit
+  X, Plus, Hash, Ship, Calendar, Receipt, Trash2, DollarSign, ChevronRight, Edit, Printer
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { SearchableSelect } from '../../../components/ui/SearchableSelect';
@@ -167,6 +167,108 @@ const DebitNoteDialog: React.FC<Props> = ({
   }, 0);
 
   const grandTotal = totalInvoice + totalChiHo;
+
+  const formatAmount = (value: number) =>
+    new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value || 0);
+
+  const handlePrintDebitNote = () => {
+    const shipmentLabel = selectedShipment?.code || selectedShipment?.id || formState.shipment_id || '—';
+    const noteDateLabel = note_date ? new Date(note_date).toLocaleDateString('en-GB') : '—';
+    const invoiceRowsHtml = invoice_items.length
+      ? invoice_items
+          .map((item) => {
+            const lineTotal = item.total || (item.rate * item.quantity * (item.exchange_rate || 1) * (1 + (item.tax_percent || 0) / 100));
+            return `
+              <tr>
+                <td>${item.description || '—'}</td>
+                <td>${item.unit || '—'}</td>
+                <td>${item.currency_code || 'VND'}</td>
+                <td style="text-align:right">${formatAmount(item.rate || 0)}</td>
+                <td style="text-align:right">${formatAmount(item.quantity || 0)}</td>
+                <td style="text-align:right">${formatAmount(lineTotal || 0)}</td>
+              </tr>
+            `;
+          })
+          .join('')
+      : '<tr><td colspan="6" style="text-align:center;color:#64748b">No invoice items</td></tr>';
+
+    const disbursementRowsHtml = chi_ho_items.length
+      ? chi_ho_items
+          .map((item) => {
+            const lineTotal = item.total || (item.rate * item.quantity * (item.exchange_rate || 1));
+            return `
+              <tr>
+                <td>${item.description || '—'}</td>
+                <td>${item.unit || '—'}</td>
+                <td>${item.currency_code || 'VND'}</td>
+                <td style="text-align:right">${formatAmount(item.rate || 0)}</td>
+                <td style="text-align:right">${formatAmount(item.quantity || 0)}</td>
+                <td style="text-align:right">${formatAmount(lineTotal || 0)}</td>
+              </tr>
+            `;
+          })
+          .join('')
+      : '<tr><td colspan="6" style="text-align:center;color:#64748b">No disbursement items</td></tr>';
+
+    const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Debit Note ${shipmentLabel}</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; color: #0f172a; }
+      h1 { margin: 0 0 8px; font-size: 24px; }
+      .meta { margin: 0 0 16px; color: #475569; font-size: 13px; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+      .card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; }
+      .label { color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
+      .value { font-size: 13px; font-weight: 700; }
+      table { width: 100%; border-collapse: collapse; margin-top: 8px; margin-bottom: 16px; }
+      th, td { border: 1px solid #e2e8f0; padding: 8px; font-size: 12px; }
+      th { background: #f8fafc; text-align: left; text-transform: uppercase; font-size: 10px; color: #475569; }
+      .section { margin-top: 14px; }
+      .section h2 { font-size: 13px; margin: 0 0 8px; color: #2563eb; text-transform: uppercase; letter-spacing: .04em; }
+      .totals { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; width: 320px; margin-left: auto; }
+      .totals-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; }
+      .totals-row strong { font-size: 16px; color: #2563eb; }
+      @media print { body { margin: 10mm; } }
+    </style>
+  </head>
+  <body>
+    <h1>Debit Note</h1>
+    <p class="meta">Shipment: ${shipmentLabel} · Note date: ${noteDateLabel}</p>
+    <div class="grid">
+      <div class="card"><div class="label">Commodity</div><div class="value">${selectedShipment?.commodity || '—'}</div></div>
+      <div class="card"><div class="label">Route</div><div class="value">${selectedShipment?.pol || '—'} → ${selectedShipment?.pod || '—'}</div></div>
+    </div>
+    <div class="section">
+      <h2>Invoice Items</h2>
+      <table>
+        <thead><tr><th>Description</th><th>Unit</th><th>Curr</th><th>Rate</th><th>Qty</th><th>Total (VND)</th></tr></thead>
+        <tbody>${invoiceRowsHtml}</tbody>
+      </table>
+    </div>
+    <div class="section">
+      <h2>Disbursements</h2>
+      <table>
+        <thead><tr><th>Description</th><th>Unit</th><th>Curr</th><th>Rate</th><th>Qty</th><th>Total (VND)</th></tr></thead>
+        <tbody>${disbursementRowsHtml}</tbody>
+      </table>
+    </div>
+    <div class="totals">
+      <div class="totals-row"><span>Total Invoice</span><span>${formatAmount(totalInvoice)}</span></div>
+      <div class="totals-row"><span>Total Disbursements</span><span>${formatAmount(totalChiHo)}</span></div>
+      <div class="totals-row"><strong>Grand Total</strong><strong>${formatAmount(grandTotal)}</strong></div>
+    </div>
+    <script>window.print();</script>
+  </body>
+</html>`;
+    const w = window.open('', '_blank', 'width=960,height=720');
+    if (!w) return;
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+  };
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex justify-end">
@@ -575,14 +677,23 @@ const DebitNoteDialog: React.FC<Props> = ({
           </div>
 
           {isDetailMode && onEdit && (
-            <button
-              onClick={onEdit}
-              className="flex items-center gap-2 px-8 py-2 rounded-xl bg-blue-600 text-white text-[13px] font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all group active:scale-95"
-            >
-              <Edit size={18} />
-              Edit Record
-              <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handlePrintDebitNote}
+                className="flex items-center gap-2 px-5 py-2 rounded-xl border border-border bg-white text-slate-700 text-[13px] font-bold hover:bg-slate-50 shadow-sm transition-all active:scale-95"
+              >
+                <Printer size={16} />
+                Print
+              </button>
+              <button
+                onClick={onEdit}
+                className="flex items-center gap-2 px-8 py-2 rounded-xl bg-blue-600 text-white text-[13px] font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all group active:scale-95"
+              >
+                <Edit size={18} />
+                Edit Record
+                <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            </div>
           )}
 
           {!isDetailMode && (

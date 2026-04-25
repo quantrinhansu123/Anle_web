@@ -77,7 +77,7 @@ const COLUMN_DEFS: Record<string, ColDef> = {
     label: 'Payment Term',
     thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-40 border-r border-border/40',
     tdClass: 'px-4 py-4 border-r border-border/40 text-[13px] text-muted-foreground',
-    renderContent: (c) => <span>{c.payment_term || '—'}</span>
+    renderContent: (c) => <span>{c.type_trading ? (c.payment_term || '—') : '—'}</span>
   },
   kind: {
     label: 'Kind of Contract',

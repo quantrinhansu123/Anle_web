@@ -65,6 +65,11 @@ const isSalesStatusConstraintError = (error: unknown): boolean => {
   return msg.includes('sales_status_check');
 };
 
+const isMissingSalesColumnError = (error: unknown, column: string): boolean => {
+  const msg = (error as { message?: string } | null)?.message || '';
+  return msg.includes(`Could not find the '${column}' column of 'sales'`);
+};
+
 const syncSalesItems = async (salesId: string, incomingItems: NonNullable<UpdateSalesDto['items']>) => {
   const { data: currentItems } = await supabase
     .from('sales_items')
@@ -158,17 +163,39 @@ export const salesService = {
   async create(dto: CreateSalesDto) {
     const { items = [], charge_items = [], ...headerDto } = dto;
     const normalizedStatus = normalizeStatus(headerDto.status);
-    const baseInsertPayload = {
-      ...pickHeaderPayload(headerDto),
-      status: normalizedStatus,
+    const buildInsertPayload = (includeCustomerId: boolean) => {
+      const baseHeader =
+        includeCustomerId
+          ? headerDto
+          : (() => {
+              const { customer_id: _customerId, ...rest } = headerDto;
+              return rest;
+            })();
+      return {
+        ...pickHeaderPayload(baseHeader),
+        status: normalizedStatus,
+      };
     };
-
-    // 1. Insert header
+    let baseInsertPayload = buildInsertPayload(true);
+    let allowCustomerId = true;
     let { data: header, error: headerError } = await supabase
       .from('sales')
       .insert(baseInsertPayload)
       .select()
       .single();
+
+    // Backward compatibility for databases that do not yet have sales.customer_id.
+    if (headerError && allowCustomerId && isMissingSalesColumnError(headerError, 'customer_id')) {
+      allowCustomerId = false;
+      baseInsertPayload = buildInsertPayload(false);
+      const retryWithoutCustomer = await supabase
+        .from('sales')
+        .insert(baseInsertPayload)
+        .select()
+        .single();
+      header = retryWithoutCustomer.data;
+      headerError = retryWithoutCustomer.error;
+    }
 
     // Backward compatibility for databases still using legacy sales_status_check.
     if (headerError && isSalesStatusConstraintError(headerError)) {
@@ -183,6 +210,21 @@ export const salesService = {
         .single();
       header = retry.data;
       headerError = retry.error;
+    }
+    if (headerError && allowCustomerId && isMissingSalesColumnError(headerError, 'customer_id')) {
+      allowCustomerId = false;
+      baseInsertPayload = buildInsertPayload(false);
+      const legacyPayload = {
+        ...baseInsertPayload,
+        status: toLegacySalesStatus(normalizedStatus),
+      };
+      const retryLegacyWithoutCustomer = await supabase
+        .from('sales')
+        .insert(legacyPayload)
+        .select()
+        .single();
+      header = retryLegacyWithoutCustomer.data;
+      headerError = retryLegacyWithoutCustomer.error;
     }
 
     if (headerError) throw new AppError(headerError.message, 400);
@@ -243,6 +285,15 @@ export const salesService = {
          .update(headerPayload)
          .eq('id', id);
 
+       if (headerErr && Object.prototype.hasOwnProperty.call(headerPayload, 'customer_id') && isMissingSalesColumnError(headerErr, 'customer_id')) {
+         const { customer_id: _customerId, ...fallbackPayload } = headerPayload;
+         const retryWithoutCustomer = await supabase
+           .from('sales')
+           .update(fallbackPayload)
+           .eq('id', id);
+         headerErr = retryWithoutCustomer.error;
+       }
+
        if (headerErr && isSalesStatusConstraintError(headerErr) && typeof headerPayload.status === 'string') {
          const legacyPayload = {
            ...headerPayload,
@@ -253,6 +304,15 @@ export const salesService = {
            .update(legacyPayload)
            .eq('id', id);
          headerErr = retry.error;
+
+         if (headerErr && Object.prototype.hasOwnProperty.call(legacyPayload, 'customer_id') && isMissingSalesColumnError(headerErr, 'customer_id')) {
+           const { customer_id: _customerId, ...legacyFallbackPayload } = legacyPayload as Record<string, unknown>;
+           const retryLegacyWithoutCustomer = await supabase
+             .from('sales')
+             .update(legacyFallbackPayload)
+             .eq('id', id);
+           headerErr = retryLegacyWithoutCustomer.error;
+         }
        }
 
        if (headerErr) throw new AppError(headerErr.message, 400);

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   FileText, X, User, Hash, Calendar,
   Plus, ChevronRight, DollarSign, CreditCard,
-  Building, Trash2, Receipt, Edit
+  Building, Trash2, Receipt, Edit, Printer
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { formatCurrency, formatInputCurrency, parseCurrency } from '../../../lib/utils';
@@ -38,8 +38,6 @@ const PaymentRequestDialog: React.FC<Props> = ({
   shipmentOptions,
   onSave
 }) => {
-  if (!isOpen && !isClosing) return null;
-
   const {
     shipment_id, request_date, account_name, account_number,
     bank_name, invoices
@@ -50,6 +48,66 @@ const PaymentRequestDialog: React.FC<Props> = ({
   const totalAmount = useMemo(() => {
     return invoices.reduce((sum, inv) => sum + (inv.payable_amount || 0), 0);
   }, [invoices]);
+
+  if (!isOpen && !isClosing) return null;
+
+  const handlePrintPaymentRequest = () => {
+    const shipmentLabel = selectedShipment?.code || selectedShipment?.id || shipment_id || '—';
+    const requestDateLabel = request_date ? new Date(request_date).toLocaleDateString('en-GB') : '—';
+    const rowsHtml = invoices.length
+      ? invoices
+          .map((inv) => `
+            <tr>
+              <td>${inv.no_invoice || '—'}</td>
+              <td>${inv.description || '—'}</td>
+              <td>${inv.date_issue ? new Date(inv.date_issue).toLocaleDateString('en-GB') : '—'}</td>
+              <td style="text-align:right">${formatCurrency(inv.payable_amount || 0)}</td>
+            </tr>
+          `)
+          .join('')
+      : '<tr><td colspan="4" style="text-align:center;color:#64748b">No invoices</td></tr>';
+
+    const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Payment Request ${shipmentLabel}</title>
+    <style>
+      body{font-family:Arial,sans-serif;margin:24px;color:#0f172a}
+      h1{margin:0 0 10px;font-size:24px}
+      .meta{margin:0 0 14px;color:#475569;font-size:13px}
+      .block{border:1px solid #e2e8f0;border-radius:10px;padding:10px;margin-bottom:12px}
+      .label{font-size:11px;text-transform:uppercase;color:#64748b;font-weight:700;margin-bottom:4px}
+      .value{font-size:13px;font-weight:700}
+      table{width:100%;border-collapse:collapse;margin-top:8px}
+      th,td{border:1px solid #e2e8f0;padding:8px;font-size:12px}
+      th{background:#f8fafc;text-align:left;text-transform:uppercase;font-size:10px;color:#475569}
+      .total{margin-top:12px;text-align:right;font-size:18px;font-weight:800;color:#2563eb}
+    </style>
+  </head>
+  <body>
+    <h1>Payment Request</h1>
+    <p class="meta">Shipment: ${shipmentLabel} · Request date: ${requestDateLabel}</p>
+    <div class="block"><div class="label">Commodity</div><div class="value">${selectedShipment?.commodity || '—'}</div></div>
+    <div class="block"><div class="label">Route</div><div class="value">${selectedShipment?.pol || '—'} → ${selectedShipment?.pod || '—'}</div></div>
+    <table>
+      <thead><tr><th>Invoice No</th><th>Description</th><th>Date Issue</th><th>Payable Amount</th></tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+    <div class="total">Total Amount: ${formatCurrency(totalAmount)}</div>
+    <div class="block" style="margin-top:14px">
+      <div class="label">Bank</div>
+      <div class="value">${account_name || '—'} · ${account_number || '—'} · ${bank_name || '—'}</div>
+    </div>
+    <script>window.print();</script>
+  </body>
+</html>`;
+    const w = window.open('', '_blank', 'width=960,height=720');
+    if (!w) return;
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+  };
 
   const handleAddInvoice = () => {
     setFormField('invoices', [
@@ -95,6 +153,16 @@ const PaymentRequestDialog: React.FC<Props> = ({
             <h2 className="text-lg font-bold text-foreground">
               {isDetailMode ? 'Payment Request Details' : isEditMode ? 'Edit Payment Request' : 'Add New Payment Request'}
             </h2>
+            {isDetailMode ? (
+              <button
+                type="button"
+                onClick={handlePrintPaymentRequest}
+                className="ml-2 inline-flex items-center gap-2 rounded-xl border border-border bg-white px-4 py-2 text-[12px] font-bold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+              >
+                <Printer size={14} />
+                Print
+              </button>
+            ) : null}
           </div>
           <button
             onClick={onClose}
