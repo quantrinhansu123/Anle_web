@@ -95,6 +95,15 @@ export class ShipmentService {
 
   private async assertStatusGates(next: ShipmentStatus, current: Shipment) {
     next = normalizeShipmentStatus(next);
+    if (next !== 'draft' && next !== 'cancelled' && current.transport_sea) {
+      if (!current.pol || !current.pod) {
+        throw new AppError('POL/POD are required for sea transport shipments before status transition', 400);
+      }
+      if (!current.hs_code) {
+        throw new AppError('HS code is required for sea transport shipments before status transition', 400);
+      }
+    }
+
     if (next === 'cost_locked') {
       if (!current.planned_cost || Object.keys(current.planned_cost).length === 0) {
         throw new AppError('Cannot lock cost without planned cost data.', 400);

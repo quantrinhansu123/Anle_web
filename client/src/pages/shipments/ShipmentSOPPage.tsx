@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Ship, ArrowLeft, Save, Loader2, AlertTriangle, Users, XCircle, CheckCircle2, Circle
+  Ship, ArrowLeft, Save, Loader2, AlertTriangle, Users, XCircle, CheckCircle2, Circle, Wand2
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import isEqual from 'lodash/isEqual';
@@ -55,6 +55,14 @@ const TABS = [
 type TabId = typeof TABS[number]['id'];
 
 type ContractOption = { value: string; label: string; customer_id?: string; supplier_id?: string };
+type ChecklistField =
+  | 'contract_id'
+  | 'is_docs_ready'
+  | 'is_hs_confirmed'
+  | 'is_phytosanitary_ready'
+  | 'is_cost_locked'
+  | 'is_truck_booked'
+  | 'is_agent_booked';
 
 function contractsMatchingParties(
   all: ContractOption[],
@@ -99,6 +107,25 @@ const STATUS_MAP: Record<string, { label: string; classes: string }> = {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const isUuidOrNullish = (value: unknown) =>
   value == null || value === '' || (typeof value === 'string' && UUID_RE.test(value));
+const normalizePriorityRank = (value: unknown): number | null => {
+  if (value == null || value === '') return null;
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return null;
+  const rounded = Math.round(n);
+  return Math.min(3, Math.max(1, rounded));
+};
+
+const CHECKLIST_GATES: Array<{ key: string; label: string; field: ChecklistField }> = [
+  { key: 'contract_ok', label: 'Contract Linked', field: 'contract_id' },
+  { key: 'docs_ready', label: 'Documents Ready', field: 'is_docs_ready' },
+  { key: 'hs_confirmed', label: 'HS Confirmed', field: 'is_hs_confirmed' },
+  { key: 'phytosanitary', label: 'Phytosanitary', field: 'is_phytosanitary_ready' },
+  { key: 'cost_locked', label: 'Cost Locked', field: 'is_cost_locked' },
+  { key: 'truck_booked', label: 'Truck Booked', field: 'is_truck_booked' },
+  { key: 'agent_booked', label: 'Agent Booked', field: 'is_agent_booked' },
+];
+
+const DOC_READY_STATUSES = new Set(['verified', 'issued']);
 
 // ─── Component ─────────────────────────────────────────
 const ShipmentSOPPage: React.FC = () => {
@@ -108,6 +135,7 @@ const ShipmentSOPPage: React.FC = () => {
   const toast = useToastContext();
   const { setCustomBreadcrumbs } = useBreadcrumb();
   const isEditMode = Boolean(id);
+  const hasValidEditId = !id || UUID_RE.test(id);
 
   // form + data
   const getTabFromQuery = (): TabId => {
@@ -211,6 +239,41 @@ const ShipmentSOPPage: React.FC = () => {
     setField(field, checked as ShipmentFormState[typeof field]);
   };
 
+  const autoChecklistPatch = useMemo(() => {
+    const hasContract = Boolean(form.contract_id);
+    const docsReady = documents.some((d) => DOC_READY_STATUSES.has(String(d.status)));
+    const hsConfirmed = customsClearances.some((c) => Boolean(c.hs_confirmed));
+    const phytosanitaryReady = customsClearances.some((c) => c.phytosanitary_status === 'passed');
+    const plannedCost = (form as any).planned_cost as unknown;
+    const hasPlannedCost =
+      plannedCost != null &&
+      typeof plannedCost === 'object' &&
+      Object.keys(plannedCost as Record<string, unknown>).length > 0;
+    const costLocked = Boolean(form.cost_locked_at) || hasPlannedCost;
+    const patch: Partial<ShipmentFormState> = {};
+    if (hasContract) patch.contract_id = form.contract_id;
+    if (docsReady) patch.is_docs_ready = true;
+    if (hsConfirmed) patch.is_hs_confirmed = true;
+    if (phytosanitaryReady) patch.is_phytosanitary_ready = true;
+    if (costLocked) patch.is_cost_locked = true;
+    return patch;
+  }, [form, documents, customsClearances]);
+
+  const applyAutoChecklist = useCallback(() => {
+    const updates: Partial<ShipmentFormState> = {};
+    if (autoChecklistPatch.contract_id && !form.contract_id) updates.contract_id = autoChecklistPatch.contract_id;
+    if (autoChecklistPatch.is_docs_ready && !form.is_docs_ready) updates.is_docs_ready = true;
+    if (autoChecklistPatch.is_hs_confirmed && !form.is_hs_confirmed) updates.is_hs_confirmed = true;
+    if (autoChecklistPatch.is_phytosanitary_ready && !form.is_phytosanitary_ready) updates.is_phytosanitary_ready = true;
+    if (autoChecklistPatch.is_cost_locked && !form.is_cost_locked) updates.is_cost_locked = true;
+    if (Object.keys(updates).length === 0) {
+      toast.error('No checklist items can be auto-filled from current data.');
+      return;
+    }
+    setForm((prev) => ({ ...prev, ...updates }));
+    toast.success('Checklist auto-filled from current shipment data.');
+  }, [autoChecklistPatch, form, toast]);
+
   // ─── Load Data ─────────────────────────────────────
   const loadMasterData = useCallback(async () => {
     try {
@@ -237,7 +300,7 @@ const ShipmentSOPPage: React.FC = () => {
   }, []);
 
   const loadShipment = useCallback(async () => {
-    if (!id) return;
+    if (!id || !UUID_RE.test(id)) return;
     try {
       setLoading(true);
       const data = await shipmentService.getShipmentById(id);
@@ -258,7 +321,7 @@ const ShipmentSOPPage: React.FC = () => {
   }, [id]);
 
   const loadCompliance = useCallback(async () => {
-    if (!id) return;
+    if (!id || !UUID_RE.test(id)) return;
     try {
       const [docs, customs] = await Promise.all([
         shipmentDocumentService.getShipmentDocuments(1, 1000, id),
@@ -270,7 +333,7 @@ const ShipmentSOPPage: React.FC = () => {
   }, [id]);
 
   const loadApiState = useCallback(async () => {
-    if (!id) return;
+    if (!id || !UUID_RE.test(id)) return;
     try {
       const [trans, gates] = await Promise.all([
         shipmentService.getAllowedTransitions(id),
@@ -282,7 +345,17 @@ const ShipmentSOPPage: React.FC = () => {
   }, [id]);
 
   useEffect(() => { loadMasterData(); }, [loadMasterData]);
-  useEffect(() => { if (id) { loadShipment(); loadCompliance(); loadApiState(); } }, [id, loadShipment, loadCompliance, loadApiState]);
+  useEffect(() => {
+    if (!id) return;
+    if (!hasValidEditId) {
+      toast.error('Invalid shipment id. Please open shipment from the list.');
+      navigate('/shipments/information', { replace: true });
+      return;
+    }
+    loadShipment();
+    loadCompliance();
+    loadApiState();
+  }, [id, hasValidEditId, loadShipment, loadCompliance, loadApiState, navigate, toast]);
   useEffect(() => {
     setActiveTab(getTabFromQuery());
   }, [location.search]);
@@ -383,19 +456,9 @@ const ShipmentSOPPage: React.FC = () => {
 
   // ─── Save Handler ──────────────────────────────────
   const handleSave = async () => {
-    if (!form.customer_id || !form.supplier_id || !form.commodity) {
-      toast.error('Please fill in Customer, Supplier, and Commodity');
+    if (!form.customer_id) {
+      toast.error('Please select Customer before saving');
       return;
-    }
-    if (form.transport_sea) {
-      if (!form.hs_code?.trim()) {
-        toast.error('HS code is required for sea transport shipments');
-        return;
-      }
-      if (!form.pol?.trim() || !form.pod?.trim()) {
-        toast.error('POL/POD are required for sea transport shipments');
-        return;
-      }
     }
     if (form.etd && form.eta) {
       const etdTs = new Date(form.etd).getTime();
@@ -447,7 +510,7 @@ const ShipmentSOPPage: React.FC = () => {
         services: form.services || null,
         job_date: form.job_date || null,
         performance_date: form.performance_date || null,
-        priority_rank: form.priority_rank ?? null,
+        priority_rank: normalizePriorityRank(form.priority_rank),
       };
       if (isEditMode && id) {
         await shipmentService.updateShipment(id, payload);
@@ -593,6 +656,37 @@ const ShipmentSOPPage: React.FC = () => {
 
   const isReady = runGates?.can_run ?? false;
   const statusMeta = STATUS_MAP[form.status || 'draft'] || STATUS_MAP.draft;
+  const checklistState = useMemo(() => {
+    const missingByKey = new Map((runGates?.missing || []).map((m) => [m.key, m.message]));
+    const localMissing: string[] = [];
+    const gates = CHECKLIST_GATES.map((gate) => {
+      let checked = false;
+      if (gate.field === 'contract_id') {
+        checked = Boolean(form.contract_id);
+      } else {
+        checked = Boolean(form[gate.field]);
+      }
+
+      const isRequired =
+        gate.key !== 'truck_booked' ||
+        (!form.transport_air && !form.transport_sea);
+      const isMissing = isRequired && !checked;
+      if (isMissing) localMissing.push(gate.key);
+      return {
+        ...gate,
+        checked,
+        isRequired,
+        isMissing,
+        message: missingByKey.get(gate.key),
+      };
+    });
+
+    return {
+      gates,
+      missingCount: localMissing.length,
+      canRun: localMissing.length === 0,
+    };
+  }, [form, runGates]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-[calc(100vh-130px)] bg-white rounded-2xl border border-border"><Loader2 size={32} className="animate-spin text-primary" /></div>;
@@ -718,38 +812,42 @@ const ShipmentSOPPage: React.FC = () => {
 
         {/* SIDEBAR: Readiness Checklist (API-driven) */}
         <div className="w-[280px] shrink-0 bg-white border-l border-border p-5 overflow-y-auto">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Pre-flight Checklist</p>
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pre-flight Checklist</p>
+            <button
+              type="button"
+              onClick={applyAutoChecklist}
+              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-600 hover:bg-slate-50"
+              title="Auto-fill checklist items from linked data"
+            >
+              <Wand2 size={11} />
+              Auto-fill
+            </button>
+          </div>
           
           {/* Run Gates from Backend */}
           {runGates ? (
             <div className="space-y-2">
-              {[
-                { key: 'contract_ok', label: 'Contract Linked', field: 'contract_id' as const },
-                { key: 'docs_ready', label: 'Documents Ready', field: 'is_docs_ready' as const },
-                { key: 'hs_confirmed', label: 'HS Confirmed', field: 'is_hs_confirmed' as const },
-                { key: 'phytosanitary', label: 'Phytosanitary', field: 'is_phytosanitary_ready' as const },
-                { key: 'cost_locked', label: 'Cost Locked', field: 'is_cost_locked' as const },
-                { key: 'truck_booked', label: 'Truck Booked', field: 'is_truck_booked' as const },
-                { key: 'agent_booked', label: 'Agent Booked', field: 'is_agent_booked' as const },
-              ].map(gate => {
-                const isMissing = runGates.missing.some(m => m.key === gate.key);
-                const missingItem = runGates.missing.find(m => m.key === gate.key);
+              {checklistState.gates.map(gate => {
                 return (
                   <label key={gate.key} className="flex items-center gap-3 cursor-pointer p-2.5 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-colors">
                     <input type="checkbox" checked={Boolean((form as any)[gate.field])} onChange={e => handleChecklistToggle(gate.field, e.target.checked)}
                       className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
-                        {isMissing
+                        {gate.isMissing
                           ? <Circle size={12} className="text-amber-400 shrink-0" />
                           : <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
                         }
-                        <span className={clsx('text-[12px] font-bold', isMissing ? 'text-slate-600' : 'text-emerald-700')}>
+                        <span className={clsx('text-[12px] font-bold', gate.isMissing ? 'text-slate-600' : 'text-emerald-700')}>
                           {gate.label}
                         </span>
+                        {!gate.isRequired && (
+                          <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400">N/A</span>
+                        )}
                       </div>
-                      {isMissing && missingItem && (
-                        <p className="text-[10px] text-amber-600 mt-0.5 pl-5">{missingItem.message}</p>
+                      {gate.isMissing && gate.message && (
+                        <p className="text-[10px] text-amber-600 mt-0.5 pl-5">{gate.message}</p>
                       )}
                     </div>
                   </label>
@@ -757,9 +855,9 @@ const ShipmentSOPPage: React.FC = () => {
               })}
 
               {/* Summary */}
-              <div className={clsx('mt-4 p-3 rounded-xl border', runGates.can_run ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200')}>
-                <p className={clsx('text-[11px] font-bold', runGates.can_run ? 'text-emerald-700' : 'text-amber-700')}>
-                  {runGates.can_run ? '✓ All gates passed — ready to run' : `⚠ ${runGates.missing.length} gate(s) blocking`}
+              <div className={clsx('mt-4 p-3 rounded-xl border', checklistState.canRun ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200')}>
+                <p className={clsx('text-[11px] font-bold', checklistState.canRun ? 'text-emerald-700' : 'text-amber-700')}>
+                  {checklistState.canRun ? '✓ All gates passed — ready to run' : `⚠ ${checklistState.missingCount} gate(s) blocking`}
                 </p>
               </div>
             </div>

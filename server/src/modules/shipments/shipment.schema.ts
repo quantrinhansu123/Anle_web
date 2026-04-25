@@ -52,11 +52,14 @@ const incotermEnum = z.enum([
 const boundEnum = z.enum(['import', 'export', 'domestic', 'transit']);
 
 const dateStringSchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.literal(''), z.null()])
   .optional()
-  .or(z.literal(''))
   .transform((v) => (v === '' ? null : v));
+
+const nullableTrimmedStringSchema = z
+  .union([z.string(), z.null()])
+  .optional()
+  .transform((v) => (v == null ? undefined : v));
 
 const blLineSchema = z.object({
   id: z.string().uuid().optional(),
@@ -85,18 +88,18 @@ const shipmentBaseSchema = z.object({
   commodity: z.string().optional(),
   hs_code: z.string().optional(),
   quantity: z.number().optional().or(z.literal(0)),
-  packing: z.string().optional(),
-  vessel_voyage: z.string().optional(),
+  packing: nullableTrimmedStringSchema,
+  vessel_voyage: nullableTrimmedStringSchema,
   term: z
-    .union([incotermEnum, z.literal('')])
+    .union([incotermEnum, z.literal(''), z.null()])
     .optional()
-    .transform((v) => (v ? v : undefined)),
+    .transform((v) => (v == null || v === '' ? undefined : v)),
   transport_air: z.boolean().default(false),
   transport_sea: z.boolean().default(false),
   load_fcl: z.boolean().default(false),
   load_lcl: z.boolean().default(false),
-  pol: z.string().optional(),
-  pod: z.string().optional(),
+  pol: nullableTrimmedStringSchema,
+  pod: nullableTrimmedStringSchema,
   etd: dateStringSchema,
   eta: dateStringSchema,
   pic_id: z.string().uuid().optional().nullable(),
@@ -136,22 +139,6 @@ const shipmentBaseSchema = z.object({
 });
 
 const shipmentBusinessRuleRefine = (data: any, ctx: z.RefinementCtx) => {
-  if (data.transport_sea && (!data.pol || !data.pod)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['pol'],
-      message: 'POL/POD are required for sea transport shipments',
-    });
-  }
-
-  if (data.transport_sea && !data.hs_code) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['hs_code'],
-      message: 'HS code is required for sea transport shipments',
-    });
-  }
-
   if (data.etd && data.eta && new Date(data.eta).getTime() < new Date(data.etd).getTime()) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,

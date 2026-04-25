@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout';
 import Dashboard from './pages/Dashboard';
 import ModulePage from './pages/ModulePage';
@@ -57,6 +57,16 @@ import { BreadcrumbProvider } from './contexts/BreadcrumbContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { ToastProvider } from './contexts/ToastContext';
 
+type LegacyJobRedirectProps = {
+  suffix?: string;
+};
+
+const LegacyJobRedirect: React.FC<LegacyJobRedirectProps> = ({ suffix = '' }) => {
+  const { id } = useParams<{ id: string }>();
+  if (!id) return <Navigate to="/shipments/information" replace />;
+  return <Navigate to={`/shipments/sop/${id}${suffix}`} replace />;
+};
+
 function App() {
 
   return (
@@ -100,10 +110,10 @@ function App() {
                 {/* Redirects: old job URLs → shipment equivalents */}
                 <Route path="/shipping/jobs" element={<Navigate to="/shipments/information" replace />} />
                 <Route path="/shipping/jobs/new" element={<Navigate to="/shipments/sop/new" replace />} />
-                <Route path="/shipping/jobs/:id/edit" element={<Navigate to="/shipments/sop/:id" replace />} />
-                <Route path="/shipping/jobs/:id/sea-house-bl" element={<Navigate to="/shipments/sop/:id/sea-house-bl" replace />} />
-                <Route path="/shipping/jobs/:id/arrival-notice" element={<Navigate to="/shipments/sop/:id/arrival-notice" replace />} />
-                <Route path="/shipping/jobs/:id/delivery-note" element={<Navigate to="/shipments/sop/:id/delivery-note" replace />} />
+                <Route path="/shipping/jobs/:id/edit" element={<LegacyJobRedirect />} />
+                <Route path="/shipping/jobs/:id/sea-house-bl" element={<LegacyJobRedirect suffix="/sea-house-bl" />} />
+                <Route path="/shipping/jobs/:id/arrival-notice" element={<LegacyJobRedirect suffix="/arrival-notice" />} />
+                <Route path="/shipping/jobs/:id/delivery-note" element={<LegacyJobRedirect suffix="/delivery-note" />} />
                 <Route path="/shipping/jobs/:id/*" element={<Navigate to="/shipments/information" replace />} />
                 <Route path="/operations/jobs" element={<Navigate to="/shipments/information" replace />} />
                 <Route path="/customers/directory" element={<CustomerPage />} />
