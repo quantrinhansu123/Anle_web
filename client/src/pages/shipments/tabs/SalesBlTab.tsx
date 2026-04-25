@@ -315,14 +315,6 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
                   className="w-full rounded-xl border border-border bg-muted/10 px-3 py-2 text-[13px] font-medium"
                 />
               </div>
-              <div>
-                <FieldLabel>Sales department</FieldLabel>
-                <input
-                  value={form.sales_department || ''}
-                  onChange={(e) => setField('sales_department', e.target.value)}
-                  className="w-full rounded-xl border border-border bg-muted/10 px-3 py-2 text-[13px] font-medium"
-                />
-              </div>
             </div>
           </div>
         </Section>
