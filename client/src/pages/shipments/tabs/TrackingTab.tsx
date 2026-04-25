@@ -12,6 +12,8 @@ import {
   type CreateTrackingEventDto,
   type SlaInfo,
 } from '../../../services/shipmentTrackingService';
+import { shipmentService } from '../../../services/shipmentService';
+import type { ShipmentBlLine } from '../types';
 
 interface Props {
   shipmentId: string;
@@ -160,6 +162,8 @@ const SlaIndicator: React.FC<{ sla: SlaInfo | null; loading: boolean }> = ({ sla
 // ─── Main Component ───────────────────────────────────────
 const TrackingTab: React.FC<Props> = ({ shipmentId }) => {
   const [events, setEvents] = useState<ShipmentTrackingEvent[]>([]);
+  const [blLines, setBlLines] = useState<ShipmentBlLine[]>([]);
+  const [selectedLot, setSelectedLot] = useState('all');
   const [sla, setSla] = useState<SlaInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [slaLoading, setSlaLoading] = useState(true);
@@ -200,10 +204,21 @@ const TrackingTab: React.FC<Props> = ({ shipmentId }) => {
     }
   };
 
+  const fetchBlLines = async () => {
+    try {
+      const data = await shipmentService.getBlLines(shipmentId);
+      setBlLines(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to load B/L lines for tracking:', err);
+      setBlLines([]);
+    }
+  };
+
   // Initial load
   useEffect(() => {
     fetchData();
     fetchSla();
+    fetchBlLines();
   }, [shipmentId]);
 
   // Polling
@@ -235,10 +250,16 @@ const TrackingTab: React.FC<Props> = ({ shipmentId }) => {
     if (!newEvent.title) return;
     try {
       setIsAdding(true);
+      const selectedLotLabel = selectedLot !== 'all'
+        ? blLines[Number(selectedLot.replace('line-', ''))]?.name_1?.trim() || `Lot ${Number(selectedLot.replace('line-', '')) + 1}`
+        : null;
+      const titleWithLot = selectedLotLabel && !newEvent.title.startsWith(`[${selectedLotLabel}]`)
+        ? `[${selectedLotLabel}] ${newEvent.title}`
+        : newEvent.title;
       const dto: CreateTrackingEventDto = {
         shipment_id: shipmentId,
         event_type: newEvent.event_type || 'note',
-        title: newEvent.title!,
+        title: titleWithLot!,
         description: newEvent.description || null,
         location: newEvent.location || null,
         delay_hours: newEvent.delay_hours || null,
@@ -317,6 +338,26 @@ const TrackingTab: React.FC<Props> = ({ shipmentId }) => {
         <div className="rounded-xl border border-primary/20 bg-primary/[0.02] p-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
           <p className="text-[11px] font-bold text-primary uppercase tracking-wider">New Tracking Event</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {blLines.length > 0 && (
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500">Lot</label>
+                <select
+                  value={selectedLot}
+                  onChange={(e) => setSelectedLot(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-bold bg-white"
+                >
+                  <option value="all">General event (all lots)</option>
+                  {blLines.map((line, idx) => (
+                    <option key={`line-${idx}`} value={`line-${idx}`}>
+                      {(line.name_1 && line.name_1.trim()) || `Lot ${idx + 1}`}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-400">
+                  Selected lot will be prefixed in event title.
+                </p>
+              </div>
+            )}
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold text-slate-500">Event Type</label>
               <select

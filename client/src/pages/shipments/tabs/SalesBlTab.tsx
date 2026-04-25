@@ -11,6 +11,20 @@ import { shipmentService } from '../../../services/shipmentService';
 import type { ShipmentFormState, ShipmentBlLine } from '../types';
 import type { Sales } from '../../sales/types';
 
+/** Operators must be choosable only from Logistics department (see departments.code = logistics). */
+function isLogisticsEmployee(e: Employee): boolean {
+  const code = (e.department_code || '').toLowerCase();
+  if (code === 'logistics') return true;
+  const rel = e.departments;
+  if (rel && typeof rel === 'object') {
+    const name = 'name' in rel && typeof rel.name === 'string' ? rel.name : '';
+    const nameVi = 'name_vi' in rel && typeof rel.name_vi === 'string' ? rel.name_vi : '';
+    if (/logistics/i.test(name) || /logistic/i.test(nameVi)) return true;
+  }
+  if (e.department && /logistic/i.test(e.department)) return true;
+  return false;
+}
+
 function Section({
   title,
   children,
@@ -139,6 +153,30 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
     [employees],
   );
 
+  const logisticsEmployees = useMemo(
+    () => employees.filter(isLogisticsEmployee),
+    [employees],
+  );
+
+  const logisticsOperatorOptions = useMemo(
+    () => logisticsEmployees.map((e) => ({ value: e.id, label: e.full_name })),
+    [logisticsEmployees],
+  );
+
+  const operatorsSelectValue = useMemo(() => {
+    const op = (form.operators || '').trim();
+    if (!op) return undefined;
+    const match = logisticsEmployees.find((e) => e.full_name === op);
+    return match?.id;
+  }, [form.operators, logisticsEmployees]);
+
+  const operatorsLegacyHint = useMemo(() => {
+    const op = (form.operators || '').trim();
+    if (!op) return null;
+    if (logisticsEmployees.some((e) => e.full_name === op)) return null;
+    return op;
+  }, [form.operators, logisticsEmployees]);
+
   const quotationOptions = useMemo(
     () =>
       quotations.map((q) => ({
@@ -242,11 +280,21 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
               </div>
               <div>
                 <FieldLabel>Operators</FieldLabel>
-                <input
-                  value={form.operators || ''}
-                  onChange={(e) => setField('operators', e.target.value)}
-                  className="w-full rounded-xl border border-border bg-muted/10 px-3 py-2 text-[13px] font-medium"
+                <SearchableSelect
+                  options={logisticsOperatorOptions}
+                  value={operatorsSelectValue}
+                  onValueChange={(id) => {
+                    const emp = logisticsEmployees.find((e) => e.id === id);
+                    setField('operators', emp?.full_name ?? '');
+                  }}
+                  placeholder="Chọn nhân sự Logistics"
+                  searchPlaceholder="Tìm theo tên…"
                 />
+                {operatorsLegacyHint && (
+                  <p className="mt-1 text-[11px] text-amber-700">
+                    Giá trị đang lưu: &quot;{operatorsLegacyHint}&quot; — không thuộc danh sách Logistics; chọn lại để cập nhật.
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex min-w-0 flex-col gap-3">

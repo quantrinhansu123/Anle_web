@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Trash2, ChevronDown, ChevronUp, Plus, Loader2, Upload, Save } from 'lucide-react';
+import { Shield, Trash2, ChevronDown, ChevronUp, Plus, Loader2, Upload, Save, Check } from 'lucide-react';
+import { clsx } from 'clsx';
 import type { CustomsClearance, CreateCustomsClearanceDto } from '../../../services/customsClearanceService';
 import { shipmentService } from '../../../services/shipmentService';
 import { useToastContext } from '../../../contexts/ToastContext';
@@ -31,7 +32,10 @@ export interface CustomsScheduleRow {
   carrier_name: string;
 }
 
+export type CustomsLaneType = '' | 'green' | 'yellow' | 'red';
+
 export interface CustomsTabState {
+  lane_type: CustomsLaneType;
   inner_job_no: string;
   area: string;
   bound: string;
@@ -80,6 +84,7 @@ export function emptyCustomsScheduleRow(): CustomsScheduleRow {
 
 export function emptyCustomsTabState(): CustomsTabState {
   return {
+    lane_type: '',
     inner_job_no: '',
     area: '',
     bound: '',
@@ -139,9 +144,16 @@ function parseTableArray<T>(v: unknown, parseOne: (x: unknown) => T, empty: () =
   return v.map(parseOne);
 }
 
+function parseLaneType(v: unknown): CustomsLaneType {
+  const s = str(v).toLowerCase();
+  if (s === 'green' || s === 'yellow' || s === 'red') return s;
+  return '';
+}
+
 export function parseCustomsTab(raw: unknown): CustomsTabState {
   const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
   return {
+    lane_type: parseLaneType(o.lane_type),
     inner_job_no: str(o.inner_job_no),
     area: str(o.area),
     bound: str(o.bound),
@@ -167,6 +179,7 @@ export function parseCustomsTab(raw: unknown): CustomsTabState {
 
 export function mergeCustomsPersisted(state: CustomsTabState): Record<string, unknown> {
   return {
+    lane_type: state.lane_type || '',
     inner_job_no: state.inner_job_no.trim(),
     area: state.area.trim(),
     bound: state.bound.trim(),
@@ -270,10 +283,10 @@ const CustomsTab: React.FC<CustomsTabProps> = ({
   const [uploadingAttachmentIdx, setUploadingAttachmentIdx] = useState<number | null>(null);
 
   useEffect(() => {
-    if (shipmentId && isDetailsExpanded) {
-      loadCustomsDetails();
+    if (shipmentId) {
+      void loadCustomsDetails();
     }
-  }, [shipmentId, isDetailsExpanded]);
+  }, [shipmentId]);
 
   const loadCustomsDetails = async () => {
     if (!shipmentId) return;
@@ -282,6 +295,8 @@ const CustomsTab: React.FC<CustomsTabProps> = ({
       const shipment = await shipmentService.getShipmentById(shipmentId);
       if (shipment?.service_details?.customs) {
         setCustomsState(parseCustomsTab(shipment.service_details.customs));
+      } else {
+        setCustomsState(emptyCustomsTabState());
       }
     } catch (err) {
       console.error('Failed to load customs details:', err);
@@ -291,26 +306,34 @@ const CustomsTab: React.FC<CustomsTabProps> = ({
     }
   };
 
-  const handleSaveDetails = async () => {
+  const persistCustomsToShipment = async (okMessage: string) => {
     if (!shipmentId) return;
     try {
       setIsSavingDetails(true);
       const shipment = await shipmentService.getShipmentById(shipmentId);
       const currentServiceDetails = shipment?.service_details || {};
-      
+
       await shipmentService.updateShipment(shipmentId, {
         service_details: {
           ...currentServiceDetails,
-          customs: mergeCustomsPersisted(customsState)
-        }
+          customs: mergeCustomsPersisted(customsState),
+        },
       });
-      success('Customs details saved successfully');
+      success(okMessage);
     } catch (err) {
       console.error('Failed to save customs details:', err);
       toastError('Failed to save customs details');
     } finally {
       setIsSavingDetails(false);
     }
+  };
+
+  const handleSaveDetails = async () => {
+    await persistCustomsToShipment('Customs details saved successfully');
+  };
+
+  const handleSaveLaneType = async () => {
+    await persistCustomsToShipment('Lane type saved');
   };
 
   const setField = <K extends keyof CustomsTabState>(key: K, value: CustomsTabState[K]) => {
@@ -418,12 +441,57 @@ const CustomsTab: React.FC<CustomsTabProps> = ({
           )}
 
           <div className="p-3 rounded-xl bg-teal-50/50 border border-teal-100">
-            <p className="text-[11px] font-bold text-teal-500 uppercase mb-2">Lane Type</p>
-            <div className="flex items-center gap-3">
-              <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-[11px] font-bold border border-green-200">🟢 Green</span>
-              <span className="px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 text-[11px] font-bold border border-yellow-200">🟡 Yellow</span>
-              <span className="px-3 py-1 rounded-full bg-red-100 text-red-700 text-[11px] font-bold border border-red-200">🔴 Red</span>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[11px] font-bold text-teal-500 uppercase">Lane Type</p>
+              {shipmentId && (
+                <button
+                  type="button"
+                  onClick={() => void handleSaveLaneType()}
+                  disabled={isSavingDetails}
+                  className="rounded-lg border border-teal-300 bg-white px-2.5 py-1 text-[11px] font-bold text-teal-700 shadow-sm transition-colors hover:bg-teal-50 disabled:opacity-50"
+                >
+                  {isSavingDetails ? 'Saving…' : 'Save'}
+                </button>
+              )}
             </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {([
+                { id: 'green' as const, label: 'Green', dot: '🟢', ring: 'ring-green-400/50', active: 'bg-green-100 text-green-800 border-green-300' },
+                { id: 'yellow' as const, label: 'Yellow', dot: '🟡', ring: 'ring-amber-400/50', active: 'bg-yellow-100 text-yellow-800 border-amber-300' },
+                { id: 'red' as const, label: 'Red', dot: '🔴', ring: 'ring-red-400/50', active: 'bg-red-100 text-red-800 border-red-300' },
+              ]).map((lane) => {
+                const selected = customsState.lane_type === lane.id;
+                return (
+                  <label
+                    key={lane.id}
+                    className={clsx(
+                      'inline-flex cursor-pointer select-none items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-bold transition-all',
+                      selected ? clsx(lane.active, 'ring-2', lane.ring) : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300',
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="customs-lane-type"
+                      className="sr-only"
+                      checked={selected}
+                      onChange={() => setField('lane_type', lane.id)}
+                    />
+                    <span
+                      className={clsx(
+                        'flex h-4 w-4 shrink-0 items-center justify-center rounded border',
+                        selected ? 'border-current bg-white/90 text-current' : 'border-slate-300 bg-white',
+                      )}
+                      aria-hidden
+                    >
+                      {selected ? <Check size={10} strokeWidth={3} /> : null}
+                    </span>
+                    <span aria-hidden>{lane.dot}</span>
+                    <span>{lane.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-[10px] text-slate-500">Chọn một luồng (Green / Yellow / Red), rồi bấm Save để lưu.</p>
           </div>
         </div>
       </section>

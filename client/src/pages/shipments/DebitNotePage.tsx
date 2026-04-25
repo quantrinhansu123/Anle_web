@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { clsx } from 'clsx';
 import {
   ChevronLeft,
@@ -18,7 +18,7 @@ import { useToastContext } from '../../contexts/ToastContext';
 import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 import { shipmentService } from '../../services/shipmentService';
 import { salesService } from '../../services/salesService';
-import { buildDnLineSeedsFromSales } from './mapQuotationToDebitNoteLines';
+import { buildDnLineSeedsFromSales, type DnLineSeed } from './mapQuotationToDebitNoteLines';
 import { fmsJobDebitNoteService } from '../../services/fmsJobDebitNoteService';
 import { fmsJobInvoiceService } from '../../services/fmsJobInvoiceService';
 import type { FmsJobDebitNoteLineDto } from '../../services/fmsJobDebitNoteService';
@@ -214,6 +214,7 @@ const fmtCurrency = (n: number, curr: string) => `${fmtNumber(n)} ${curr === 'VN
 
 const DebitNotePage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id: shipmentId, dnId } = useParams<{ id: string; dnId?: string }>();
   const { success: toastOk, error: toastErr } = useToastContext();
   const { setCustomBreadcrumbs } = useBreadcrumb();
@@ -521,6 +522,34 @@ const DebitNotePage: React.FC = () => {
       setImportingQuotationLines(false);
     }
   }, [quotationIdFromShipment, toastErr, toastOk]);
+
+  const processedCostingPushRef = useRef<Set<string>>(new Set());
+
+  /* Append lines pushed from SOP → Costing tab (after Sales approval) */
+  useEffect(() => {
+    if (dnId) return;
+    type CostingNav = { debitLinesFromCosting?: DnLineSeed[]; costingPushId?: string };
+    const st = location.state as CostingNav | null;
+    const seeds = st?.debitLinesFromCosting;
+    const pushId = st?.costingPushId;
+    if (!seeds?.length || !pushId) return;
+    if (processedCostingPushRef.current.has(pushId)) return;
+    processedCostingPushRef.current.add(pushId);
+    setLines((prev) => {
+      const appended = seeds.map((s) => enrichLine({ id: nextLineId(), ...s }));
+      const meaningful = prev.filter(
+        (l) =>
+          (l.rate && Number(l.rate) > 0) ||
+          (l.fare_name || '').trim() ||
+          (l.service_code || '').trim(),
+      );
+      if (meaningful.length === 0) {
+        return appended.length > 0 ? appended : [emptyLine()];
+      }
+      return [...meaningful, ...appended];
+    });
+    toastOk(`Đã thêm ${seeds.length} dòng chi phí từ tab Costing.`);
+  }, [dnId, location.state, toastOk]);
 
   /* Stat cards: invoices and payments linked to this debit note */
   useEffect(() => {

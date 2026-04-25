@@ -95,18 +95,33 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({
         {shipmentId ? (
           <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
             <p className="text-[11px] font-bold text-slate-600 uppercase">Add New Document</p>
-            <div className="flex gap-2">
-              <select value={newDocType} onChange={e => setNewDocType(e.target.value as any)} className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-[12px] focus:ring-2 focus:ring-cyan-500/20">
-                <option value="commercial_invoice">Commercial Invoice</option>
-                <option value="packing_list">Packing List</option>
-                <option value="sales_contract">Sales Contract</option>
-                <option value="co_form_e">CO Form E</option>
-                <option value="phytosanitary">Phytosanitary</option>
-                <option value="bill_of_lading">Bill of Lading</option>
-                <option value="import_document">Import Document</option>
-              </select>
-              <input type="text" value={newDocNumber} onChange={e => setNewDocNumber(e.target.value)} placeholder="Document number (optional)"
-                className="w-[180px] px-3 py-2 border border-slate-200 rounded-lg text-[12px] focus:ring-2 focus:ring-cyan-500/20" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-600">Tên</label>
+                <select
+                  value={newDocType}
+                  onChange={e => setNewDocType(e.target.value as any)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-[12px] focus:ring-2 focus:ring-cyan-500/20"
+                >
+                  <option value="commercial_invoice">Commercial Invoice</option>
+                  <option value="packing_list">Packing List</option>
+                  <option value="sales_contract">Sales Contract</option>
+                  <option value="co_form_e">CO Form E</option>
+                  <option value="phytosanitary">Phytosanitary</option>
+                  <option value="bill_of_lading">Bill of Lading</option>
+                  <option value="import_document">Import Document</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-600">File</label>
+                <input
+                  type="text"
+                  value={newDocNumber}
+                  onChange={e => setNewDocNumber(e.target.value)}
+                  placeholder="File"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-[12px] focus:ring-2 focus:ring-cyan-500/20"
+                />
+              </div>
             </div>
             <button onClick={handleCreateDocument} disabled={isCreatingDocument || !newDocType}
               className="w-full py-2 rounded-lg bg-cyan-600 border border-cyan-700 text-white text-[12px] font-bold disabled:opacity-50 hover:bg-cyan-700 transition-colors shadow-sm">

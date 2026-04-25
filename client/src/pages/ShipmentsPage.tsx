@@ -5,7 +5,7 @@ import {
   ChevronLeft, Search, Plus, Filter,
   Edit, Trash2, X, BarChart2, List,
   ChevronRight, Ship, Plane, Truck,
-  MapPin, RefreshCcw,
+  MapPin, RefreshCcw, Navigation,
   TrendingUp, Users, CheckCircle2,
   User as UserIcon, Eye, Briefcase, Star, Tag, FileText
 } from 'lucide-react';
@@ -941,6 +941,15 @@ const ShipmentsPage: React.FC = () => {
                       <div className="flex items-center gap-2"><MapPin size={10} /><span>{s.pol} → {s.pod}</span></div>
                       <span>{formatDate(s.etd)}</span>
                     </div>
+                    <div className="mt-3 pt-3 border-t border-border/60 flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => navigate(`/shipments/sop/${s.id}?tab=tracking`)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-violet-200 bg-violet-50 text-violet-700 text-[11px] font-bold"
+                      >
+                        <Navigation size={12} />
+                        Tracking
+                      </button>
+                    </div>
                   </div>
                 ))}
           </div>
@@ -1142,6 +1151,13 @@ const ShipmentsPage: React.FC = () => {
                       ))}
                       <td className="px-4 py-4">
                         <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => navigate(`/shipments/sop/${s.id}?tab=tracking`)}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-violet-600 hover:bg-violet-50 transition-all"
+                            title="Open Tracking"
+                          >
+                            <Navigation size={14} />
+                          </button>
                           <button
                             onClick={() => navigate(`/shipments/sop/${s.id}/arrival-notice`)}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-sky-600 hover:bg-sky-50 transition-all"

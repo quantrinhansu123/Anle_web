@@ -5,7 +5,6 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronRight,
-  CircleDot,
   Clock3,
   Container,
   Globe,
@@ -17,9 +16,10 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { shipmentService } from '../services/shipmentService';
-import { shipmentTrackingService, type ShipmentTrackingEvent } from '../services/shipmentTrackingService';
+import { shipmentTrackingService, type ShipmentTrackingEvent, type SlaInfo } from '../services/shipmentTrackingService';
 import type { Shipment } from './shipments/types';
 import { useToastContext } from '../contexts/ToastContext';
+import PublicTrackingDisplay from '../components/tracking/PublicTrackingDisplay';
 
 type TrackingEvent = {
   time: string;
@@ -184,6 +184,59 @@ const toShipmentFallbackEvents = (shipment: Shipment): TrackingEvent[] => {
   return items.reverse();
 };
 
+/** Dùng cho timeline giống tab Tracking (API shape) khi chưa có event thủ công */
+const toShipmentFallbackRawEvents = (shipment: Shipment): ShipmentTrackingEvent[] => {
+  const items: ShipmentTrackingEvent[] = [];
+  if (shipment.created_at) {
+    items.push({
+      id: `pub-fb-created-${shipment.id}`,
+      shipment_id: shipment.id,
+      event_type: 'note',
+      title: 'Job được tạo',
+      description: `Job ${shipment.code || shipment.master_job_no || shipment.id} đã được tạo trong Job Management.`,
+      location: shipment.pol || null,
+      created_at: shipment.created_at,
+    });
+  }
+  if (shipment.etd) {
+    items.push({
+      id: `pub-fb-etd-${shipment.id}`,
+      shipment_id: shipment.id,
+      event_type: 'departed',
+      title: 'ETD kế hoạch',
+      description: 'Thời gian khởi hành dự kiến từ hệ thống job.',
+      location: shipment.pol || null,
+      created_at: shipment.etd,
+    });
+  }
+  if (shipment.eta) {
+    items.push({
+      id: `pub-fb-eta-${shipment.id}`,
+      shipment_id: shipment.id,
+      event_type: 'arrived',
+      title: 'ETA kế hoạch',
+      description: 'Thời gian đến dự kiến theo lịch job.',
+      location: shipment.pod || null,
+      created_at: shipment.eta,
+    });
+  }
+  if (shipment.status) {
+    const t = shipment.actual_eta || shipment.eta || shipment.updated_at || shipment.created_at;
+    if (t) {
+      items.push({
+        id: `pub-fb-status-${shipment.id}`,
+        shipment_id: shipment.id,
+        event_type: 'status_change',
+        title: mapShipmentStatus(shipment.status),
+        description: 'Trạng thái hiện tại đồng bộ từ Job Management.',
+        location: shipment.pod || shipment.pol || null,
+        created_at: t,
+      });
+    }
+  }
+  return items.reverse();
+};
+
 const WebsitePage: React.FC = () => {
   const { error } = useToastContext();
   const [trackingCode, setTrackingCode] = useState('');
@@ -194,6 +247,9 @@ const WebsitePage: React.FC = () => {
   const [trackingError, setTrackingError] = useState<string | null>(null);
   const [trackedShipment, setTrackedShipment] = useState<Shipment | null>(null);
   const [trackingEvents, setTrackingEvents] = useState<TrackingEvent[]>([]);
+  const [trackingRawEvents, setTrackingRawEvents] = useState<ShipmentTrackingEvent[]>([]);
+  const [trackingSla, setTrackingSla] = useState<SlaInfo | null>(null);
+  const [trackingSlaLoading, setTrackingSlaLoading] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string>('N/A');
 
   const latestEvent = useMemo(
@@ -211,6 +267,8 @@ const WebsitePage: React.FC = () => {
     try {
       setTrackingLoading(true);
       setTrackingError(null);
+      setTrackingRawEvents([]);
+      setTrackingSla(null);
       const shipment = await shipmentService.findShipmentForTracking(trackingCode);
       if (!shipment) {
         setTrackingVisible(false);
@@ -219,13 +277,26 @@ const WebsitePage: React.FC = () => {
       }
 
       setTrackedShipment(shipment);
-      const rawEvents = await shipmentTrackingService.getTrackingEvents(shipment.id);
-      const normalizedEvents = rawEvents.map(toTrackingEvent);
-      const resolvedEvents = normalizedEvents.length > 0 ? normalizedEvents : toShipmentFallbackEvents(shipment);
+      setTrackingSlaLoading(true);
+      const [rawEvents, slaInfo] = await Promise.all([
+        shipmentTrackingService.getTrackingEvents(shipment.id),
+        shipmentTrackingService.getSlaInfo(shipment.id).catch(() => null),
+      ]);
+      setTrackingSla(slaInfo);
+      setTrackingSlaLoading(false);
+
+      const apiList = Array.isArray(rawEvents) ? rawEvents : [];
+      const rawForDisplay =
+        apiList.length > 0 ? apiList : toShipmentFallbackRawEvents(shipment);
+      setTrackingRawEvents(rawForDisplay);
+
+      const normalizedEvents = apiList.map(toTrackingEvent);
+      const resolvedEvents =
+        normalizedEvents.length > 0 ? normalizedEvents : toShipmentFallbackEvents(shipment);
 
       setTrackingEvents(resolvedEvents);
       setLastUpdatedAt(
-        formatDateTime(rawEvents[0]?.created_at || shipment.actual_eta || shipment.updated_at || shipment.created_at),
+        formatDateTime(apiList[0]?.created_at || shipment.actual_eta || shipment.updated_at || shipment.created_at),
       );
       setTrackingVisible(true);
     } catch (err: any) {
@@ -419,7 +490,7 @@ const WebsitePage: React.FC = () => {
               </div>
             ) : (
               <div className="px-4 py-4">
-                <div className="rounded-xl border border-border p-4 bg-white">
+                <div className="rounded-xl border border-border p-4 bg-white space-y-4">
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div>
                       <p className="text-[11px] text-slate-500 font-bold">Mã vận đơn</p>
@@ -437,27 +508,20 @@ const WebsitePage: React.FC = () => {
                     </span>
                   </div>
 
-                  <div className="mt-4 space-y-3">
-                    {trackingEvents.slice(0, 4).map((event, index) => (
-                      <div key={`${event.time}-${event.title}`} className="flex gap-3">
-                        <div className="flex flex-col items-center">
-                          <CircleDot size={14} className={clsx(index === 0 ? 'text-emerald-600' : 'text-slate-300')} />
-                          <div className="w-px h-full bg-slate-200" />
-                        </div>
-                        <div className="-mt-0.5 pb-2">
-                          <p className="text-[12px] font-black text-slate-800">{event.title}</p>
-                          <p className="text-[11px] text-slate-600">{event.location}</p>
-                          <p className="text-[11px] text-slate-400">{event.time}</p>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="max-h-[min(520px,70vh)] overflow-y-auto pr-1">
+                    <PublicTrackingDisplay
+                      events={trackingRawEvents}
+                      sla={trackingSla}
+                      slaLoading={trackingSlaLoading}
+                    />
                   </div>
 
                   <button
+                    type="button"
                     onClick={() => setModalOpen(true)}
-                    className="mt-1 inline-flex items-center gap-1 text-[12px] font-bold text-primary hover:underline"
+                    className="inline-flex items-center gap-1 text-[12px] font-bold text-primary hover:underline"
                   >
-                    Xem tất cả chi tiết gửi hàng
+                    Xem toàn màn hình / chi tiết lô hàng
                     <ChevronRight size={14} />
                   </button>
                 </div>
@@ -507,21 +571,13 @@ const WebsitePage: React.FC = () => {
               {modalTab === 'progress' ? (
                 <div className="space-y-3">
                   <div className="rounded-xl border border-cyan-200 bg-cyan-50/50 p-3 text-[12px] text-slate-700">
-                    Bạn đang xem đầy đủ tiến trình vận chuyển đồng bộ từ Job Management.
+                    Giao diện đồng bộ với tab Tracking trên hệ thống nội bộ (SLA + timeline).
                   </div>
-                  {trackingEvents.map((event) => (
-                    <div key={`${event.time}-${event.title}-modal`} className="grid grid-cols-[140px_1fr] gap-3">
-                      <div className="text-[11px] text-slate-500">
-                        <p className="font-semibold">{event.time.split(',')[0] || event.time}</p>
-                        <p>{event.time.split(',')[1] || ''}</p>
-                      </div>
-                      <div className="pb-2 border-b border-border/60">
-                        <p className="text-[12px] font-black text-slate-900">{event.title}</p>
-                        <p className="text-[11px] text-slate-600">{event.note}</p>
-                        <p className="text-[11px] text-slate-500">{event.location}</p>
-                      </div>
-                    </div>
-                  ))}
+                  <PublicTrackingDisplay
+                    events={trackingRawEvents}
+                    sla={trackingSla}
+                    slaLoading={trackingSlaLoading}
+                  />
                 </div>
               ) : (
                 <div className="space-y-4 text-[12px] text-slate-700">

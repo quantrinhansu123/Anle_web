@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Ship, ArrowLeft, Save, Loader2, AlertTriangle, Users, XCircle, CheckCircle2, Circle
 } from 'lucide-react';
@@ -33,7 +33,6 @@ import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 // Tabs
 import OverviewTab from './tabs/OverviewTab';
 import SalesBlTab from './tabs/SalesBlTab';
-import FeasibilityTab from './tabs/FeasibilityTab';
 import DocumentsTab from './tabs/DocumentsTab';
 import CustomsTab from './tabs/CustomsTab';
 import TransportTab from './tabs/TransportTab';
@@ -46,7 +45,6 @@ import AgentsTab from './tabs/AgentsTab';
 const TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'sales_bl', label: 'Sales & B/L' },
-  { id: 'feasibility', label: 'Feasibility' },
   { id: 'costs', label: 'Costing' },
   { id: 'documents', label: 'Documents' },
   { id: 'transport', label: 'Transport' },
@@ -55,6 +53,21 @@ const TABS = [
 ] as const;
 
 type TabId = typeof TABS[number]['id'];
+
+type ContractOption = { value: string; label: string; customer_id?: string; supplier_id?: string };
+
+function contractsMatchingParties(
+  all: ContractOption[],
+  customerId: string | undefined | null,
+  supplierId: string | undefined | null,
+): ContractOption[] {
+  const cid = customerId || '';
+  const sid = supplierId || '';
+  if (!cid && !sid) return [];
+  return all.filter(
+    (c) => (cid && c.customer_id === cid) || (sid && c.supplier_id === sid),
+  );
+}
 
 const INITIAL_FORM: ShipmentFormState = {
   code: '', customer_id: '', supplier_id: '', commodity: '', hs_code: '',
@@ -87,12 +100,18 @@ const STATUS_MAP: Record<string, { label: string; classes: string }> = {
 const ShipmentSOPPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToastContext();
   const { setCustomBreadcrumbs } = useBreadcrumb();
   const isEditMode = Boolean(id);
 
   // form + data
-  const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const getTabFromQuery = (): TabId => {
+    const tab = new URLSearchParams(location.search).get('tab');
+    const found = TABS.find((t) => t.id === tab);
+    return (found?.id as TabId) || 'overview';
+  };
+  const [activeTab, setActiveTab] = useState<TabId>(getTabFromQuery);
   const [form, setForm] = useState<ShipmentFormState>({ ...INITIAL_FORM });
   const [savedForm, setSavedForm] = useState<ShipmentFormState>({ ...INITIAL_FORM });
   
@@ -230,6 +249,91 @@ const ShipmentSOPPage: React.FC = () => {
 
   useEffect(() => { loadMasterData(); }, [loadMasterData]);
   useEffect(() => { if (id) { loadShipment(); loadCompliance(); loadApiState(); } }, [id, loadShipment, loadCompliance, loadApiState]);
+  useEffect(() => {
+    setActiveTab(getTabFromQuery());
+  }, [location.search]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('tab') !== 'feasibility') return;
+    params.delete('tab');
+    const q = params.toString();
+    navigate({ pathname: location.pathname, search: q ? `?${q}` : '' }, { replace: true });
+  }, [location.pathname, location.search, navigate]);
+
+  const autoContractAttemptRef = useRef<string | null>(null);
+  const activeShipmentIdRef = useRef<string | undefined>(undefined);
+  activeShipmentIdRef.current = id;
+
+  const partyMatchedContracts = useMemo(
+    () => contractsMatchingParties(contracts, form.customer_id, form.supplier_id),
+    [contracts, form.customer_id, form.supplier_id],
+  );
+
+  const overviewContractOptions = useMemo(() => {
+    const base = partyMatchedContracts;
+    if (form.contract_id && !base.some((c) => c.value === form.contract_id)) {
+      const extra = contracts.find((c) => c.value === form.contract_id);
+      return extra ? [...base, extra] : base;
+    }
+    return base;
+  }, [partyMatchedContracts, contracts, form.contract_id]);
+
+  /** When there is exactly one contract for this customer/supplier, link it and persist (no ambiguous multi-match). */
+  useEffect(() => {
+    if (!id || loading) return;
+
+    const partyKey = `${id}|${form.customer_id || ''}|${form.supplier_id || ''}`;
+    const contractsFingerprint = contracts.map((c) => c.value).sort().join(',');
+
+    if (form.contract_id) {
+      autoContractAttemptRef.current = `${partyKey}|${contractsFingerprint}|has_contract`;
+      return;
+    }
+
+    const attemptId = `${partyKey}|${contractsFingerprint}`;
+    if (autoContractAttemptRef.current === attemptId) return;
+
+    if (!form.customer_id && !form.supplier_id) {
+      autoContractAttemptRef.current = attemptId;
+      return;
+    }
+
+    if (contracts.length === 0) return;
+
+    const candidates = contractsMatchingParties(contracts, form.customer_id, form.supplier_id);
+    if (candidates.length !== 1) {
+      autoContractAttemptRef.current = attemptId;
+      return;
+    }
+
+    autoContractAttemptRef.current = attemptId;
+    const only = candidates[0]!;
+    const shipmentId = id;
+
+    (async () => {
+      try {
+        await shipmentService.updateShipment(shipmentId, { contract_id: only.value });
+        if (activeShipmentIdRef.current !== shipmentId) return;
+        setForm((prev) => ({ ...prev, contract_id: only.value }));
+        setSavedForm((prev) => ({ ...prev, contract_id: only.value }));
+        toast.success('Contract linked automatically (single match for this customer/supplier).');
+        await loadApiState();
+      } catch (err: any) {
+        console.error(err);
+        toast.error(err?.message || 'Could not auto-link contract');
+      }
+    })();
+  }, [
+    id,
+    loading,
+    form.contract_id,
+    form.customer_id,
+    form.supplier_id,
+    contracts,
+    loadApiState,
+    toast,
+  ]);
 
   // Breadcrumbs
   useEffect(() => {
@@ -264,7 +368,19 @@ const ShipmentSOPPage: React.FC = () => {
         is_hs_confirmed: form.is_hs_confirmed, is_phytosanitary_ready: form.is_phytosanitary_ready,
         is_cost_locked: form.is_cost_locked, is_truck_booked: form.is_truck_booked,
         is_agent_booked: form.is_agent_booked,
+        pic_id: form.pic_id || null,
         contract_id: form.contract_id || null,
+        quotation_id: form.quotation_id || null,
+        salesperson_id: form.salesperson_id || null,
+        sales_team: form.sales_team || null,
+        sales_department: form.sales_department || null,
+        product_pic_id: form.product_pic_id || null,
+        operators: form.operators?.trim() ? form.operators.trim() : null,
+        bl_status: form.bl_status || null,
+        bl_status_detail: form.bl_status_detail || null,
+        master_bl_number: form.master_bl_number || null,
+        master_bl_carrier: form.master_bl_carrier || null,
+        master_bl_remarks: form.master_bl_remarks || null,
         bound: form.bound || null,
         services: form.services || null,
         job_date: form.job_date || null,
@@ -412,11 +528,6 @@ const ShipmentSOPPage: React.FC = () => {
   // ─── Render ────────────────────────────────────────
   const selectedCustomer = customers.find(c => c.value === form.customer_id);
   const selectedSupplier = suppliers.find(s => s.value === form.supplier_id);
-  const filteredContracts = contracts.filter(c => {
-    if (!form.customer_id && !form.supplier_id) return false;
-    return (form.customer_id && c.customer_id === form.customer_id) || 
-           (form.supplier_id && c.supplier_id === form.supplier_id);
-  });
 
   const isReady = runGates?.can_run ?? false;
   const statusMeta = STATUS_MAP[form.status || 'draft'] || STATUS_MAP.draft;
@@ -492,7 +603,7 @@ const ShipmentSOPPage: React.FC = () => {
              {activeTab === 'overview' && (
                <OverviewTab 
                    form={form} setField={setField}
-                   customers={customers} suppliers={suppliers} contracts={filteredContracts}
+                   customers={customers} suppliers={suppliers} contracts={overviewContractOptions}
                    selectedCustomer={selectedCustomer} selectedSupplier={selectedSupplier}
                    handleCreateNewCustomer={handleCreateNewCustomer} handleCreateNewSupplier={handleCreateNewSupplier}
                    isSavingCustomer={isSavingCustomer} isSavingSupplier={isSavingSupplier}
@@ -501,9 +612,6 @@ const ShipmentSOPPage: React.FC = () => {
              )}
              {activeTab === 'sales_bl' && (
                <SalesBlTab form={form} setField={setField} shipmentId={id} />
-             )}
-             {activeTab === 'feasibility' && (
-               <FeasibilityTab form={form} setField={setField} shipmentId={id} />
              )}
              {activeTab === 'documents' && (
                <DocumentsTab 
