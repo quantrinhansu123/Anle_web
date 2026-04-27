@@ -37,7 +37,12 @@ export const salesController = {
   async update(req: Request, res: Response, next: NextFunction) {
     try {
       const validatedData = UpdateSalesSchema.parse(req.body);
-      const data = await salesService.update(req.params.id, validatedData);
+      const userRole = (req.user?.role || '').toLowerCase();
+      const allowBackwardStatusTransition =
+        userRole === 'admin' || userRole === 'ceo' || (req.user?.department_code || '').toLowerCase() === 'bod';
+      const data = await salesService.update(req.params.id, validatedData, {
+        allowBackwardStatusTransition,
+      });
       res.json(successResponse(data, 'Sales item updated successfully'));
     } catch (err) {
       next(err);

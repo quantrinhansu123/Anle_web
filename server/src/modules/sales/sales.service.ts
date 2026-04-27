@@ -267,7 +267,11 @@ export const salesService = {
     return this.getById(header.id);
   },
 
-  async update(id: string, dto: UpdateSalesDto) {
+  async update(
+    id: string,
+    dto: UpdateSalesDto,
+    options: { allowBackwardStatusTransition?: boolean } = {},
+  ) {
     const { items, charge_items, ...headerDto } = dto;
     const current = await this.getById(id);
     const currentStatus = normalizeStatus(current.status);
@@ -275,7 +279,9 @@ export const salesService = {
     const headerPayload = pickHeaderPayload(headerDto);
     if (headerDto.status !== undefined) {
       const nextStatus = normalizeStatus(headerDto.status);
-      this.assertStatusTransition(currentStatus, nextStatus);
+      if (!options.allowBackwardStatusTransition) {
+        this.assertStatusTransition(currentStatus, nextStatus);
+      }
       headerPayload.status = nextStatus;
     }
 
