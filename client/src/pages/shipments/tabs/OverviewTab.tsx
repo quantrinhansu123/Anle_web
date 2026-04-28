@@ -6,6 +6,9 @@ import { ThreeStarRating } from '../../../components/ui/ThreeStarRating';
 import { clsx } from 'clsx';
 import type { ShipmentFormState, JobBound } from '../types';
 
+const QUANTITY_UNIT_OPTIONS = ['kg', 'ton', 'cbm', 'pcs', 'ctn'];
+const PACKING_UNIT_OPTIONS = ['bag', 'carton', 'pallet', 'roll', 'box', 'crate'];
+
 interface OverviewTabProps {
   form: ShipmentFormState;
   setField: <K extends keyof ShipmentFormState>(key: K, value: ShipmentFormState[K]) => void;
@@ -150,13 +153,35 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           </div>
           <div className="space-y-1.5">
             <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5"><Info size={12} /> Quantity *</label>
-            <input type="number" step="0.01" value={form.quantity || ''} onChange={e => setField('quantity', parseFloat(e.target.value) || 0)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all" />
+            <div className="grid grid-cols-[1fr,92px] gap-2">
+              <input type="number" step="0.01" value={form.quantity || ''} onChange={e => setField('quantity', parseFloat(e.target.value) || 0)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all" />
+              <select
+                value={form.quantity_unit || 'kg'}
+                onChange={e => setField('quantity_unit', e.target.value)}
+                className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[12px] font-bold uppercase focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all"
+              >
+                {QUANTITY_UNIT_OPTIONS.map((u) => (
+                  <option key={u} value={u}>{u.toUpperCase()}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="space-y-1.5">
             <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5"><Package size={12} /> Packing</label>
-            <input type="text" value={form.packing || ''} onChange={e => setField('packing', e.target.value)} placeholder="20 Cartons"
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all" />
+            <div className="grid grid-cols-[1fr,110px] gap-2">
+              <input type="text" value={form.packing || ''} onChange={e => setField('packing', e.target.value)} placeholder="20"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all" />
+              <select
+                value={form.packing_unit || 'bag'}
+                onChange={e => setField('packing_unit', e.target.value)}
+                className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[12px] font-bold uppercase focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all"
+              >
+                {PACKING_UNIT_OPTIONS.map((u) => (
+                  <option key={u} value={u}>{u.toUpperCase()}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="space-y-1.5">
             <label className="text-[11px] font-bold text-slate-500 uppercase">Incoterms</label>

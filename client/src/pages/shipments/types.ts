@@ -22,7 +22,9 @@ export interface Shipment {
   commodity?: string;
   hs_code?: string;
   quantity?: number;
+  quantity_unit?: string | null;
   packing?: string;
+  packing_unit?: string | null;
   vessel_voyage?: string;
   term?: string;
   transport_air: boolean;
@@ -151,7 +153,9 @@ export interface CreateShipmentDto {
   commodity?: string;
   hs_code?: string;
   quantity?: number;
+  quantity_unit?: string | null;
   packing?: string;
+  packing_unit?: string | null;
   vessel_voyage?: string;
   term?: string;
   transport_air?: boolean;

@@ -36,6 +36,8 @@ export interface Sales {
   customer_contact_name?: string;
   customer_contact_email?: string;
   customer_contact_tel?: string;
+  pol?: string;
+  pod?: string;
   pickup?: string;
   final_destination?: string;
   cargo_volume?: string;
@@ -116,6 +118,8 @@ export interface SalesFormState {
   customer_contact_name?: string;
   customer_contact_email?: string;
   customer_contact_tel?: string;
+  pol?: string;
+  pod?: string;
   pickup?: string;
   final_destination?: string;
   cargo_volume?: string;

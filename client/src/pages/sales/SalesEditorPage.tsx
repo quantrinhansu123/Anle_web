@@ -102,50 +102,26 @@ const normalizeQuotationStatus = (s?: string): QuotationStatus => {
   return 'draft';
 };
 
-/** Workflow stepper + send email action. Status transitions are handled by clicking steps directly. */
+/** Quotation lifecycle: transitions by clicking workflow steps only. */
 const QuotationWorkflowBar: React.FC<{
   variant: 'desktop' | 'mobile';
   currentStatus: QuotationStatus;
-  statusSaving: boolean;
-  onSendEmail: () => void;
   onStepChange?: (status: QuotationStatus) => void;
-}> = ({
-  variant,
-  currentStatus,
-  statusSaving,
-  onSendEmail,
-  onStepChange,
-}) => {
+}> = ({ variant, currentStatus, onStepChange }) => {
   const stepper = (
     <WorkflowStepper steps={QUOTATION_STATUS_STEPS} currentStep={currentStatus} variant={variant} onStepChange={onStepChange} />
   );
 
   if (variant === 'mobile') {
     return (
-      <div className="md:hidden mx-4 mt-3 rounded-xl border border-border bg-white px-4 py-3 space-y-3 shadow-sm">
-        <button
-          type="button"
-          className="inline-flex items-center justify-center min-h-9 px-4 py-2 rounded-lg bg-primary text-white text-[11px] font-bold uppercase tracking-wide shadow-sm shadow-primary/15 hover:bg-primary/90 transition-colors disabled:opacity-45 disabled:pointer-events-none"
-          onClick={onSendEmail}
-          disabled={statusSaving}
-        >
-          Send email
-        </button>
+      <div className="md:hidden mx-4 mt-3 rounded-xl border border-border bg-white px-4 py-3 shadow-sm">
         <div className="w-full overflow-x-auto pb-0.5">{stepper}</div>
       </div>
     );
   }
 
   return (
-    <div className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-3">
-      <button
-        type="button"
-        className="inline-flex items-center justify-center min-h-9 px-4 py-2 rounded-lg bg-primary text-white text-[11px] font-bold uppercase tracking-wide shadow-sm shadow-primary/15 hover:bg-primary/90 transition-colors disabled:opacity-45 disabled:pointer-events-none"
-        onClick={onSendEmail}
-        disabled={statusSaving}
-      >
-        Send email
-      </button>
+    <div className="flex w-full flex-wrap items-center justify-end gap-x-4 gap-y-3">
       <div className="flex min-w-0 flex-1 items-center justify-end overflow-x-auto md:max-w-[55%] lg:max-w-none lg:flex-initial">
         {stepper}
       </div>
@@ -434,6 +410,8 @@ const SalesEditorPage: React.FC<Props> = ({ mode }) => {
       customer_contact_name: item.customer_contact_name,
       customer_contact_email: item.customer_contact_email,
       customer_contact_tel: item.customer_contact_tel,
+      pol: item.pol ?? item.shipments?.pol ?? '',
+      pod: item.pod ?? item.shipments?.pod ?? '',
       pickup: item.pickup,
       final_destination: item.final_destination,
       cargo_volume: item.cargo_volume,
@@ -749,28 +727,33 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
     async (next: QuotationStatus) => {
       const prev = normalizeQuotationStatus(formState.status);
       if (prev === next) return;
-      setFormField('status', next);
       const id = formState.id;
       if (!id) return;
+      setFormField('status', next);
       try {
         setStatusSaving(true);
+        let effectiveStatus: QuotationStatus = next;
         if (next === 'confirmed') {
-          await salesService.confirmQuotation(id);
+          const data = await salesService.confirmQuotation(id);
+          effectiveStatus = normalizeQuotationStatus(data.status);
         } else if (next === 'sent') {
-          await salesService.sendQuotationEmail(id, {
-            to_email: formState.customer_contact_email,
-            subject: `Quotation ${formState.no_doc || id}`,
-          });
+          const data = await salesService.markQuotationSent(id);
+          effectiveStatus = normalizeQuotationStatus(data.status);
         } else if (next === 'won') {
-          await salesService.markQuotationWon(id);
+          const data = await salesService.markQuotationWon(id);
+          effectiveStatus = normalizeQuotationStatus(data.status);
         } else if (next === 'lost') {
-          await salesService.markQuotationLost(id);
+          const data = await salesService.markQuotationLost(id);
+          effectiveStatus = normalizeQuotationStatus(data.status);
         } else {
-          await salesService.updateSalesItem(id, { status: next });
+          const data = await salesService.updateSalesItem(id, { status: next });
+          effectiveStatus = normalizeQuotationStatus(data.status);
         }
-        onPersistedStatusChange?.(next);
+        setFormField('status', effectiveStatus);
+        onPersistedStatusChange?.(effectiveStatus);
         const prevLabel = QUOTATION_STATUS_STEPS.find(s => s.id === prev)?.label || prev;
-        const nextLabel = QUOTATION_STATUS_STEPS.find(s => s.id === next)?.label || next;
+        const nextLabel =
+          QUOTATION_STATUS_STEPS.find(s => s.id === effectiveStatus)?.label || effectiveStatus;
         toastSuccess(`Quotation status changed from "${prevLabel}" to "${nextLabel}"`);
       } catch (e: unknown) {
         const msg =
@@ -786,36 +769,12 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
     [
       formState.status,
       formState.id,
-      formState.customer_contact_email,
-      formState.no_doc,
       setFormField,
       onPersistedStatusChange,
       toastSuccess,
       toastError,
     ],
   );
-
-  const handleSendQuotationEmail = useCallback(async () => {
-    if (!formState.id) return;
-    try {
-      setStatusSaving(true);
-      await salesService.sendQuotationEmail(formState.id, {
-        to_email: formState.customer_contact_email,
-        subject: `Quotation ${formState.no_doc || formState.id}`,
-      });
-      setFormField('status', 'sent');
-      onPersistedStatusChange?.('sent');
-      toastSuccess('Quotation email was logged and status moved to Sent');
-    } catch (e: unknown) {
-      const msg =
-        e && typeof e === 'object' && 'message' in e
-          ? String((e as { message?: unknown }).message ?? '')
-          : '';
-      toastError(msg || 'Failed to log quotation send');
-    } finally {
-      setStatusSaving(false);
-    }
-  }, [formState.id, formState.customer_contact_email, formState.no_doc, setFormField, onPersistedStatusChange, toastSuccess, toastError]);
 
   useEffect(() => {
     if (!formState.sales_person_id || !selectedEmployee || isReadOnly) return;
@@ -1442,8 +1401,6 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
         <QuotationWorkflowBar
           variant="mobile"
           currentStatus={quotationStatus}
-          statusSaving={statusSaving}
-          onSendEmail={handleSendQuotationEmail}
           onStepChange={applyQuotationStatus}
         />
       ) : null}
@@ -1550,13 +1507,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Workflow</span>
               </div>
-              <QuotationWorkflowBar
-                variant="desktop"
-                currentStatus={quotationStatus}
-                statusSaving={statusSaving}
-                onSendEmail={handleSendQuotationEmail}
-                onStepChange={applyQuotationStatus}
-              />
+              <QuotationWorkflowBar variant="desktop" currentStatus={quotationStatus} onStepChange={applyQuotationStatus} />
             </div>
           ) : null}
         </div>
@@ -1687,11 +1638,23 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
               </div>
               <div className="space-y-1.5">
                 <label className={mobileLabelClass}>Port of Loading</label>
-                <input value={selectedShipment?.pol || ''} readOnly className={mf('emerald', true)} />
+                <input
+                  value={formState.pol ?? ''}
+                  onChange={(e) => setFormField('pol', e.target.value)}
+                  disabled={isReadOnly}
+                  className={mf('emerald', isReadOnly)}
+                  placeholder="e.g. Hochiminh, VNM"
+                />
               </div>
               <div className="space-y-1.5">
                 <label className={mobileLabelClass}>Port of Discharge</label>
-                <input value={selectedShipment?.pod || ''} readOnly className={mf('emerald', true)} />
+                <input
+                  value={formState.pod ?? ''}
+                  onChange={(e) => setFormField('pod', e.target.value)}
+                  disabled={isReadOnly}
+                  className={mf('emerald', isReadOnly)}
+                  placeholder="e.g. Los Angeles, USA"
+                />
               </div>
               <div className="space-y-1.5">
                 <label className={mobileLabelClass}>Pickup</label>
@@ -1952,9 +1915,21 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                 className="w-full"
               />
               <label className="text-[12px] font-bold text-slate-600">Port of Loading</label>
-              <input value={selectedShipment?.pol || ''} readOnly className="w-full px-3 py-2 bg-slate-100 border border-border rounded-xl text-[13px]" />
+              <input
+                value={formState.pol ?? ''}
+                onChange={(e) => setFormField('pol', e.target.value)}
+                disabled={isReadOnly}
+                placeholder="e.g. Hochiminh, VNM"
+                className={`w-full px-3 py-2 border border-border rounded-xl text-[13px] ${isReadOnly ? 'bg-slate-100' : ''}`}
+              />
               <label className="text-[12px] font-bold text-slate-600">Port of Discharge</label>
-              <input value={selectedShipment?.pod || ''} readOnly className="w-full px-3 py-2 bg-slate-100 border border-border rounded-xl text-[13px]" />
+              <input
+                value={formState.pod ?? ''}
+                onChange={(e) => setFormField('pod', e.target.value)}
+                disabled={isReadOnly}
+                placeholder="e.g. Los Angeles, USA"
+                className={`w-full px-3 py-2 border border-border rounded-xl text-[13px] ${isReadOnly ? 'bg-slate-100' : ''}`}
+              />
               <label className="text-[12px] font-bold text-slate-600">Pickup</label>
               <input value={formState.pickup || ''} onChange={(e) => setFormField('pickup', e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 border border-border rounded-xl text-[13px]" />
               <label className="text-[12px] font-bold text-slate-600">Final Destination</label>

@@ -30,7 +30,9 @@ export interface Shipment {
   commodity_cn?: string;
   hs_code?: string;
   quantity?: number;
+  quantity_unit?: string;
   packing?: string;
+  packing_unit?: string;
   vessel_voyage?: string;
   term?: string;
   incoterm?: string;

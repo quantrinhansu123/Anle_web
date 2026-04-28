@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   FileText,
   Plus,
+  Printer,
   Send,
   Trash2,
   XCircle,
@@ -207,6 +208,20 @@ const fmtNumber = (n: number) =>
   );
 
 const fmtCurrency = (n: number, curr: string) => `${fmtNumber(n)} ${curr === 'VND' ? 'đ' : curr}`;
+const fmtDateVN = (value?: string) => {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+  }).format(d);
+};
+function quotationLogoSrc(): string {
+  if (import.meta.env.DEV) return '/appsheet-brand-logo';
+  return 'https://www.appsheet.com/template/gettablefileurl?appName=Appsheet-325045268&tableName=Kho%20%E1%BA%A3nh&fileName=Kho%20%E1%BA%A3nh_Images%2Fe6a56fae.%E1%BA%A3nh.064359.png';
+}
 
 /* ------------------------------------------------------------------ */
 /*  Main page                                                          */
@@ -662,6 +677,259 @@ const DebitNotePage: React.FC = () => {
 
   const [invoiceSubmitting, setInvoiceSubmitting] = useState(false);
 
+  const handlePrintDebitNote = useCallback(() => {
+    const opened = window.open('', '_blank', 'noopener,noreferrer,width=1100,height=800');
+    if (!opened) {
+      toastErr('Popup blocked. Please allow popups to print Debit Note.');
+      return;
+    }
+
+    const rowsHtml = lines
+      .map(
+        (line, idx) => `
+          <tr>
+            <td>${idx + 1}</td>
+            <td>${line.fare_name || line.fare || ''}</td>
+            <td class="c">${line.unit || ''}</td>
+            <td class="r">${fmtNumber(line.rate || 0)}</td>
+            <td class="r">${fmtNumber(line.qty || 0)}</td>
+            <td class="r">${fmtNumber(line.local_amount || 0)}</td>
+            <td class="r">${fmtNumber(line.vat_local || 0)}</td>
+            <td class="r">${fmtNumber((line.local_amount || 0) + (line.vat_local || 0))}</td>
+            <td></td>
+          </tr>
+        `,
+      )
+      .join('');
+
+    const section2RowsHtml = Array.from({ length: 2 })
+      .map(
+        () => `
+          <tr>
+            <td>&nbsp;</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td class="r">-</td>
+            <td></td>
+            <td class="r">-</td>
+            <td></td>
+          </tr>
+        `,
+      )
+      .join('');
+
+    const html = `
+      <!doctype html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Debit Note ${dnNo || ''}</title>
+        <style>
+          @page { size: A4; margin: 8mm; }
+          body { font-family: "Times New Roman", serif; color: #000; margin: 0; }
+          .wrap { width: 100%; }
+          .head { border: 1px solid #000; margin-bottom: 6px; }
+          .head-grid { display: grid; grid-template-columns: 2fr 1.2fr; min-height: 128px; }
+          .head-left { border-right: 1px solid #000; display: flex; align-items: center; justify-content: center; padding: 8px; }
+          .head-left img { width: 94%; height: auto; object-fit: contain; }
+          .company-sub { text-align: right; font-size: 10px; line-height: 1.45; padding: 10px 10px 6px; text-transform: uppercase; letter-spacing: 0.18em; color: #1f4d82; }
+          .company-band { border-top: 1px dotted #4a6f95; text-align: center; font-size: 32px; font-weight: 700; letter-spacing: 6px; color: #1f4d82; padding: 4px 6px 5px; text-transform: uppercase; }
+          .doc-head { display: grid; grid-template-columns: 1fr 260px; align-items: center; margin: 2px 0 6px; }
+          .title { text-align: center; font-size: 38px; font-weight: 700; margin: 0; letter-spacing: 1px; }
+          .meta-box { border: 1px solid #000; }
+          .meta-box .row { display: grid; grid-template-columns: 58px 1fr; border-bottom: 1px solid #000; }
+          .meta-box .row:last-child { border-bottom: none; }
+          .meta-box .k { font-weight: 700; border-right: 1px solid #000; padding: 4px 6px; font-size: 13px; }
+          .meta-box .v { padding: 4px 6px; font-size: 13px; font-weight: 700; }
+          table { border-collapse: collapse; width: 100%; }
+          td, th { border: 1px solid #000; padding: 4px 6px; font-size: 13px; vertical-align: top; }
+          .lbl { width: 95px; font-weight: 700; }
+          .lbl2 { width: 120px; font-weight: 700; }
+          .r { text-align: right; }
+          .c { text-align: center; }
+          .sec { margin-top: 6px; }
+          .cost-title { font-size: 18px; font-weight: 700; margin: 8px 0 4px; }
+          .cost-table th { background: #e6e6e6; }
+          .cost-table td, .cost-table th { height: 28px; }
+          .sum-row td { font-weight: 700; }
+          .pay-block { margin-top: 12px; }
+          .pay-block p { margin: 0 0 6px; font-size: 30px; font-weight: 700; }
+          .tot { font-weight: 700; }
+        </style>
+      </head>
+      <body>
+        <div class="wrap">
+          <div class="head">
+            <div class="head-grid">
+              <div class="head-left">
+                <img src="${quotationLogoSrc()}" alt="ANLE-SCM Logo" />
+              </div>
+              <div class="company-sub">
+                CÔNG TY TNHH ANLE.SCM<br/>
+                0319055028<br/>
+                MGM@ANLE-SCM.COM<br/>
+                ANLE-SCM.COM/HOME<br/>
+                NO 1L, 7L STREET, TAN THUAN WARD, HO CHI MINH CITY, VIETNAM
+              </div>
+            </div>
+            <div class="company-band">ANLE.SUPPLY CHAIN MANAGEMENT</div>
+          </div>
+
+          <div class="doc-head">
+            <div class="title">DEBIT NOTE</div>
+            <div class="meta-box">
+              <div class="row">
+                <div class="k">Số:</div>
+                <div class="v">${dnNo || ''}</div>
+              </div>
+              <div class="row">
+                <div class="k">Ngày:</div>
+                <div class="v">${fmtDateVN(billingDate)}</div>
+              </div>
+            </div>
+          </div>
+
+          <table>
+            <tr>
+              <td class="lbl">Khách hàng:</td>
+              <td colspan="3"><b>${customerDisplay || customer || ''}</b></td>
+            </tr>
+            <tr>
+              <td class="lbl">Địa chỉ:</td>
+              <td colspan="3">${shipper || ''}</td>
+            </tr>
+            <tr>
+              <td class="lbl">MST:</td>
+              <td colspan="3">${referenceNo || ''}</td>
+            </tr>
+            <tr>
+              <td class="lbl2">FILE</td>
+              <td>${jobNo || ''}</td>
+              <td class="lbl2">Nơi nhận hàng</td>
+              <td>${consignee || ''}</td>
+            </tr>
+            <tr>
+              <td class="lbl2">ĐVSD</td>
+              <td>${salesman || ''}</td>
+              <td class="lbl2">Nơi trả hàng</td>
+              <td>${masterBl || ''}</td>
+            </tr>
+            <tr>
+              <td class="lbl2">MBL</td>
+              <td>${masterBl || ''}</td>
+              <td class="lbl2">Ngày hàng đi</td>
+              <td>${fmtDateVN(dueDate)}</td>
+            </tr>
+            <tr>
+              <td class="lbl2">Hàng hóa</td>
+              <td>${houseBl || ''}</td>
+              <td class="lbl2">Ngày xuất HD</td>
+              <td>${fmtDateVN(billingDate)}</td>
+            </tr>
+          </table>
+
+          <div class="sec">
+            <div class="cost-title">I. Chi phí phát hành hóa đơn</div>
+            <table class="cost-table">
+              <thead>
+                <tr>
+                  <th class="c" style="width:40px">STT</th>
+                  <th>Nội Dung</th>
+                  <th class="c" style="width:70px">ĐVT</th>
+                  <th class="r" style="width:110px">Đơn Giá (VND)</th>
+                  <th class="r" style="width:70px">Số lượng</th>
+                  <th class="r" style="width:130px">Thành tiền (VND)</th>
+                  <th class="r" style="width:95px">Thuế VAT</th>
+                  <th class="r" style="width:120px">Tổng cộng</th>
+                  <th class="c" style="width:70px">Chú ý</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml || '<tr><td colspan="9" class="c">—</td></tr>'}
+              </tbody>
+              <tfoot>
+                <tr class="sum-row">
+                  <td colspan="6" class="c">Tổng Cộng (I)</td>
+                  <td class="c">VND</td>
+                  <td class="r">${fmtNumber(totalAmount)}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <div class="sec">
+            <div class="cost-title">II. Chi phí chi hộ trả hộ</div>
+            <table class="cost-table">
+              <thead>
+                <tr>
+                  <th class="c" style="width:40px">STT</th>
+                  <th>Nội Dung</th>
+                  <th class="c" style="width:70px">Đơn Giá</th>
+                  <th class="c" style="width:70px">Số lượng</th>
+                  <th class="r" style="width:130px">Thành tiền (VND)</th>
+                  <th class="r" style="width:95px">Thuế VAT</th>
+                  <th class="r" style="width:120px">Tổng cộng</th>
+                  <th class="c" style="width:70px">Chú ý</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${section2RowsHtml}
+              </tbody>
+              <tfoot>
+                <tr class="sum-row">
+                  <td colspan="5" class="c">Tổng Cộng (II)</td>
+                  <td class="c">VND</td>
+                  <td class="r">-</td>
+                  <td></td>
+                </tr>
+                <tr class="sum-row">
+                  <td colspan="5" class="c">TỔNG (I) + (II)</td>
+                  <td class="c">VND</td>
+                  <td class="r">${fmtNumber(totalAmount)}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <div class="pay-block">
+            <p>Đề nghị quý công ty thanh toán theo thông tin chi tiết sau :</p>
+            <p>Tên tài khoản:CÔNG TY TNHH ANLE-SCM</p>
+            <p>Tài khoản VND: 106.96.3391</p>
+            <p>Tại Ngân hàng TMCP Ngoại Thương Việt Nam, chi nhánh Nam Sài Gòn, Tp Hồ Chí Minh</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    opened.document.open();
+    opened.document.write(html);
+    opened.document.close();
+    opened.focus();
+    window.setTimeout(() => opened.print(), 200);
+  }, [
+    billingDate,
+    consignee,
+    customer,
+    customerDisplay,
+    dnNo,
+    dueDate,
+    exchangeRate,
+    houseBl,
+    jobNo,
+    lines,
+    masterBl,
+    referenceNo,
+    salesman,
+    shipper,
+    toastErr,
+    totalAmount,
+  ]);
+
   const handleCreateInvoice = async () => {
     if (!shipmentId) {
       toastErr('Missing shipment');
@@ -788,6 +1056,14 @@ const DebitNotePage: React.FC = () => {
                 {importingQuotationLines ? 'Loading…' : 'Import from quotation'}
               </button>
             ) : null}
+            <button
+              type="button"
+              onClick={handlePrintDebitNote}
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-white px-4 text-[11px] font-bold uppercase tracking-wide text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+            >
+              <Printer size={14} />
+              Print
+            </button>
             {status === 'sent' && (
               <button
                 type="button"

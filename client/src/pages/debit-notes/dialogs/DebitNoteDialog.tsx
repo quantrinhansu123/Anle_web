@@ -172,43 +172,55 @@ const DebitNoteDialog: React.FC<Props> = ({
     new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value || 0);
 
   const handlePrintDebitNote = () => {
+    const logoSrc = `${window.location.origin}/print-header.png`;
     const shipmentLabel = selectedShipment?.code || selectedShipment?.id || formState.shipment_id || '—';
     const noteDateLabel = note_date ? new Date(note_date).toLocaleDateString('en-GB') : '—';
     const invoiceRowsHtml = invoice_items.length
       ? invoice_items
-          .map((item) => {
-            const lineTotal = item.total || (item.rate * item.quantity * (item.exchange_rate || 1) * (1 + (item.tax_percent || 0) / 100));
+          .map((item, idx) => {
+            const amount = (item.amount || (item.rate * item.quantity * (item.exchange_rate || 1)));
+            const vat = amount * ((item.tax_percent || 0) / 100);
+            const lineTotal = item.total || amount + vat;
             return `
               <tr>
+                <td class="c">${idx + 1}</td>
                 <td>${item.description || '—'}</td>
-                <td>${item.unit || '—'}</td>
-                <td>${item.currency_code || 'VND'}</td>
+                <td class="c">${item.unit || '—'}</td>
                 <td style="text-align:right">${formatAmount(item.rate || 0)}</td>
                 <td style="text-align:right">${formatAmount(item.quantity || 0)}</td>
+                <td style="text-align:right">${formatAmount(amount || 0)}</td>
+                <td style="text-align:right">${formatAmount(vat || 0)}</td>
                 <td style="text-align:right">${formatAmount(lineTotal || 0)}</td>
+                <td></td>
               </tr>
             `;
           })
           .join('')
-      : '<tr><td colspan="6" style="text-align:center;color:#64748b">No invoice items</td></tr>';
+      : '<tr><td colspan="9" style="text-align:center;color:#64748b">No invoice items</td></tr>';
 
     const disbursementRowsHtml = chi_ho_items.length
       ? chi_ho_items
-          .map((item) => {
+          .map((item, idx) => {
             const lineTotal = item.total || (item.rate * item.quantity * (item.exchange_rate || 1));
             return `
               <tr>
+                <td class="c">${idx + 1}</td>
                 <td>${item.description || '—'}</td>
-                <td>${item.unit || '—'}</td>
-                <td>${item.currency_code || 'VND'}</td>
+                <td class="c">${item.unit || '—'}</td>
                 <td style="text-align:right">${formatAmount(item.rate || 0)}</td>
                 <td style="text-align:right">${formatAmount(item.quantity || 0)}</td>
                 <td style="text-align:right">${formatAmount(lineTotal || 0)}</td>
+                <td style="text-align:right">0</td>
+                <td style="text-align:right">${formatAmount(lineTotal || 0)}</td>
+                <td></td>
               </tr>
             `;
           })
           .join('')
-      : '<tr><td colspan="6" style="text-align:center;color:#64748b">No disbursement items</td></tr>';
+      : `
+          <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td style="text-align:right">0</td><td style="text-align:right">0</td><td style="text-align:right">0</td><td></td></tr>
+          <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td style="text-align:right">0</td><td style="text-align:right">0</td><td style="text-align:right">0</td><td></td></tr>
+        `;
 
     const html = `<!doctype html>
 <html>
@@ -216,51 +228,135 @@ const DebitNoteDialog: React.FC<Props> = ({
     <meta charset="utf-8" />
     <title>Debit Note ${shipmentLabel}</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 24px; color: #0f172a; }
-      h1 { margin: 0 0 8px; font-size: 24px; }
-      .meta { margin: 0 0 16px; color: #475569; font-size: 13px; }
-      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-      .card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; }
-      .label { color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
-      .value { font-size: 13px; font-weight: 700; }
-      table { width: 100%; border-collapse: collapse; margin-top: 8px; margin-bottom: 16px; }
-      th, td { border: 1px solid #e2e8f0; padding: 8px; font-size: 12px; }
-      th { background: #f8fafc; text-align: left; text-transform: uppercase; font-size: 10px; color: #475569; }
-      .section { margin-top: 14px; }
-      .section h2 { font-size: 13px; margin: 0 0 8px; color: #2563eb; text-transform: uppercase; letter-spacing: .04em; }
-      .totals { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; width: 320px; margin-left: auto; }
-      .totals-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; }
-      .totals-row strong { font-size: 16px; color: #2563eb; }
-      @media print { body { margin: 10mm; } }
+      @page { size: A4; margin: 6mm; }
+      body { font-family: "Times New Roman", serif; color: #000; margin: 0; }
+      .wrap { width: 100%; }
+      .head { border: none; margin-bottom: 4px; overflow: hidden; }
+      .banner-wrap { width: 100%; height: 150px; background: #fff; display: flex; align-items: center; justify-content: center; }
+      .banner-wrap img { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
+      .doc-head { position: relative; display: flex; justify-content: flex-end; align-items: center; margin: 1px 0 4px; min-height: 44px; }
+      .title { position: absolute; left: 50%; transform: translateX(-50%); text-align: center; font-size: 24px; font-weight: 700; margin: 0; letter-spacing: .5px; width: max-content; }
+      .meta-box { border: 1px solid #000; }
+      .meta-box .row { display: grid; grid-template-columns: 58px 1fr; border-bottom: 1px solid #000; }
+      .meta-box .row:last-child { border-bottom: none; }
+      .meta-box .k { font-weight: 700; border-right: 1px solid #000; padding: 2px 5px; font-size: 11px; }
+      .meta-box .v { padding: 2px 5px; font-size: 11px; font-weight: 700; }
+      table { border-collapse: collapse; width: 100%; }
+      td, th { border: 1px solid #000; padding: 2px 4px; font-size: 11px; vertical-align: top; }
+      .lbl { width: 76px; font-weight: 700; }
+      .lbl2 { width: 92px; font-weight: 700; }
+      .r { text-align: right; }
+      .c { text-align: center; }
+      .sec { margin-top: 4px; }
+      .cost-title { font-size: 16px; font-weight: 700; margin: 5px 0 3px; }
+      .cost-table { table-layout: fixed; }
+      .cost-table th { background: #e6e6e6; }
+      .cost-table td, .cost-table th { height: 20px; }
+      .sum-row td { font-weight: 700; }
+      .pay-block { margin-top: 8px; }
+      .pay-block p { margin: 0 0 4px; font-size: 11px; font-weight: 600; line-height: 1.25; }
     </style>
   </head>
   <body>
-    <h1>Debit Note</h1>
-    <p class="meta">Shipment: ${shipmentLabel} · Note date: ${noteDateLabel}</p>
-    <div class="grid">
-      <div class="card"><div class="label">Commodity</div><div class="value">${selectedShipment?.commodity || '—'}</div></div>
-      <div class="card"><div class="label">Route</div><div class="value">${selectedShipment?.pol || '—'} → ${selectedShipment?.pod || '—'}</div></div>
-    </div>
-    <div class="section">
-      <h2>Invoice Items</h2>
+    <div class="wrap">
+      <div class="head">
+        <div class="banner-wrap">
+          <img src="${logoSrc}" alt="ANLE Header Banner" />
+        </div>
+      </div>
+      <div class="doc-head">
+        <div class="title">DEBIT NOTE</div>
+        <div class="meta-box">
+          <div class="row"><div class="k">Số:</div><div class="v">${shipmentLabel}</div></div>
+          <div class="row"><div class="k">Ngày:</div><div class="v">${noteDateLabel}</div></div>
+        </div>
+      </div>
+
       <table>
-        <thead><tr><th>Description</th><th>Unit</th><th>Curr</th><th>Rate</th><th>Qty</th><th>Total (VND)</th></tr></thead>
-        <tbody>${invoiceRowsHtml}</tbody>
+        <tr><td class="lbl">Khách hàng:</td><td colspan="3"><b>${selectedShipment?.customers?.company_name || '—'}</b></td></tr>
+        <tr><td class="lbl">Địa chỉ:</td><td colspan="3">—</td></tr>
+        <tr><td class="lbl">MST:</td><td colspan="3">—</td></tr>
+        <tr><td class="lbl2">FILE</td><td>${shipmentLabel}</td><td class="lbl2">Nơi nhận hàng</td><td>${selectedShipment?.pod || '—'}</td></tr>
+        <tr><td class="lbl2">ĐVSD</td><td>${selectedShipment?.salesperson?.full_name || '—'}</td><td class="lbl2">Nơi trả hàng</td><td>${selectedShipment?.pol || '—'}</td></tr>
+        <tr><td class="lbl2">MBL</td><td>${selectedShipment?.master_bl_number || '—'}</td><td class="lbl2">Ngày hàng đi</td><td>${selectedShipment?.etd ? new Date(selectedShipment.etd).toLocaleDateString('en-GB') : '—'}</td></tr>
+        <tr><td class="lbl2">Hàng hóa</td><td>${selectedShipment?.commodity || '—'}</td><td class="lbl2">Ngày xuất HD</td><td>${noteDateLabel}</td></tr>
       </table>
+
+      <div class="sec">
+        <div class="cost-title">I. Chi phí phát hành hóa đơn</div>
+        <table class="cost-table">
+          <thead>
+            <tr>
+              <th class="c" style="width:34px">STT</th><th style="width:42%">Nội Dung</th><th class="c" style="width:42px">ĐVT</th>
+              <th class="r" style="width:72px">Đơn Giá (VND)</th><th class="r" style="width:50px">Số lượng</th>
+              <th class="r" style="width:92px">Thành tiền (VND)</th><th class="r" style="width:58px">Thuế VAT</th>
+              <th class="r" style="width:86px">Tổng cộng</th><th class="c" style="width:48px">Chú ý</th>
+            </tr>
+          </thead>
+          <tbody>${invoiceRowsHtml}</tbody>
+          <tfoot>
+            <tr class="sum-row"><td colspan="6" class="c">Tổng Cộng (I)</td><td class="c">VND</td><td class="r">${formatAmount(totalInvoice)}</td><td></td></tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="sec">
+        <div class="cost-title">II. Chi phí chi hộ trả hộ</div>
+        <table class="cost-table">
+          <thead>
+            <tr>
+              <th class="c" style="width:34px">STT</th><th style="width:42%">Nội Dung</th><th class="c" style="width:42px">ĐVT</th>
+              <th class="r" style="width:72px">Đơn Giá (VND)</th><th class="r" style="width:50px">Số lượng</th>
+              <th class="r" style="width:92px">Thành tiền (VND)</th><th class="r" style="width:58px">Thuế VAT</th>
+              <th class="r" style="width:86px">Tổng cộng</th><th class="c" style="width:48px">Chú ý</th>
+            </tr>
+          </thead>
+          <tbody>${disbursementRowsHtml}</tbody>
+          <tfoot>
+            <tr class="sum-row"><td colspan="6" class="c">Tổng Cộng (II)</td><td class="c">VND</td><td class="r">${formatAmount(totalChiHo)}</td><td></td></tr>
+            <tr class="sum-row"><td colspan="6" class="c">TỔNG (I) + (II)</td><td class="c">VND</td><td class="r">${formatAmount(grandTotal)}</td><td></td></tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="pay-block">
+        <p>Đề nghị quý công ty thanh toán theo thông tin chi tiết sau :</p>
+        <p>Tên tài khoản:CÔNG TY TNHH ANLE-SCM</p>
+        <p>Tài khoản VND: 106.96.3391</p>
+        <p>Tại Ngân hàng TMCP Ngoại Thương Việt Nam, chi nhánh Nam Sài Gòn, Tp Hồ Chí Minh</p>
+      </div>
     </div>
-    <div class="section">
-      <h2>Disbursements</h2>
-      <table>
-        <thead><tr><th>Description</th><th>Unit</th><th>Curr</th><th>Rate</th><th>Qty</th><th>Total (VND)</th></tr></thead>
-        <tbody>${disbursementRowsHtml}</tbody>
-      </table>
-    </div>
-    <div class="totals">
-      <div class="totals-row"><span>Total Invoice</span><span>${formatAmount(totalInvoice)}</span></div>
-      <div class="totals-row"><span>Total Disbursements</span><span>${formatAmount(totalChiHo)}</span></div>
-      <div class="totals-row"><strong>Grand Total</strong><strong>${formatAmount(grandTotal)}</strong></div>
-    </div>
-    <script>window.print();</script>
+    <script>
+      (function () {
+        const waitForImages = () => {
+          const images = Array.from(document.images || []);
+          if (!images.length) return Promise.resolve();
+          return Promise.all(
+            images.map((img) => {
+              if (img.complete) return Promise.resolve();
+              return new Promise((resolve) => {
+                const done = () => resolve();
+                img.addEventListener('load', done, { once: true });
+                img.addEventListener('error', done, { once: true });
+              });
+            }),
+          );
+        };
+
+        const triggerPrint = () => {
+          waitForImages().finally(() => {
+            setTimeout(() => window.print(), 120);
+          });
+        };
+
+        if (document.readyState === 'complete') {
+          triggerPrint();
+        } else {
+          window.addEventListener('load', triggerPrint, { once: true });
+          // Fallback in case some browser does not fire "load" as expected.
+          setTimeout(triggerPrint, 900);
+        }
+      })();
+    </script>
   </body>
 </html>`;
     const w = window.open('', '_blank', 'width=960,height=720');

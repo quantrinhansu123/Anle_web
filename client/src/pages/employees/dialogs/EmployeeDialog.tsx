@@ -339,17 +339,17 @@ const EmployeeDialog: React.FC<EmployeeDialogProps> = ({
               />
             </div>
 
-            {!isEditMode && !isDetailMode && (
+            {!isDetailMode && (
               /* Password */
               <div className="space-y-1.5">
                 <label className="text-[12px] font-bold text-slate-700 flex items-center gap-2">
                   <Lock size={14} className="text-primary/60" />
-                  Password
+                  {isEditMode ? 'New Password' : 'Password'}
                 </label>
                 <div className="relative">
                   <input
                     type="password"
-                    placeholder="Set temporary password"
+                    placeholder={isEditMode ? 'Leave blank to keep current password' : 'Set temporary password'}
                     value={formState.password || ''}
                     onChange={(e) => setFormField('password', e.target.value)}
                     className="w-full px-4 py-2 bg-white border border-border rounded-xl text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all"

@@ -894,7 +894,7 @@ const ShipmentsPage: React.FC = () => {
         <div className="bg-white rounded-2xl border border-border shadow-sm flex flex-col flex-1 min-h-0">
           {/* MOBILE TOOLBAR */}
           <div className="md:hidden flex items-center gap-2 p-3 border-b border-border">
-            <button onClick={() => navigate('/shipments')} className="p-2 rounded-xl border border-border bg-white text-muted-foreground"><ChevronLeft size={18} /></button>
+            <button onClick={() => navigate('/operations')} className="p-2 rounded-xl border border-border bg-white text-muted-foreground"><ChevronLeft size={18} /></button>
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={15} />
               <input type="text" placeholder="Search shipments..." value={searchText} onChange={(e) => setSearchText(e.target.value)} className="w-full pl-9 pr-8 py-2 bg-muted/20 border border-border rounded-xl text-[13px] font-medium" />
@@ -958,7 +958,7 @@ const ShipmentsPage: React.FC = () => {
           <div className="hidden md:block p-4 space-y-4">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-2 flex-1">
-                <button onClick={() => navigate('/shipments')} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border hover:bg-muted text-[12px] font-bold transition-all bg-white shadow-sm shrink-0"><ChevronLeft size={16} />Back</button>
+                <button onClick={() => navigate('/operations')} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border hover:bg-muted text-[12px] font-bold transition-all bg-white shadow-sm shrink-0"><ChevronLeft size={16} />Back</button>
                 <div className="relative flex-1 max-w-sm">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
                   <input type="text" placeholder="Search shipments..." value={searchText} onChange={(e) => setSearchText(e.target.value)} className="w-full pl-10 pr-8 py-1.5 bg-muted/20 border border-border rounded-xl text-[13px] font-medium" />
@@ -1210,7 +1210,7 @@ const ShipmentsPage: React.FC = () => {
           {/* ── MOBILE STATS TOOLBAR ── */}
           <div className="md:hidden flex items-center justify-between p-3 border-b border-border shrink-0 relative">
             <button
-              onClick={() => navigate('/shipments')}
+              onClick={() => navigate('/operations')}
               className="p-2 rounded-xl border border-border bg-white text-muted-foreground flex items-center justify-center shrink-0 active:scale-95 transition-transform"
             >
               <ChevronLeft size={18} />
@@ -1233,7 +1233,7 @@ const ShipmentsPage: React.FC = () => {
           <div className="hidden md:block p-4 border-b border-border shrink-0">
             <div className="flex items-center gap-2 flex-wrap" ref={dropdownRef}>
               <button
-                onClick={() => navigate('/shipments')}
+                onClick={() => navigate('/operations')}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground text-[12px] font-bold transition-all bg-white shadow-sm shrink-0"
               >
                 <ChevronLeft size={16} />

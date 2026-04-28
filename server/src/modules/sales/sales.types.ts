@@ -53,6 +53,8 @@ export interface Sales {
   customer_contact_name?: string;
   customer_contact_email?: string;
   customer_contact_tel?: string;
+  pol?: string;
+  pod?: string;
   pickup?: string;
   final_destination?: string;
   cargo_volume?: string;
@@ -91,6 +93,8 @@ export interface CreateSalesDto {
   customer_contact_name?: string | null;
   customer_contact_email?: string | null;
   customer_contact_tel?: string | null;
+  pol?: string | null;
+  pod?: string | null;
   pickup?: string | null;
   final_destination?: string | null;
   cargo_volume?: string | null;

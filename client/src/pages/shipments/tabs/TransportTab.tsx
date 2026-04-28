@@ -183,6 +183,9 @@ const TransportTab: React.FC<Props> = ({ shipmentId }) => {
       const s = suppliersList.find((x) => x.id === supplierId);
       if (!s) return;
       const nameNorm = (s.company_name || '').trim().toLowerCase();
+      const latestVendorBooking = [...currentBookings]
+        .reverse()
+        .find((b) => (b.vendor_name || '').trim().toLowerCase() === nameNorm);
       const prevPlate =
         [...currentBookings]
           .reverse()
@@ -195,8 +198,13 @@ const TransportTab: React.FC<Props> = ({ shipmentId }) => {
       setNewBooking((p) => ({
         ...p,
         vendor_name: s.company_name,
-        vendor_phone: s.phone || '',
+        vendor_phone: latestVendorBooking?.vendor_phone || s.phone || '',
+        vehicle_type: latestVendorBooking?.vehicle_type || p.vehicle_type || 'truck_40ft',
         license_plate: prevPlate || p.license_plate || '',
+        driver_name: latestVendorBooking?.driver_name || p.driver_name || '',
+        driver_phone: latestVendorBooking?.driver_phone || p.driver_phone || '',
+        pickup_location: latestVendorBooking?.pickup_location || p.pickup_location || '',
+        delivery_location: latestVendorBooking?.delivery_location || p.delivery_location || '',
       }));
     },
     [suppliersList],
@@ -690,7 +698,7 @@ const TransportTab: React.FC<Props> = ({ shipmentId }) => {
                 searchPlaceholder="Tìm vendor…"
               />
               <p className="text-[10px] text-slate-500">
-                Tự điền SĐT từ master NCC; biển số lấy từ booking trước cùng vendor trên lô này (nếu có).
+                Tự điền theo booking gần nhất của vendor trong lô này (xe, biển số, tài xế, điểm lấy/giao); fallback SĐT từ master NCC.
               </p>
             </div>
             <div className="space-y-1.5">

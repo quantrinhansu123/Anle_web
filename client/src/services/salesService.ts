@@ -40,10 +40,9 @@ export const salesService = {
       method: 'POST',
     }),
 
-  sendQuotationEmail: (id: string, payload: { to_email?: string; subject?: string; content_snapshot?: string } = {}) =>
-    apiFetch<{ quotation: Sales }>(`/sales/${id}/send-email`, {
+  markQuotationSent: (id: string) =>
+    apiFetch<Sales>(`/sales/${id}/mark-sent`, {
       method: 'POST',
-      body: JSON.stringify(payload),
     }),
 
   createJobFromQuotation: (id: string, shipment?: Record<string, unknown>) =>

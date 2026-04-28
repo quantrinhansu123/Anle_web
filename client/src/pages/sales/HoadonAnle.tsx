@@ -337,13 +337,13 @@ interface QuotationDocumentBodyProps {
 const QUOTATION_PRINT_CSS = `
 .quotation-print-root {
   box-sizing: border-box;
-  width: 800px;
+  width: 740px;
   max-width: 100%;
   margin-left: auto;
   margin-right: auto;
   background: #ffffff;
   color: #000000;
-  padding: 40px 48px;
+  padding: 28px 34px;
   min-height: 1131px;
   position: relative;
   overflow: hidden;
@@ -351,24 +351,24 @@ const QUOTATION_PRINT_CSS = `
   box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
 }
 .quotation-print-root *, .quotation-print-root *::before, .quotation-print-root *::after { box-sizing: border-box; }
-.qp-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-.qp-logo-wrap { width: 192px; padding-top: 8px; flex-shrink: 0; }
+.qp-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+.qp-logo-wrap { width: 168px; padding-top: 4px; flex-shrink: 0; }
 .qp-logo-wrap img { width: 100%; height: auto; display: block; object-fit: contain; }
 .qp-company { text-align: right; font-size: 9px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.2em; line-height: 1.6; }
 .qp-company .qp-co { font-weight: 600; color: #374151; }
 .qp-company p { margin: 0; }
-.qp-band { position: relative; width: 100%; margin-bottom: 32px; text-align: center; padding: 10px 0; }
+.qp-band { position: relative; width: 100%; margin-bottom: 20px; text-align: center; padding: 8px 0; }
 .qp-band-line-t { position: absolute; top: 0; left: 0; right: 0; height: 0; border: 0; border-top: 1px dashed #d1d5db; }
 .qp-band-line-b { position: absolute; bottom: 0; left: 0; right: 0; height: 0; border: 0; border-bottom: 1px solid #d1d5db; }
 .qp-band-mid { font-size: 10px; color: #9ca3af; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 500; position: relative; z-index: 1; }
-.qp-title-block { margin-bottom: 32px; }
-.qp-title { font-size: 1.875rem; font-weight: 700; color: #f24b43; text-align: center; text-transform: uppercase; letter-spacing: 0.025em; margin: 0; }
+.qp-title-block { margin-bottom: 20px; }
+.qp-title { font-size: 1.65rem; font-weight: 700; color: #f24b43; text-align: center; text-transform: uppercase; letter-spacing: 0.02em; margin: 0; }
 .qp-date { text-align: right; font-weight: 600; font-size: 0.875rem; color: #000000; margin-top: 12px; }
-.qp-section { margin-bottom: 32px; }
+.qp-section { margin-bottom: 20px; }
 .qp-section-title { color: #f24b43; text-transform: uppercase; font-weight: 700; font-size: 0.875rem; margin: 0 0 8px 0; padding-bottom: 6px; border-bottom: 2px solid #f24b43; }
 .qp-grid-wrap { border-top: 1px solid #f24b43; border-bottom: 1px solid #f24b43; display: grid; grid-template-columns: 1fr 1fr; position: relative; padding: 8px 0; }
 .qp-grid-vline { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #f24b43; transform: translateX(-50%); }
-.qp-col { font-size: 13px; color: #000000; }
+.qp-col { font-size: 12px; color: #000000; }
 .qp-col-left { padding-right: 24px; }
 .qp-col-right { padding-left: 24px; }
 .qp-col p { margin: 0 0 8px 0; }
@@ -381,8 +381,8 @@ const QUOTATION_PRINT_CSS = `
 .qp-th-hint { display: block; font-style: italic; color: #6b7280; font-size: 11px; font-weight: 400; margin-top: 2px; }
 .qp-th-center .qp-th-stack { text-align: center; }
 .qp-th-num .qp-th-stack { text-align: right; }
-.qp-table { width: 100%; border-collapse: collapse; border-spacing: 0; font-size: 13px; color: #000000; }
-.qp-th, .qp-td { padding: 8px 12px; vertical-align: top; }
+.qp-table { width: 100%; border-collapse: collapse; border-spacing: 0; font-size: 12px; color: #000000; }
+.qp-th, .qp-td { padding: 6px 8px; vertical-align: top; }
 .qp-th { font-weight: 400; text-align: left; }
 /* Borders on cells — <tr> borders are unreliable with border-collapse: separate */
 .qp-table thead th {
@@ -400,10 +400,10 @@ const QUOTATION_PRINT_CSS = `
 .qp-tbody { font-weight: 500; }
 .qp-td { padding-top: 6px; padding-bottom: 6px; }
 .qp-empty { text-align: center; color: #6b7280; font-style: italic; font-size: 12px; padding: 24px 12px; }
-.qp-total-row { display: flex; justify-content: flex-end; padding: 16px 12px 0; margin-top: 0; color: #000000; }
-.qp-total { font-weight: 700; font-size: 16px; margin: 0; }
+.qp-total-row { display: flex; justify-content: flex-end; padding: 10px 8px 0; margin-top: 0; color: #000000; }
+.qp-total { font-weight: 700; font-size: 14px; margin: 0; }
 /* Page 1 content fills exactly one A4 page */
-.qp-page-1-content { min-height: 1091px; }
+.qp-page-1-content { min-height: 980px; }
 /* Page 2 */
 .qp-page-break { padding-top: 40px; }
 .qp-terms-box { border: 1px solid #d1d5db; padding: 16px 20px; margin-top: 8px; position: relative; }
@@ -429,7 +429,7 @@ const QUOTATION_PRINT_CSS = `
   @page { margin: 0; size: auto; }
   html, body { margin: 0 !important; padding: 0 !important; overflow: visible !important; height: auto !important; }
   *, *::before, *::after { overflow: visible !important; }
-  .quotation-print-root { box-shadow: none; width: 100%; min-height: auto; padding: 24px 32px; display: block !important; }
+  .quotation-print-root { box-shadow: none; width: 100%; min-height: auto; padding: 16px 20px; display: block !important; }
   .qp-print-no-break { break-inside: avoid; }
   .qp-page-1-content { min-height: auto; display: block; }
   .qp-page-break { margin-top: 0; padding-top: 32px; page-break-before: always; break-before: page; display: block; }

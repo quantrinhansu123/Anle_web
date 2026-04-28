@@ -44,6 +44,8 @@ export const CreateSalesSchema = z.object({
   customer_contact_name: nullableString(),
   customer_contact_email: z.union([z.string().email(), z.literal(''), z.null()]).optional(),
   customer_contact_tel: nullableString(),
+  pol: nullableString(),
+  pod: nullableString(),
   pickup: nullableString(),
   final_destination: nullableString(),
   cargo_volume: nullableString(),
@@ -67,10 +69,3 @@ export const CreateSalesSchema = z.object({
 });
 
 export const UpdateSalesSchema = CreateSalesSchema.partial();
-
-export const SendQuotationEmailSchema = z.object({
-  to_email: z.union([z.string().email(), z.literal('')]).optional(),
-  subject: z.string().min(1).optional(),
-  content_snapshot: z.string().optional(),
-  sent_by: z.string().uuid().optional(),
-});

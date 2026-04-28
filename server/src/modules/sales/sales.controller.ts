@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { salesService } from './sales.service';
 import { successResponse, paginatedResponse } from '../../utils/response';
-import { CreateSalesSchema, SendQuotationEmailSchema, UpdateSalesSchema } from './sales.schema';
+import { CreateSalesSchema, UpdateSalesSchema } from './sales.schema';
 
 export const salesController = {
   async getAll(req: Request, res: Response, next: NextFunction) {
@@ -85,11 +85,10 @@ export const salesController = {
     }
   },
 
-  async sendEmail(req: Request, res: Response, next: NextFunction) {
+  async markSent(req: Request, res: Response, next: NextFunction) {
     try {
-      const payload = SendQuotationEmailSchema.parse(req.body || {});
-      const data = await salesService.sendEmail(req.params.id, payload);
-      res.json(successResponse(data, 'Quotation send logged'));
+      const data = await salesService.markSent(req.params.id);
+      res.json(successResponse(data, 'Quotation marked as sent'));
     } catch (err) {
       next(err);
     }

@@ -61,6 +61,16 @@ const nullableTrimmedStringSchema = z
   .optional()
   .transform((v) => (v == null ? undefined : v));
 
+/** Accept explicit null / empty string from JSON; coerce to undefined for PATCH body. */
+const optionalNullableTrimmedSchema = z
+  .union([z.string(), z.null()])
+  .optional()
+  .transform((v) => {
+    if (v == null) return undefined;
+    const s = String(v).trim();
+    return s === '' ? undefined : s;
+  });
+
 const blLineSchema = z.object({
   id: z.string().uuid().optional(),
   sort_order: z.number().int().min(0).optional(),
@@ -85,15 +95,25 @@ const shipmentBaseSchema = z.object({
   }).min(1, 'Shipment code is required').optional(),
   customer_id: z.string().uuid(),
   supplier_id: z.string().length(3).transform(val => val.toUpperCase()).optional().nullable(),
-  commodity: z.string().optional(),
-  hs_code: z.string().optional(),
+  commodity: optionalNullableTrimmedSchema,
+  hs_code: optionalNullableTrimmedSchema,
   quantity: z.number().optional().or(z.literal(0)),
+  quantity_unit: z.string().max(20).optional().nullable(),
   packing: nullableTrimmedStringSchema,
+  packing_unit: z.string().max(20).optional().nullable(),
   vessel_voyage: nullableTrimmedStringSchema,
+  /** Allow null; normalize common incoterms; keep free-text if not enum (sales may store non-standard wording). */
   term: z
-    .union([incotermEnum, z.literal(''), z.null()])
+    .union([z.string(), z.null()])
     .optional()
-    .transform((v) => (v == null || v === '' ? undefined : v)),
+    .transform((v) => {
+      if (v == null) return undefined;
+      const raw = String(v).trim();
+      if (!raw) return undefined;
+      const token = raw.toUpperCase().split(/\s+/)[0] ?? '';
+      if ((incotermEnum.options as readonly string[]).includes(token)) return token;
+      return raw.length <= 50 ? raw : raw.slice(0, 50);
+    }),
   transport_air: z.boolean().default(false),
   transport_sea: z.boolean().default(false),
   load_fcl: z.boolean().default(false),

@@ -81,7 +81,7 @@ function contractsMatchingParties(
 
 const INITIAL_FORM: ShipmentFormState = {
   code: '', customer_id: '', supplier_id: '', commodity: '', hs_code: '',
-  quantity: 0, packing: '', vessel_voyage: '', term: '',
+  quantity: 0, quantity_unit: 'kg', packing: '', packing_unit: 'bag', vessel_voyage: '', term: '',
   transport_air: false, transport_sea: true, load_fcl: true, load_lcl: false,
   pol: '', pod: '', etd: '', eta: '', status: 'draft',
   is_docs_ready: false, is_hs_confirmed: false, is_phytosanitary_ready: false,
@@ -116,6 +116,53 @@ const normalizePriorityRank = (value: unknown): number | null => {
   const rounded = Math.round(n);
   return Math.min(3, Math.max(1, rounded));
 };
+
+const deriveRefNo = (value: { master_job_no?: string | null; code?: string | null; id?: string | null }): string => {
+  const direct = String(value.master_job_no || '').trim();
+  if (direct) return direct;
+  const code = String(value.code || '').trim();
+  if (code) return code;
+  const id = String(value.id || '').trim();
+  if (!id) return '';
+  return `JOB-${id.slice(0, 8).toUpperCase()}`;
+};
+
+const isBlankShipmentField = (value: unknown): boolean =>
+  value == null || (typeof value === 'string' && value.trim() === '');
+
+/** Fills blank Overview fields from the linked quotation (same job as `/shipments/sop/:id`). Does not overwrite DB-backed values unless they are empty. */
+function applyQuotationDetailsToForm(form: ShipmentFormState, q: Sales): ShipmentFormState {
+  const patch: Partial<ShipmentFormState> = {};
+
+  if (isBlankShipmentField(form.pol) && q.pol?.trim()) patch.pol = q.pol.trim();
+  if (isBlankShipmentField(form.pod) && q.pod?.trim()) patch.pod = q.pod.trim();
+
+  if (isBlankShipmentField(form.commodity)) {
+    if (q.goods?.trim()) patch.commodity = q.goods.trim();
+    else if (q.cargo_volume?.trim()) patch.commodity = q.cargo_volume.trim();
+  }
+
+  const incotermRaw = typeof q.incoterms === 'string' ? q.incoterms.trim() : '';
+  if (isBlankShipmentField(form.term) && incotermRaw) patch.term = incotermRaw;
+
+  const prQuote = normalizePriorityRank(q.priority_rank);
+  if ((form.priority_rank == null || form.priority_rank === 0) && prQuote != null) {
+    patch.priority_rank = prQuote;
+  }
+
+  if ((!form.salesperson_id || isBlankShipmentField(form.salesperson_id)) && q.sales_person_id?.trim()) {
+    patch.salesperson_id = q.sales_person_id.trim();
+  }
+  if (isBlankShipmentField(form.sales_team) && q.business_team?.trim()) {
+    patch.sales_team = q.business_team.trim();
+  }
+  if (isBlankShipmentField(form.sales_department) && q.business_department?.trim()) {
+    patch.sales_department = q.business_department.trim();
+  }
+
+  if (Object.keys(patch).length === 0) return form;
+  return { ...form, ...patch };
+}
 
 const CHECKLIST_GATES: Array<{ key: string; label: string; field: ChecklistField }> = [
   { key: 'contract_ok', label: 'Contract Linked', field: 'contract_id' },
@@ -309,20 +356,61 @@ const ShipmentSOPPage: React.FC = () => {
     try {
       setLoading(true);
       const data = await shipmentService.getShipmentById(id);
-      if (data) {
-        const loadedData = {
-          ...INITIAL_FORM,
-          ...data,
-          isNewCustomer: false,
-          isNewSupplier: false,
-          newCustomer: { company_name: '' },
-          newSupplier: { id: '', company_name: '' },
-        };
-        setForm(loadedData);
-        setSavedForm(loadedData);
+      if (!data) return;
+
+      let quotationId =
+        typeof (data as { quotation_id?: string | null }).quotation_id === 'string'
+          ? (data as { quotation_id: string }).quotation_id
+          : ((data as { quotation_id?: string | null }).quotation_id ?? null);
+
+      let quotationRow: Sales | null = null;
+      try {
+        if (quotationId) {
+          quotationRow = await salesService.getSalesItemById(quotationId);
+        } else {
+          const salesList = await salesService.getSalesItems(1, 500);
+          const linked = Array.isArray(salesList)
+            ? salesList.find((s) => String(s.shipment_id || '') === id)
+            : undefined;
+          if (linked?.id) {
+            quotationId = linked.id;
+            quotationRow = await salesService.getSalesItemById(linked.id);
+          }
+        }
+      } catch (e) {
+        console.warn('Could not load quotation for SOP overview prefill', e);
       }
-    } catch (err) { console.error('Failed to load shipment:', err); }
-    finally { setLoading(false); }
+
+      let loadedData: ShipmentFormState = {
+        ...INITIAL_FORM,
+        ...(data as ShipmentFormState),
+        isNewCustomer: false,
+        isNewSupplier: false,
+        newCustomer: { company_name: '' },
+        newSupplier: { id: '', company_name: '' },
+      };
+      if (quotationId && !loadedData.quotation_id) {
+        loadedData = { ...loadedData, quotation_id: quotationId };
+      }
+      if (quotationRow) {
+        loadedData = applyQuotationDetailsToForm(loadedData, quotationRow);
+      }
+      loadedData = {
+        ...loadedData,
+        master_job_no: deriveRefNo({
+          master_job_no: loadedData.master_job_no,
+          code: loadedData.code,
+          id: loadedData.id || id,
+        }),
+      };
+
+      setForm(loadedData);
+      setSavedForm(loadedData);
+    } catch (err) {
+      console.error('Failed to load shipment:', err);
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
 
   const loadCompliance = useCallback(async () => {
@@ -517,6 +605,8 @@ const ShipmentSOPPage: React.FC = () => {
         customer_id: form.customer_id, supplier_id: form.supplier_id,
         code: form.code || undefined, commodity: form.commodity, hs_code: form.hs_code || null,
         quantity: form.quantity || 0, packing: form.packing || null,
+        quantity_unit: form.quantity_unit || null,
+        packing_unit: form.packing_unit || null,
         vessel_voyage: form.vessel_voyage || null, term: form.term || null,
         transport_air: form.transport_air, transport_sea: form.transport_sea,
         load_fcl: form.load_fcl, load_lcl: form.load_lcl,

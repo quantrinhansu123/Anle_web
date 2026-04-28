@@ -23,6 +23,8 @@ const HEADER_FIELDS: Array<keyof CreateSalesDto> = [
   'customer_contact_name',
   'customer_contact_email',
   'customer_contact_tel',
+  'pol',
+  'pod',
   'pickup',
   'final_destination',
   'cargo_volume',
@@ -412,33 +414,8 @@ export const salesService = {
     return this.changeStatus(id, 'lost');
   },
 
-  async sendEmail(id: string, payload: { to_email?: string; subject?: string; content_snapshot?: string; sent_by?: string }) {
-    const sale = await this.getById(id);
-    const current = normalizeStatus(sale.status);
-    if (current === 'draft') {
-      throw new AppError('Quotation must be confirmed before sending.', 400);
-    }
-
-    const emailLogPayload = {
-      sales_id: id,
-      to_email: payload.to_email || sale.customer_contact_email || null,
-      subject: payload.subject || `Quotation ${sale.no_doc || sale.id}`,
-      content_snapshot: payload.content_snapshot || null,
-      sent_by: payload.sent_by || null,
-      status: 'logged',
-      sent_at: new Date().toISOString(),
-    };
-
-    const { error: logErr } = await supabase
-      .from('quotation_email_logs')
-      .insert(emailLogPayload);
-    if (logErr) throw new AppError(logErr.message, 400);
-
-    const updated = await this.changeStatus(id, 'sent');
-    return {
-      quotation: updated,
-      email_log: emailLogPayload,
-    };
+  async markSent(id: string) {
+    return this.changeStatus(id, 'sent');
   },
 
   async createJob(id: string, shipmentInput?: Partial<CreateShipmentDto>) {
@@ -466,11 +443,14 @@ export const salesService = {
     }
 
     const { bl_lines, ...shipmentHeader } = shipmentInput || {};
+    const hdr = shipmentHeader as Partial<CreateShipmentDto>;
     const createdShipment = await shipmentService.create({
-      ...(shipmentHeader as Partial<CreateShipmentDto>),
+      ...hdr,
       customer_id: customerId,
       quotation_id: id,
-      status: shipmentHeader.status || 'draft',
+      status: hdr.status || 'draft',
+      pol: hdr.pol ?? sale.pol ?? undefined,
+      pod: hdr.pod ?? sale.pod ?? undefined,
     } as CreateShipmentDto);
 
     if (Array.isArray(bl_lines) && bl_lines.length > 0) {

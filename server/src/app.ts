@@ -41,6 +41,7 @@ import shippingAgentRoutes from './modules/shipping-agents/shipping-agent.routes
 import approvalRequestRoutes from './modules/approval-requests/approval-request.routes';
 import notificationRoutes from './modules/notifications/notification.routes';
 import { departmentAccess } from './middlewares/authorize.middleware';
+import publicTrackingRoutes from './modules/public-tracking/public-tracking.routes';
 
 const app = express();
 
@@ -57,6 +58,7 @@ app.get(`${v1}/health`, (req, res) => {
 app.use(`${v1}/auth`, authRoutes); // Auth routes handles its own protection internally for /me
 app.use(`${v1}/system-settings`, systemSettingsRoutes);
 app.get(`${v1}/f/:bucket/:path`, uploadController.serveFile);
+app.use(`${v1}/public-tracking`, publicTrackingRoutes);
 
 // Protected routes
 app.use(authMiddleware);

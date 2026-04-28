@@ -15,8 +15,8 @@ import {
   X,
 } from 'lucide-react';
 import { clsx } from 'clsx';
-import { shipmentService } from '../services/shipmentService';
-import { shipmentTrackingService, type ShipmentTrackingEvent, type SlaInfo } from '../services/shipmentTrackingService';
+import { publicTrackingService } from '../services/publicTrackingService';
+import type { ShipmentTrackingEvent, SlaInfo } from '../services/shipmentTrackingService';
 import type { Shipment } from './shipments/types';
 import { useToastContext } from '../contexts/ToastContext';
 import PublicTrackingDisplay from '../components/tracking/PublicTrackingDisplay';
@@ -269,23 +269,25 @@ const WebsitePage: React.FC = () => {
       setTrackingError(null);
       setTrackingRawEvents([]);
       setTrackingSla(null);
-      const shipment = await shipmentService.findShipmentForTracking(trackingCode);
-      if (!shipment) {
-        setTrackingVisible(false);
-        setTrackingError('Không tìm thấy dữ liệu Job Management với mã đã nhập.');
-        return;
-      }
-
+      const tracked = await publicTrackingService.trackByKeyword(trackingCode);
+      const shipment = tracked.shipment as unknown as Shipment;
       setTrackedShipment(shipment);
-      setTrackingSlaLoading(true);
-      const [rawEvents, slaInfo] = await Promise.all([
-        shipmentTrackingService.getTrackingEvents(shipment.id),
-        shipmentTrackingService.getSlaInfo(shipment.id).catch(() => null),
-      ]);
-      setTrackingSla(slaInfo);
       setTrackingSlaLoading(false);
+      setTrackingSla(null);
 
-      const apiList = Array.isArray(rawEvents) ? rawEvents : [];
+      const apiList: ShipmentTrackingEvent[] = (tracked.events || []).map((event) => ({
+        id: event.id,
+        shipment_id: shipment.id,
+        event_type: 'note',
+        title: event.title || 'Cập nhật vận chuyển',
+        description: event.description,
+        location: event.location,
+        eta_updated: null,
+        delay_hours: null,
+        created_by_id: null,
+        created_at: event.created_at,
+        created_by: null,
+      }));
       const rawForDisplay =
         apiList.length > 0 ? apiList : toShipmentFallbackRawEvents(shipment);
       setTrackingRawEvents(rawForDisplay);
@@ -295,12 +297,12 @@ const WebsitePage: React.FC = () => {
         normalizedEvents.length > 0 ? normalizedEvents : toShipmentFallbackEvents(shipment);
 
       setTrackingEvents(resolvedEvents);
-      setLastUpdatedAt(
-        formatDateTime(apiList[0]?.created_at || shipment.actual_eta || shipment.updated_at || shipment.created_at),
-      );
+      setLastUpdatedAt(formatDateTime(apiList[0]?.created_at || shipment.updated_at || shipment.created_at));
       setTrackingVisible(true);
     } catch (err: any) {
-      const message = err?.message || 'Không thể tải dữ liệu tracking từ Job Management.';
+      const message = err?.message?.includes('Tracking not found')
+        ? 'Không tìm thấy dữ liệu Job Management với mã đã nhập.'
+        : (err?.message || 'Không thể tải dữ liệu tracking từ Job Management.');
       setTrackingVisible(false);
       setTrackingError(message);
       error(message);
@@ -311,7 +313,7 @@ const WebsitePage: React.FC = () => {
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full flex-1 flex flex-col gap-4 -mt-2 min-h-0">
-      <div className="relative bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
+      <div className="relative bg-white rounded-2xl shadow-sm overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center opacity-[0.12] pointer-events-none"
           style={{ backgroundImage: `url("${MARITIME_BG_SVG}")` }}
