@@ -76,7 +76,9 @@ const COLUMN_DEFS: Record<string, ColDef> = {
     label: 'Customer',
     thClass: 'px-3 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-44 border-r border-border/40',
     tdClass: 'px-3 py-4 border-r border-border/40 text-[12px] font-semibold text-slate-700',
-    renderContent: (s) => <span>{s.shipments?.customers?.company_name || '—'}</span>,
+    renderContent: (s) => (
+      <span>{s.customer_trade_name || s.shipments?.customers?.company_name || '—'}</span>
+    ),
   },
   billNo: {
     label: 'BILL#',
