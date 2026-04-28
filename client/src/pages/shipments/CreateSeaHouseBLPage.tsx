@@ -34,8 +34,11 @@ import type { MarksDescriptionTabState } from './bl-tabs/MarksDescriptionTab';
 import { FreightTab, emptyFreightState } from './bl-tabs/FreightTab';
 import type { FreightTabState } from './bl-tabs/FreightTab';
 import { FieldLabel, inputClass } from './bl-tabs/blSharedHelpers';
+import type { JobBound } from './types';
 
 type HBLTab = 'header' | 'container' | 'marks' | 'freight' | 'tracking';
+
+const JOB_BOUND_VALUES: readonly JobBound[] = ['import', 'export', 'domestic', 'transit'];
 
 const TABS: { key: HBLTab; label: string }[] = [
   { key: 'header', label: 'Header' },
@@ -402,12 +405,17 @@ const CreateSeaHouseBLPage: React.FC = () => {
     if (!shipmentId || skipShipmentLinkAutosaveRef.current || isViewMode) return;
 
     const loadTypeNorm = (loadType || '').trim().toLowerCase();
+    const boundTrim = bound.trim();
+    const boundForShipment: JobBound | null =
+      boundTrim && (JOB_BOUND_VALUES as readonly string[]).includes(boundTrim)
+        ? (boundTrim as JobBound)
+        : null;
     const linkedPayload = {
       master_bl_number: masterBl || null,
       bl_status: blReleaseStatus || null,
       bl_status_detail: switchBl || null,
-      bound: bound || null,
-      term: incoterm || null,
+      bound: boundForShipment,
+      term: incoterm?.trim() || undefined,
       services: serviceTerm || null,
       master_job_no: jobNo || null,
       load_fcl: loadTypeNorm === 'fcl',
