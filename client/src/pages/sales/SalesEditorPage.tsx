@@ -643,7 +643,6 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
 }) => {
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToastContext();
-  const [statusSaving, setStatusSaving] = useState(false);
   const [catalogBrowserOpen, setCatalogBrowserOpen] = useState(false);
   const [catalogBrowserTarget, setCatalogBrowserTarget] = useState<{
     group: ChargeGroup;
@@ -731,7 +730,6 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
       if (!id) return;
       setFormField('status', next);
       try {
-        setStatusSaving(true);
         let effectiveStatus: QuotationStatus = next;
         if (next === 'confirmed') {
           const data = await salesService.confirmQuotation(id);
@@ -762,8 +760,6 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
             : '';
         setFormField('status', prev);
         toastError(msg || 'Failed to update status');
-      } finally {
-        setStatusSaving(false);
       }
     },
     [
