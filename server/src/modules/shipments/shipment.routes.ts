@@ -26,6 +26,7 @@ router.get('/invoices', FmsJobInvoiceController.listAll);
 router.get('/:id/readiness', ShipmentController.getReadiness);
 router.get('/:id/allowed-transitions', ShipmentController.getAllowedTransitions);
 router.get('/:id/run-gates', ShipmentController.getRunGates);
+router.get('/:id/checklist-history', ShipmentController.getChecklistHistory);
 router.get('/:id/feasibility', ShipmentController.getFeasibility);
 router.post('/:id/feasibility', ShipmentController.updateFeasibility);
 router.get('/:id/bl-lines', ShipmentController.getBlLines);

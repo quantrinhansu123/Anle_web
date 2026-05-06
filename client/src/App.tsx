@@ -52,6 +52,7 @@ import ContactsDirectoryPage from './pages/ContactsDirectoryPage';
 import WebsitePage from './pages/WebsitePage';
 import LoginPage from './pages/auth/LoginPage';
 import ApprovalsPage from './pages/ApprovalsPage';
+import LinkTrackerPage from './pages/LinkTrackerPage';
 import { AuthProvider } from './contexts/AuthContext';
 import { BreadcrumbProvider } from './contexts/BreadcrumbContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -151,7 +152,7 @@ function App() {
                 <Route path="/contacts/directory" element={<ContactsDirectoryPage />} />
                 <Route path="/website" element={<WebsitePage />} />
                 <Route path="/email-marketing" element={<PlaceholderPage />} />
-                <Route path="/link-tracker" element={<PlaceholderPage />} />
+                <Route path="/link-tracker" element={<LinkTrackerPage />} />
                 <Route path="/projects" element={<PlaceholderPage />} />
                 <Route path="/elearning" element={<PlaceholderPage />} />
                 <Route path="/financials/accounting-dashboard" element={<AccountingDashboardPage />} />

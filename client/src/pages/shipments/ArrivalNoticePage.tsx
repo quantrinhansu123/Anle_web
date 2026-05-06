@@ -287,8 +287,9 @@ const AR_PRINT_CSS = `
 .an-band-mid { font-weight: 700; font-size: 11px; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.06em; text-align: center; flex: 2; }
 .an-band-right { font-weight: 600; font-size: 12px; text-align: right; flex: 1; }
 .an-to-wrap { margin-bottom: 16px; border: 1px solid #f24b43; position: relative; min-height: 72px; }
-.an-to-label { text-align: center; font-weight: 700; color: #f24b43; text-transform: uppercase; font-size: 11px; padding: 6px 8px 0; }
-.an-to-body { padding: 8px 12px 14px; min-height: 48px; white-space: pre-wrap; word-break: break-word; }
+.an-to-row { display: flex; align-items: flex-start; gap: 12px; padding: 14px 12px 14px; padding-right: 44px; min-height: 72px; }
+.an-to-label { flex: 0 0 40px; text-align: left; font-weight: 800; color: #f24b43; text-transform: uppercase; font-size: 12px; letter-spacing: 0.08em; line-height: 1.2; padding-top: 2px; }
+.an-to-body { flex: 1; font-weight: 700; font-size: 14px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
 .an-to-accent { position: absolute; top: 0; right: 0; bottom: 0; width: 28px; background: #f24b43; }
 .an-section-title { text-align: center; font-weight: 700; color: #f24b43; text-transform: uppercase; font-size: 12px; margin: 0 0 8px; letter-spacing: 0.06em; }
 .an-grid { display: grid; border: 1px solid #f24b43; margin-bottom: 14px; }
@@ -368,8 +369,10 @@ export const ArrivalNoticeDocumentBody = forwardRef<HTMLDivElement, ArrivalNotic
 
         <div className="an-to-wrap">
           <div className="an-to-accent" aria-hidden />
-          <div className="an-to-label">TO</div>
-          <div className="an-to-body">{data.toAddress}</div>
+          <div className="an-to-row">
+            <div className="an-to-label">TO</div>
+            <div className="an-to-body">{data.toAddress}</div>
+          </div>
         </div>
 
         <h2 className="an-section-title">SHIPMENT INFORMATION</h2>
@@ -626,7 +629,12 @@ const ArrivalNoticePage: React.FC = () => {
         const chargeRows = buildChargeRows(sales);
         const generatedVm = buildViewModel(shipment, topBar, h0, c0, m0, chargeRows, rates);
         const snapshotVm = (existingNotice?.snapshot as any)?.viewModel as ArrivalNoticeViewModel | undefined;
-        setVm(snapshotVm || generatedVm);
+        // Always take Vessel/Voyage directly from their dedicated fields (do not merge or reuse stale snapshot values).
+        if (snapshotVm) {
+          setVm({ ...snapshotVm, vessel: generatedVm.vessel, voyage: generatedVm.voyage });
+        } else {
+          setVm(generatedVm);
+        }
       } catch {
         if (!cancelled) setVm(null);
       } finally {

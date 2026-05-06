@@ -264,8 +264,8 @@ export function MarksDescriptionTab({
             Add row
           </button>
         </div>
-        <div className="min-w-0 overflow-x-auto rounded-xl border border-border">
-          <table className="w-full text-left text-[11px]">
+        <div className="w-full min-w-0 overflow-x-auto overflow-y-hidden rounded-xl border border-border">
+          <table className="min-w-[1200px] text-left text-[11px]">
             <thead className="bg-slate-50 border-b border-border">
               <tr>
                 {['Fare', 'Fare Name', 'Fare Type', 'Currency', 'Rate', 'Unit', 'Qty', 'Foreign Amount', ''].map((h) => (
@@ -286,28 +286,28 @@ export function MarksDescriptionTab({
                 state.sellingLines.map((row, idx) => (
                   <tr key={idx} className="border-b border-border/60 last:border-0">
                     <td className="p-1 align-middle">
-                      <input value={row.fare} onChange={(e) => updateLine(idx, { fare: e.target.value })} className="box-border h-8 w-[80px] min-w-0 rounded border border-border px-1.5 text-[11px]" />
+                      <input value={row.fare} onChange={(e) => updateLine(idx, { fare: e.target.value })} className="box-border h-8 w-[160px] min-w-0 rounded border border-border px-2 text-[11px]" />
                     </td>
                     <td className="p-1 align-middle">
-                      <input value={row.fareName} onChange={(e) => updateLine(idx, { fareName: e.target.value })} className="box-border h-8 w-[110px] min-w-0 rounded border border-border px-1.5 text-[11px]" />
+                      <input value={row.fareName} onChange={(e) => updateLine(idx, { fareName: e.target.value })} className="box-border h-8 w-[220px] min-w-0 rounded border border-border px-2 text-[11px]" />
                     </td>
                     <td className="p-1 align-middle">
-                      <input value={row.fareType} onChange={(e) => updateLine(idx, { fareType: e.target.value })} className="box-border h-8 w-[80px] min-w-0 rounded border border-border px-1.5 text-[11px]" />
+                      <input value={row.fareType} onChange={(e) => updateLine(idx, { fareType: e.target.value })} className="box-border h-8 w-[140px] min-w-0 rounded border border-border px-2 text-[11px]" />
                     </td>
                     <td className="p-1 align-middle">
-                      <input value={row.currency} onChange={(e) => updateLine(idx, { currency: e.target.value })} className="box-border h-8 w-[60px] min-w-0 rounded border border-border px-1.5 text-[11px]" />
+                      <input value={row.currency} onChange={(e) => updateLine(idx, { currency: e.target.value })} className="box-border h-8 w-[90px] min-w-0 rounded border border-border px-2 text-[11px]" />
                     </td>
                     <td className="p-1 align-middle">
-                      <input value={row.rate} onChange={(e) => updateLine(idx, { rate: e.target.value })} className="box-border h-8 w-[70px] min-w-0 rounded border border-border px-1.5 text-[11px]" />
+                      <input value={row.rate} onChange={(e) => updateLine(idx, { rate: e.target.value })} className="box-border h-8 w-[120px] min-w-0 rounded border border-border px-2 text-[11px]" />
                     </td>
                     <td className="p-1 align-middle">
-                      <input value={row.unit} onChange={(e) => updateLine(idx, { unit: e.target.value })} className="box-border h-8 w-[56px] min-w-0 rounded border border-border px-1.5 text-[11px]" />
+                      <input value={row.unit} onChange={(e) => updateLine(idx, { unit: e.target.value })} className="box-border h-8 w-[100px] min-w-0 rounded border border-border px-2 text-[11px]" />
                     </td>
                     <td className="p-1 align-middle">
-                      <input value={row.qty} onChange={(e) => updateLine(idx, { qty: e.target.value })} className="box-border h-8 w-[50px] min-w-0 rounded border border-border px-1.5 text-[11px]" />
+                      <input value={row.qty} onChange={(e) => updateLine(idx, { qty: e.target.value })} className="box-border h-8 w-[90px] min-w-0 rounded border border-border px-2 text-[11px]" />
                     </td>
                     <td className="p-1 align-middle">
-                      <input value={row.foreignAmount} onChange={(e) => updateLine(idx, { foreignAmount: e.target.value })} className="box-border h-8 w-[100px] min-w-0 rounded border border-border px-1.5 text-[11px]" />
+                      <input value={row.foreignAmount} onChange={(e) => updateLine(idx, { foreignAmount: e.target.value })} className="box-border h-8 w-[160px] min-w-0 rounded border border-border px-2 text-[11px]" />
                     </td>
                     <td className="p-1 align-middle">
                       <button type="button" onClick={() => removeLine(idx)} className="inline-flex h-8 w-8 items-center justify-center rounded text-red-500 hover:bg-red-50">

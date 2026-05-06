@@ -7,6 +7,16 @@ import type {
   UpdateTransportBookingDto,
 } from './transport-booking.types';
 
+const isMissingTransportBookingColumnError = (error: unknown, column: string): boolean => {
+  const e = error as { code?: string; message?: string } | null;
+  const msg = e?.message || '';
+  return (
+    e?.code === 'PGRST204' ||
+    msg.includes(`Could not find the '${column}' column of 'transport_bookings'`) ||
+    msg.includes(`Could not find the '${column}' column of 'public.transport_bookings'`)
+  );
+};
+
 const STATUS_TRANSITIONS: Record<TransportBookingStatus, TransportBookingStatus[]> = {
   pending: ['confirmed', 'cancelled'],
   confirmed: ['dispatched', 'cancelled'],
@@ -123,21 +133,71 @@ export class TransportBookingService {
       this.assertCanTransition(current.status, dto.status);
     }
 
-    const { data, error } = await supabase
-      .from('transport_bookings')
-      .update(dto)
-      .eq('id', id)
-      .select()
-      .single();
+    const { data, error } = await supabase.from('transport_bookings').update(dto).eq('id', id).select().single();
 
-    if (error) throw error;
+    if (error) {
+      const hasHistory = Object.prototype.hasOwnProperty.call(dto as any, 'status_history');
+      const hasTimeline = Object.prototype.hasOwnProperty.call(dto as any, 'status_timeline');
+
+      const missingHistory = hasHistory && isMissingTransportBookingColumnError(error, 'status_history');
+      const missingTimeline = hasTimeline && isMissingTransportBookingColumnError(error, 'status_timeline');
+
+      if (missingHistory || missingTimeline) {
+        const retryDto: any = { ...(dto as any) };
+        if (missingHistory) delete retryDto.status_history;
+        if (missingTimeline) delete retryDto.status_timeline;
+
+        const { data: retryData, error: retryErr } = await supabase
+          .from('transport_bookings')
+          .update(retryDto)
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (retryErr) throw retryErr;
+
+        throw new AppError(
+          `Missing column(s) in PostgREST schema cache (${[
+            missingHistory ? 'status_history' : null,
+            missingTimeline ? 'status_timeline' : null,
+          ]
+            .filter(Boolean)
+            .join(', ')}). Please apply migrations and reload the PostgREST schema cache.`,
+          500,
+        );
+      }
+
+      throw error;
+    }
 
     await this.syncShipmentTruckBooked(data.shipment_id);
     return data;
   }
 
-  async updateStatus(id: string, status: TransportBookingStatus): Promise<TransportBooking> {
-    return this.update(id, { status });
+  async updateStatus(id: string, status: TransportBookingStatus, userId?: string): Promise<TransportBooking> {
+    const current = await this.findById(id);
+    if (!current) {
+      throw new AppError('Transport booking not found', 404);
+    }
+
+    const nowIso = new Date().toISOString();
+    const prevTimeline =
+      current.status_timeline && typeof current.status_timeline === 'object'
+        ? (current.status_timeline as Record<string, string>)
+        : {};
+    const nextTimeline = { ...prevTimeline, [status]: prevTimeline[status] || nowIso };
+
+    const prevHistory = Array.isArray((current as any).status_history) ? ((current as any).status_history as any[]) : [];
+    const nextHistory = [
+      ...prevHistory,
+      {
+        status,
+        at: nowIso,
+        by: userId || null,
+      },
+    ];
+
+    return this.update(id, { status, status_timeline: nextTimeline as any, status_history: nextHistory as any });
   }
 
   async delete(id: string): Promise<void> {

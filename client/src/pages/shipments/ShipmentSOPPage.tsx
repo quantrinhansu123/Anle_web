@@ -24,7 +24,6 @@ import {
 } from '../../services/shipmentDocumentService';
 import {
   customsClearanceService,
-  type CreateCustomsClearanceDto,
   type CustomsClearance,
 } from '../../services/customsClearanceService';
 
@@ -36,7 +35,6 @@ import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 import OverviewTab from './tabs/OverviewTab';
 import SalesBlTab from './tabs/SalesBlTab';
 import DocumentsTab from './tabs/DocumentsTab';
-import CustomsTab from './tabs/CustomsTab';
 import TransportTab from './tabs/TransportTab';
 import TrackingTab from './tabs/TrackingTab';
 import CostControlTab from './tabs/CostControlTab';
@@ -50,7 +48,6 @@ const TABS = [
   { id: 'costs', label: 'Costing' },
   { id: 'documents', label: 'Documents' },
   { id: 'transport', label: 'Transport' },
-  { id: 'customs', label: 'Customs' },
   { id: 'tracking', label: 'Tracking' },
 ] as const;
 
@@ -65,6 +62,17 @@ type ChecklistField =
   | 'is_cost_locked'
   | 'is_truck_booked'
   | 'is_agent_booked';
+
+type ChecklistHistoryRow = {
+  id: string;
+  shipment_id: string;
+  field: string;
+  from_value: string | null;
+  to_value: string | null;
+  performed_by: string | null;
+  performed_by_email: string | null;
+  created_at: string;
+};
 
 function contractsMatchingParties(
   all: ContractOption[],
@@ -211,18 +219,13 @@ const ShipmentSOPPage: React.FC = () => {
   // API-driven state (no hardcoded logic)
   const [allowedTransitions, setAllowedTransitions] = useState<AllowedTransitionsResult | null>(null);
   const [runGates, setRunGates] = useState<RunGatesResult | null>(null);
+  const [checklistHistory, setChecklistHistory] = useState<ChecklistHistoryRow[]>([]);
 
   // new doc/customs state
   const [newDocType, setNewDocType] = useState<CreateShipmentDocumentDto['doc_type']>('commercial_invoice');
   const [newDocNumber, setNewDocNumber] = useState('');
   const [isCreatingDocument, setIsCreatingDocument] = useState(false);
   const [documentActionLoadingId, setDocumentActionLoadingId] = useState<string | null>(null);
-
-  const [newCustomsHsCode, setNewCustomsHsCode] = useState('');
-  const [newPhytosanitaryStatus, setNewPhytosanitaryStatus] = useState<CreateCustomsClearanceDto['phytosanitary_status']>('pending');
-  const [newHsConfirmed, setNewHsConfirmed] = useState(false);
-  const [isCreatingCustoms, setIsCreatingCustoms] = useState(false);
-  const [customsActionLoadingId, setCustomsActionLoadingId] = useState<string | null>(null);
 
   const [isSavingCustomer, setIsSavingCustomer] = useState(false);
   const [isSavingSupplier, setIsSavingSupplier] = useState(false);
@@ -240,6 +243,55 @@ const ShipmentSOPPage: React.FC = () => {
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
   const hasUnsavedChanges = !isEqual(form, savedForm);
+
+  const TAB_ORDER: TabId[] = useMemo(() => TABS.map((t) => t.id as TabId), []);
+
+  const validateOverview = useCallback((): { ok: boolean; missing: string[] } => {
+    const missing: string[] = [];
+    if (!String(form.customer_id || '').trim()) missing.push('Customer');
+    if (!String(form.supplier_id || '').trim()) missing.push('Supplier');
+    if (!String(form.pol || '').trim()) missing.push('POL');
+    if (!String(form.pod || '').trim()) missing.push('POD');
+    if (!String(form.etd || '').trim()) missing.push('ETD');
+    if (!String(form.eta || '').trim()) missing.push('ETA');
+    if (!String(form.vessel_voyage || '').trim()) missing.push('Vessel');
+    if (!String(form.commodity || '').trim()) missing.push('Commodity');
+    return { ok: missing.length === 0, missing };
+  }, [form]);
+
+  const canAccessTab = useCallback(
+    (target: TabId): { ok: boolean; reason?: string } => {
+      if (target === 'overview') return { ok: true };
+
+      // Must have created shipment first (other tabs rely on shipment id).
+      if (!id) {
+        return { ok: false, reason: 'Please create/save Overview first, then continue to next tabs.' };
+      }
+
+      const ov = validateOverview();
+      if (!ov.ok) {
+        return { ok: false, reason: `Overview missing: ${ov.missing.join(', ')}` };
+      }
+
+      return { ok: true };
+    },
+    [TAB_ORDER, id, validateOverview],
+  );
+
+  const setTabGuarded = useCallback(
+    (target: TabId) => {
+      const gate = canAccessTab(target);
+      if (!gate.ok) {
+        toast.error(gate.reason || 'Please complete previous tab first.');
+        return;
+      }
+      setActiveTab(target);
+      const params = new URLSearchParams(location.search);
+      params.set('tab', target);
+      navigate({ pathname: location.pathname, search: `?${params.toString()}` }, { replace: true });
+    },
+    [canAccessTab, location.pathname, location.search, navigate, toast],
+  );
 
   const handleNavigateAway = (path: string) => {
     if (hasUnsavedChanges) {
@@ -317,7 +369,18 @@ const ShipmentSOPPage: React.FC = () => {
     if (autoChecklistPatch.is_phytosanitary_ready && !form.is_phytosanitary_ready) updates.is_phytosanitary_ready = true;
     if (autoChecklistPatch.is_cost_locked && !form.is_cost_locked) updates.is_cost_locked = true;
     if (Object.keys(updates).length === 0) {
-      toast.error('No checklist items can be auto-filled from current data.');
+      // If there's evidence in data but checklist is already aligned, don't show as an error.
+      if (
+        autoChecklistPatch.contract_id ||
+        autoChecklistPatch.is_docs_ready ||
+        autoChecklistPatch.is_hs_confirmed ||
+        autoChecklistPatch.is_phytosanitary_ready ||
+        autoChecklistPatch.is_cost_locked
+      ) {
+        toast.success('Checklist is already up to date.');
+      } else {
+        toast.error('No checklist items can be auto-filled from current data.');
+      }
       return;
     }
     setForm((prev) => ({ ...prev, ...updates }));
@@ -428,12 +491,14 @@ const ShipmentSOPPage: React.FC = () => {
   const loadApiState = useCallback(async () => {
     if (!id || !UUID_RE.test(id)) return;
     try {
-      const [trans, gates] = await Promise.all([
+      const [trans, gates, history] = await Promise.all([
         shipmentService.getAllowedTransitions(id),
         shipmentService.getRunGates(id),
+        shipmentService.getChecklistHistory(id).catch(() => [] as ChecklistHistoryRow[]),
       ]);
       setAllowedTransitions(trans);
       setRunGates(gates);
+      setChecklistHistory(Array.isArray(history) ? history : []);
     } catch (err) { console.error('Failed to load API state:', err); }
   }, [id]);
 
@@ -450,7 +515,17 @@ const ShipmentSOPPage: React.FC = () => {
     loadApiState();
   }, [id, hasValidEditId, loadShipment, loadCompliance, loadApiState, navigate, toast]);
   useEffect(() => {
-    setActiveTab(getTabFromQuery());
+    const desired = getTabFromQuery();
+    const gate = canAccessTab(desired);
+    if (!gate.ok) {
+      // Snap back to overview and clean up invalid tab in URL.
+      const params = new URLSearchParams(location.search);
+      params.set('tab', 'overview');
+      navigate({ pathname: location.pathname, search: `?${params.toString()}` }, { replace: true });
+      setActiveTab('overview');
+      return;
+    }
+    setActiveTab(desired);
   }, [location.search]);
 
   useEffect(() => {
@@ -635,6 +710,9 @@ const ShipmentSOPPage: React.FC = () => {
         performance_date: form.performance_date || null,
         priority_rank: normalizePriorityRank(form.priority_rank),
       };
+      if (Array.isArray(form.bl_lines)) {
+        payload.bl_lines = form.bl_lines;
+      }
       if (isEditMode && id) {
         await shipmentService.updateShipment(id, payload);
         toast.success('Shipment updated successfully!');
@@ -668,25 +746,6 @@ const ShipmentSOPPage: React.FC = () => {
   const handleDeleteDoc = async (docId: string) => {
     try { setDocumentActionLoadingId(docId); await shipmentDocumentService.deleteShipmentDocument(docId); loadCompliance(); }
     catch (err) { console.error(err); } finally { setDocumentActionLoadingId(null); }
-  };
-
-  const handleCreateCustoms = async () => {
-    if (!id || !newCustomsHsCode.trim()) return;
-    try {
-      setIsCreatingCustoms(true);
-      await customsClearanceService.createCustomsClearance({ shipment_id: id, hs_code: newCustomsHsCode.trim(), hs_confirmed: newHsConfirmed, status: 'draft', phytosanitary_status: newPhytosanitaryStatus });
-      setNewCustomsHsCode(''); setNewHsConfirmed(false);
-      loadCompliance();
-      toast.success('Added customs record');
-    } catch (err) { console.error(err); } finally { setIsCreatingCustoms(false); }
-  };
-  const handleChangeCustomsStatus = async (cId: string, status: CustomsClearance['status']) => {
-    try { setCustomsActionLoadingId(cId); await customsClearanceService.updateCustomsClearance(cId, { status }); loadCompliance(); }
-    catch (err) { console.error(err); } finally { setCustomsActionLoadingId(null); }
-  };
-  const handleDeleteCustoms = async (cId: string) => {
-    try { setCustomsActionLoadingId(cId); await customsClearanceService.deleteCustomsClearance(cId); loadCompliance(); }
-    catch (err) { console.error(err); } finally { setCustomsActionLoadingId(null); }
   };
 
   const handleCreateNewCustomer = async () => {
@@ -866,10 +925,16 @@ const ShipmentSOPPage: React.FC = () => {
       {/* HORIZONTAL TAB NAVIGATION */}
       <div className="shrink-0 bg-white border-b border-border px-6 flex items-center gap-6 overflow-x-auto select-none">
         {TABS.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={clsx('py-3.5 px-1 font-bold text-[13px] border-b-2 transition-all whitespace-nowrap',
-              activeTab === tab.id ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'
-            )}>
+          <button
+            key={tab.id}
+            onClick={() => setTabGuarded(tab.id)}
+            className={clsx(
+              'py-3.5 px-1 font-bold text-[13px] border-b-2 transition-all whitespace-nowrap',
+              activeTab === tab.id
+                ? 'border-primary text-primary'
+                : 'border-transparent text-slate-500 hover:text-slate-700',
+            )}
+          >
             {tab.label}
           </button>
         ))}
@@ -904,17 +969,6 @@ const ShipmentSOPPage: React.FC = () => {
                   contractLabel={form.contract_id ? contracts.find(c => c.value === form.contract_id)?.label || form.contract_id : null}
                   quotationLabel={form.quotation_id ? `Q-${form.quotation_id.slice(0, 8)}` : null}
                />
-             )}
-             {activeTab === 'customs' && (
-                <CustomsTab 
-                  shipmentId={id} customsClearances={customsClearances}
-                  newCustomsHsCode={newCustomsHsCode} setNewCustomsHsCode={setNewCustomsHsCode}
-                  newPhytosanitaryStatus={newPhytosanitaryStatus} setNewPhytosanitaryStatus={setNewPhytosanitaryStatus}
-                  newHsConfirmed={newHsConfirmed} setNewHsConfirmed={setNewHsConfirmed}
-                  isCreatingCustoms={isCreatingCustoms} handleCreateCustoms={handleCreateCustoms}
-                  handleChangeCustomsStatus={handleChangeCustomsStatus} handleDeleteCustoms={handleDeleteCustoms}
-                  customsActionLoadingId={customsActionLoadingId}
-                />
              )}
              {activeTab === 'costs' && (
                <div className="space-y-4">
@@ -983,6 +1037,53 @@ const ShipmentSOPPage: React.FC = () => {
                 <p className={clsx('text-[11px] font-bold', checklistState.canRun ? 'text-emerald-700' : 'text-amber-700')}>
                   {checklistState.canRun ? '✓ All gates passed — ready to run' : `⚠ ${checklistState.missingCount} gate(s) blocking`}
                 </p>
+              </div>
+
+              {/* Checklist History */}
+              <div className="mt-5">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Checklist history</p>
+                {checklistHistory.length === 0 ? (
+                  <div className="text-[11px] text-slate-500 italic px-2 py-2 border border-dashed border-slate-200 rounded-lg bg-slate-50/40">
+                    No history yet.
+                  </div>
+                ) : (
+                  <div className="max-h-[220px] overflow-y-auto rounded-lg border border-slate-200 bg-white">
+                    {checklistHistory.slice(0, 100).map((row) => {
+                      const at = new Date(row.created_at);
+                      const atText = Number.isNaN(at.getTime()) ? row.created_at : at.toLocaleString('vi-VN');
+                      const who = row.performed_by_email || row.performed_by || 'Unknown';
+                      const toVal =
+                        row.to_value === 'true'
+                          ? 'ON'
+                          : row.to_value === 'false'
+                            ? 'OFF'
+                            : (row.to_value ?? '—');
+                      return (
+                        <div key={row.id} className="px-3 py-2 border-b border-slate-100 last:border-b-0">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-[11px] font-bold text-slate-800 truncate">{row.field}</div>
+                              <div className="text-[10px] text-slate-500 truncate">{who}</div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <div
+                                className={clsx(
+                                  'text-[10px] font-black px-2 py-0.5 rounded-full border',
+                                  toVal === 'ON'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : 'bg-slate-50 text-slate-600 border-slate-200',
+                                )}
+                              >
+                                {toVal}
+                              </div>
+                              <div className="text-[10px] text-slate-400 mt-1">{atText}</div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           ) : (

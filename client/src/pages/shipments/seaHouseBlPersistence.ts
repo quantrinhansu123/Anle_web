@@ -6,6 +6,8 @@ import type { MarksDescriptionTabState } from './bl-tabs/MarksDescriptionTab';
 import { emptyMarksDescriptionState } from './bl-tabs/MarksDescriptionTab';
 import type { FreightTabState } from './bl-tabs/FreightTab';
 import { emptyFreightState } from './bl-tabs/FreightTab';
+import type { TrackingTabState } from './bl-tabs/TrackingTab';
+import { emptyTrackingState } from './bl-tabs/TrackingTab';
 
 export const SEA_HOUSE_BL_SCHEMA_VERSION = 1 as const;
 
@@ -30,6 +32,7 @@ export type SeaHouseBlBlobV1 = {
   container: ContainerTabState;
   marks: MarksDescriptionTabState;
   freight: FreightTabState;
+  tracking: TrackingTabState;
 };
 
 function isRecord(x: unknown): x is Record<string, unknown> {
@@ -58,6 +61,7 @@ export function buildSeaHouseBlBlobV1(params: {
   container: ContainerTabState;
   marks: MarksDescriptionTabState;
   freight: FreightTabState;
+  tracking: TrackingTabState;
 }): Record<string, unknown> {
   const blob: SeaHouseBlBlobV1 = {
     v: SEA_HOUSE_BL_SCHEMA_VERSION,
@@ -74,6 +78,10 @@ export function buildSeaHouseBlBlobV1(params: {
       buyingRows: [...params.freight.buyingRows],
       payOnBehalfRows: [...params.freight.payOnBehalfRows],
     },
+    tracking: {
+      ...params.tracking,
+      updates: Array.isArray(params.tracking.updates) ? [...params.tracking.updates] : [],
+    },
   };
   return { ...blob } as unknown as Record<string, unknown>;
 }
@@ -85,10 +93,17 @@ export function parseSeaHouseBlV1(blob: unknown): {
   container: ContainerTabState;
   marks: MarksDescriptionTabState;
   freight: FreightTabState;
+  tracking: TrackingTabState;
 } | null {
   if (!isRecord(blob)) return null;
   if (blob.v !== SEA_HOUSE_BL_SCHEMA_VERSION) return null;
-  if (!isRecord(blob.topBar) || !isRecord(blob.header) || !isRecord(blob.container) || !isRecord(blob.marks) || !isRecord(blob.freight)) {
+  if (
+    !isRecord(blob.topBar) ||
+    !isRecord(blob.header) ||
+    !isRecord(blob.container) ||
+    !isRecord(blob.marks) ||
+    !isRecord(blob.freight)
+  ) {
     return null;
   }
   try {
@@ -123,7 +138,14 @@ export function parseSeaHouseBlV1(blob: unknown): {
         ? [...freightRaw.payOnBehalfRows]
         : freightDefaults.payOnBehalfRows,
     };
-    return { topBar, header, container, marks, freight };
+    const trackingDefaults = emptyTrackingState();
+    const trackingRaw = isRecord((blob as any).tracking) ? ((blob as any).tracking as unknown as TrackingTabState) : null;
+    const tracking: TrackingTabState = {
+      ...trackingDefaults,
+      ...(trackingRaw || {}),
+      updates: Array.isArray(trackingRaw?.updates) ? [...(trackingRaw!.updates as TrackingTabState['updates'])] : trackingDefaults.updates,
+    };
+    return { topBar, header, container, marks, freight, tracking };
   } catch {
     return null;
   }

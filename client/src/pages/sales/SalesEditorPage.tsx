@@ -142,10 +142,19 @@ const toDateInput = (value?: string) => {
   return date.toISOString().slice(0, 10);
 };
 
+const parseViNumber = (value: unknown): number => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const s = String(value ?? '').trim();
+  if (!s) return 0;
+  const normalized = s.replace(/\./g, '').replace(/,/g, '.');
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : 0;
+};
+
 const calculateRow = (row: SalesChargeItem) => {
-  const quantity = Number(row.quantity || 0);
-  const unitPrice = Number(row.unit_price || 0);
-  const vatPercent = Number(row.vat_percent || 0);
+  const quantity = parseViNumber((row as any).quantity);
+  const unitPrice = parseViNumber((row as any).unit_price);
+  const vatPercent = parseViNumber((row as any).vat_percent);
   const amountExVat = quantity * unitPrice;
   const vatAmount = (amountExVat * vatPercent) / 100;
   return { amountExVat, vatAmount };
@@ -180,9 +189,9 @@ const isBlankChargeRow = (row: SalesChargeItem) =>
   !ztrim(row.charge_type) &&
   !ztrim(row.unit) &&
   !ztrim(row.note) &&
-  (Number(row.quantity) || 0) === 0 &&
-  (Number(row.unit_price) || 0) === 0 &&
-  (Number(row.vat_percent) || 0) === 0;
+  parseViNumber((row as any).quantity) === 0 &&
+  parseViNumber((row as any).unit_price) === 0 &&
+  parseViNumber((row as any).vat_percent) === 0;
 
 const isPureTrailingBlankRow = (row: SalesChargeItem) =>
   isBlankChargeRow(row) && !row._mobileNewSlot;
@@ -518,7 +527,12 @@ const SalesEditorPage: React.FC<Props> = ({ mode }) => {
       const payload: SalesFormState = {
         ...formState,
         charge_items: filterNonBlankChargeItems(
-          (formState.charge_items || []).map(({ _mobileNewSlot: _ms, ...r }) => r),
+          (formState.charge_items || []).map(({ _mobileNewSlot: _ms, ...r }) => ({
+            ...r,
+            quantity: parseViNumber((r as any).quantity),
+            unit_price: parseViNumber((r as any).unit_price),
+            vat_percent: parseViNumber((r as any).vat_percent),
+          })),
         ),
       };
 
@@ -654,7 +668,22 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
     index: number;
   } | null>(null);
   const [creatingJob, setCreatingJob] = useState(false);
+  const [scheduleDraft, setScheduleDraft] = useState<{ vessel: string; etd: string; eta: string }>({
+    vessel: '',
+    etd: '',
+    eta: '',
+  });
   const lastAutoRateCurrencyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const s = formState.relatedShipment;
+    if (!s) return;
+    setScheduleDraft((prev) => ({
+      vessel: prev.vessel || s.vessel_voyage || '',
+      etd: prev.etd || s.etd || '',
+      eta: prev.eta || s.eta || '',
+    }));
+  }, [formState.relatedShipment?.id]);
 
   const exchangeRateByCode = useMemo(() => {
     const m = new Map<string, number>();
@@ -675,7 +704,15 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
     if (!formState.id) return;
     setCreatingJob(true);
     try {
-      const result = await salesService.createJobFromQuotation(formState.id);
+      const shipmentPatch: Record<string, unknown> = {};
+      if (scheduleDraft.vessel.trim()) shipmentPatch.vessel_voyage = scheduleDraft.vessel.trim();
+      if (scheduleDraft.etd.trim()) shipmentPatch.etd = scheduleDraft.etd.trim();
+      if (scheduleDraft.eta.trim()) shipmentPatch.eta = scheduleDraft.eta.trim();
+
+      const result = await salesService.createJobFromQuotation(
+        formState.id,
+        Object.keys(shipmentPatch).length > 0 ? shipmentPatch : undefined,
+      );
       toastSuccess(result.already_created ? 'Job already existed for this quotation' : `Job ${result.shipment.code || result.shipment.id} created`);
       navigate(`/shipments/sop/${result.shipment.id}`, {
         state: {
@@ -699,6 +736,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
     }
   }, [
     formState,
+    scheduleDraft,
     onPersistedStatusChange,
     navigate,
     toastSuccess,
@@ -969,13 +1007,13 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
   const buildUnitSelectOptions = (row: SalesChargeItem) => {
     const base = unitCatalog
       .filter((u) => u.active)
-      .map((u) => ({ value: u.code, label: `[${u.code}] ${u.name}` }));
+      .map((u) => ({ value: u.code, label: `${u.code} ${u.name}`.trim() }));
     const code = (row.unit || '').trim();
     if (code && !base.some((o) => o.value === code)) {
       const known = unitCatalog.find((u) => u.code === code);
       const label = known
-        ? `[${code}] ${known.name}${known.active ? '' : ' (inactive)'}`
-        : `[${code}]`;
+        ? `${code} ${known.name}${known.active ? '' : ' (inactive)'}`.trim()
+        : code;
       return [{ value: code, label }, ...base];
     }
     return base;
@@ -1127,8 +1165,11 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                         <input
                           type="number"
                           step="0.01"
-                          value={Number(row.quantity) || 0}
+                          value={Number((row as any).quantity) || 0}
                           onChange={(e) => updateChargeRow(group, index, 'quantity', Number(e.target.value) || 0)}
+                          onFocus={(e) => {
+                            e.currentTarget.select();
+                          }}
                           disabled={isReadOnly}
                           className={`${fieldClassMobile} text-right`}
                           inputMode="decimal"
@@ -1139,8 +1180,11 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                         <input
                           type="number"
                           step="0.01"
-                          value={Number(row.unit_price) || 0}
+                          value={Number((row as any).unit_price) || 0}
                           onChange={(e) => updateChargeRow(group, index, 'unit_price', Number(e.target.value) || 0)}
+                          onFocus={(e) => {
+                            e.currentTarget.select();
+                          }}
                           disabled={isReadOnly}
                           className={`${fieldClassMobile} text-right`}
                           inputMode="decimal"
@@ -1151,8 +1195,16 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                         <input
                           type="number"
                           step="0.1"
-                          value={Number(row.vat_percent) || 0}
-                          onChange={(e) => updateChargeRow(group, index, 'vat_percent', Number(e.target.value) || 0)}
+                          value={(row as any).vat_percent ?? ''}
+                          onChange={(e) =>
+                            updateChargeRow(group, index, 'vat_percent', e.target.value === '' ? '' : Number(e.target.value))
+                          }
+                          onFocus={(e) => {
+                            if ((Number((row as any).vat_percent) || 0) === 0) {
+                              updateChargeRow(group, index, 'vat_percent', '');
+                            }
+                            e.currentTarget.select();
+                          }}
                           disabled={isReadOnly}
                           className={`${fieldClassMobile} text-right`}
                           inputMode="decimal"
@@ -1217,8 +1269,8 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
           {rows.length === 0 ? (
             emptyMsg
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1180px] text-left border-separate border-spacing-0">
+            <div className="overflow-x-scroll pb-2">
+              <table className="w-full min-w-[1460px] text-left border-separate border-spacing-0">
                 <thead className="bg-slate-50">
                   <tr>
                     <th className="px-3 py-2 text-[11px] font-bold text-muted-foreground uppercase border-b border-border">Freight Code</th>
@@ -1271,11 +1323,11 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                             }
                           />
                         </td>
-                        <td className="px-3 py-2 border-b border-border/60">
-                          <input value={row.charge_name || ''} onChange={(e) => updateChargeRow(group, index, 'charge_name', e.target.value)} disabled={isReadOnly} className="w-full px-2 py-1 border border-border rounded-md text-[12px]" />
+                        <td className="px-3 py-2 border-b border-border/60 min-w-[220px]">
+                          <input value={row.charge_name || ''} onChange={(e) => updateChargeRow(group, index, 'charge_name', e.target.value)} disabled={isReadOnly} className="w-full min-w-[200px] px-2 py-1 border border-border rounded-md text-[12px]" />
                         </td>
-                        <td className="px-3 py-2 border-b border-border/60">
-                          <input value={row.charge_type || ''} onChange={(e) => updateChargeRow(group, index, 'charge_type', e.target.value)} disabled={isReadOnly} className="w-full px-2 py-1 border border-border rounded-md text-[12px]" />
+                        <td className="px-3 py-2 border-b border-border/60 min-w-[180px]">
+                          <input value={row.charge_type || ''} onChange={(e) => updateChargeRow(group, index, 'charge_type', e.target.value)} disabled={isReadOnly} className="w-full min-w-[160px] px-2 py-1 border border-border rounded-md text-[12px]" />
                         </td>
                         <td className="px-3 py-2 border-b border-border/60">
                           <SearchableSelect
@@ -1311,14 +1363,14 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                             }
                           />
                         </td>
-                        <td className="px-3 py-2 border-b border-border/60">
-                          <input type="number" step="0.01" value={Number(row.quantity) || 0} onChange={(e) => updateChargeRow(group, index, 'quantity', Number(e.target.value) || 0)} disabled={isReadOnly} className="w-full px-2 py-1 border border-border rounded-md text-[12px] text-right" />
+                        <td className="px-3 py-2 border-b border-border/60 min-w-[120px]">
+                          <input type="number" step="0.01" value={Number((row as any).quantity) || 0} onChange={(e) => updateChargeRow(group, index, 'quantity', Number(e.target.value) || 0)} onFocus={(e) => { e.currentTarget.select(); }} disabled={isReadOnly} className="w-full px-2 py-1 border border-border rounded-md text-[12px] text-right" />
                         </td>
-                        <td className="px-3 py-2 border-b border-border/60">
-                          <input type="number" step="0.01" value={Number(row.unit_price) || 0} onChange={(e) => updateChargeRow(group, index, 'unit_price', Number(e.target.value) || 0)} disabled={isReadOnly} className="w-full px-2 py-1 border border-border rounded-md text-[12px] text-right" />
+                        <td className="px-3 py-2 border-b border-border/60 min-w-[140px]">
+                          <input type="number" step="0.01" value={Number((row as any).unit_price) || 0} onChange={(e) => updateChargeRow(group, index, 'unit_price', Number(e.target.value) || 0)} onFocus={(e) => { e.currentTarget.select(); }} disabled={isReadOnly} className="w-full px-2 py-1 border border-border rounded-md text-[12px] text-right" />
                         </td>
-                        <td className="px-3 py-2 border-b border-border/60">
-                          <input type="number" step="0.1" value={Number(row.vat_percent) || 0} onChange={(e) => updateChargeRow(group, index, 'vat_percent', Number(e.target.value) || 0)} disabled={isReadOnly} className="w-full px-2 py-1 border border-border rounded-md text-[12px] text-right" />
+                        <td className="px-3 py-2 border-b border-border/60 min-w-[110px]">
+                          <input type="number" step="0.1" value={(row as any).vat_percent ?? ''} onChange={(e) => updateChargeRow(group, index, 'vat_percent', e.target.value === '' ? '' : Number(e.target.value))} onFocus={(e) => { if ((Number((row as any).vat_percent) || 0) === 0) updateChargeRow(group, index, 'vat_percent', ''); e.currentTarget.select(); }} disabled={isReadOnly} className="w-full px-2 py-1 border border-border rounded-md text-[12px] text-right" />
                         </td>
                         <td className="px-3 py-2 border-b border-border/60 text-[12px] font-bold text-right tabular-nums">
                           {amountExVnd}
@@ -1326,8 +1378,8 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                         <td className="px-3 py-2 border-b border-border/60 text-[12px] font-bold text-right tabular-nums">
                           {vatVnd}
                         </td>
-                        <td className="px-3 py-2 border-b border-border/60">
-                          <input value={row.note || ''} onChange={(e) => updateChargeRow(group, index, 'note', e.target.value)} disabled={isReadOnly} className="w-full px-2 py-1 border border-border rounded-md text-[12px]" />
+                        <td className="px-3 py-2 border-b border-border/60 min-w-[260px]">
+                          <input value={row.note || ''} onChange={(e) => updateChargeRow(group, index, 'note', e.target.value)} disabled={isReadOnly} className="w-full min-w-[240px] px-2 py-1 border border-border rounded-md text-[12px]" />
                         </td>
                         <td className="px-3 py-2 border-b border-border/60 text-center w-16">
                           <button
@@ -1653,6 +1705,34 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                 />
               </div>
               <div className="space-y-1.5">
+                <label className={mobileLabelClass}>Vessel</label>
+                <input
+                  value={scheduleDraft.vessel}
+                  onChange={(e) => setScheduleDraft((p) => ({ ...p, vessel: e.target.value }))}
+                  disabled={isReadOnly}
+                  className={mf('emerald', isReadOnly)}
+                  placeholder="e.g. EVER GREEN V.0123W"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className={mobileLabelClass}>ETD</label>
+                <DateInput
+                  value={toDateInput(scheduleDraft.etd)}
+                  onChange={(v) => setScheduleDraft((p) => ({ ...p, etd: v }))}
+                  disabled={isReadOnly}
+                  className="w-full"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className={mobileLabelClass}>ETA</label>
+                <DateInput
+                  value={toDateInput(scheduleDraft.eta)}
+                  onChange={(v) => setScheduleDraft((p) => ({ ...p, eta: v }))}
+                  disabled={isReadOnly}
+                  className="w-full"
+                />
+              </div>
+              <div className="space-y-1.5">
                 <label className={mobileLabelClass}>Pickup</label>
                 <input
                   value={formState.pickup || ''}
@@ -1756,7 +1836,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                 />
               </div>
               <div className="space-y-1.5">
-                <label className={mobileLabelClass}>Goods</label>
+                <label className={mobileLabelClass}>Commodity</label>
                 <input
                   value={formState.goods || selectedShipment?.commodity || ''}
                   onChange={(e) => setFormField('goods', e.target.value)}
@@ -1848,6 +1928,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                   step="0.0001"
                   value={formState.exchange_rate || 0}
                   onChange={(e) => setFormField('exchange_rate', Number(e.target.value) || 0)}
+                  onFocus={(e) => e.currentTarget.select()}
                   disabled={isReadOnly}
                   className={mf('violet', isReadOnly)}
                 />
@@ -1866,50 +1947,140 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
 
           <div className="hidden md:block space-y-4 sm:space-y-6">
         <div className="bg-white rounded-2xl border border-border p-3 sm:p-5 space-y-4 sm:space-y-5">
-          <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            {/* Customer */}
             <div className="space-y-3">
               <label className="text-[12px] font-bold text-slate-600">Customer</label>
-              <SearchableSelect options={customerOptions} value={formState.customer_id || ''} onValueChange={(value) => setFormField('customer_id', value)} disabled={isReadOnly} placeholder="Select customer" />
-              <label className="text-[12px] font-bold text-slate-600">Quotation No.</label>
-              <input value={formState.id ? `Q-${formState.id.slice(0, 8).toUpperCase()}` : 'Auto-generated'} readOnly className="w-full px-3 py-2 bg-slate-100 border border-border rounded-xl text-[13px] font-bold" />
+              <SearchableSelect
+                options={customerOptions}
+                value={formState.customer_id || ''}
+                onValueChange={(value) => setFormField('customer_id', value)}
+                disabled={isReadOnly}
+                placeholder="Select customer"
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">Quotation No.</label>
+                  <input
+                    value={formState.id ? `Q-${formState.id.slice(0, 8).toUpperCase()}` : 'Auto-generated'}
+                    readOnly
+                    className="w-full px-3 py-2 bg-slate-100 border border-border rounded-xl text-[13px] font-bold"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">Issue Date</label>
+                  <DateInput
+                    value={toDateInput(formState.quote_date)}
+                    onChange={(v) => setFormField('quote_date', v)}
+                    disabled={isReadOnly}
+                    className="w-full"
+                  />
+                </div>
+              </div>
               <label className="text-[12px] font-bold text-slate-600">Quotation Type</label>
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
                 <label className="text-[12px] font-bold flex items-center gap-2 min-h-[44px] sm:min-h-0 touch-manipulation">
-                  <input type="radio" name="quotation_type" checked={formState.quotation_type === 'service_breakdown'} onChange={() => setFormField('quotation_type', 'service_breakdown')} disabled={isReadOnly} className="size-4" />
+                  <input
+                    type="radio"
+                    name="quotation_type"
+                    checked={formState.quotation_type === 'service_breakdown'}
+                    onChange={() => setFormField('quotation_type', 'service_breakdown')}
+                    disabled={isReadOnly}
+                    className="size-4"
+                  />
                   Service Breakdown
                 </label>
                 <label className="text-[12px] font-bold flex items-center gap-2 min-h-[44px] sm:min-h-0 touch-manipulation">
-                  <input type="radio" name="quotation_type" checked={formState.quotation_type === 'option_based'} onChange={() => setFormField('quotation_type', 'option_based')} disabled={isReadOnly} className="size-4" />
+                  <input
+                    type="radio"
+                    name="quotation_type"
+                    checked={formState.quotation_type === 'option_based'}
+                    onChange={() => setFormField('quotation_type', 'option_based')}
+                    disabled={isReadOnly}
+                    className="size-4"
+                  />
                   Option-based
                 </label>
               </div>
-              <label className="text-[12px] font-bold text-slate-600">Customer</label>
-              <input value={selectedCustomer?.company_name || formState.customer_trade_name || ''} readOnly className="w-full px-3 py-2 bg-slate-100 border border-border rounded-xl text-[13px]" />
               <label className="text-[12px] font-bold text-slate-600">Customer Name</label>
-              <input value={formState.customer_trade_name || ''} onChange={(e) => setFormField('customer_trade_name', e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 bg-white border border-border rounded-xl text-[13px]" />
-              <label className="text-[12px] font-bold text-slate-600">Person in Charge</label>
-              <input value={formState.customer_contact_name || ''} onChange={(e) => setFormField('customer_contact_name', e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 bg-white border border-border rounded-xl text-[13px]" />
+              <input
+                value={formState.customer_trade_name || selectedCustomer?.company_name || ''}
+                onChange={(e) => setFormField('customer_trade_name', e.target.value)}
+                disabled={isReadOnly}
+                className="w-full px-3 py-2 bg-white border border-border rounded-xl text-[13px]"
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">Person in Charge</label>
+                  <input
+                    value={formState.customer_contact_name || ''}
+                    onChange={(e) => setFormField('customer_contact_name', e.target.value)}
+                    disabled={isReadOnly}
+                    className="w-full px-3 py-2 bg-white border border-border rounded-xl text-[13px]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">Tel</label>
+                  <input
+                    value={formState.customer_contact_tel || ''}
+                    onChange={(e) => setFormField('customer_contact_tel', e.target.value)}
+                    disabled={isReadOnly}
+                    className="w-full px-3 py-2 bg-white border border-border rounded-xl text-[13px]"
+                  />
+                </div>
+              </div>
               <label className="text-[12px] font-bold text-slate-600">Email</label>
-              <input value={formState.customer_contact_email || ''} onChange={(e) => setFormField('customer_contact_email', e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 bg-white border border-border rounded-xl text-[13px]" />
-              <label className="text-[12px] font-bold text-slate-600">Tel</label>
-              <input value={formState.customer_contact_tel || ''} onChange={(e) => setFormField('customer_contact_tel', e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 bg-white border border-border rounded-xl text-[13px]" />
+              <input
+                value={formState.customer_contact_email || ''}
+                onChange={(e) => setFormField('customer_contact_email', e.target.value)}
+                disabled={isReadOnly}
+                className="w-full px-3 py-2 bg-white border border-border rounded-xl text-[13px]"
+              />
             </div>
 
+            {/* Schedule */}
             <div className="space-y-3">
-              <label className="text-[12px] font-bold text-slate-600">Issue Date</label>
-              <DateInput
-                value={toDateInput(formState.quote_date)}
-                onChange={(v) => setFormField('quote_date', v)}
-                disabled={isReadOnly}
-                className="w-full"
-              />
-              <label className="text-[12px] font-bold text-slate-600">Due Date</label>
-              <DateInput
-                value={toDateInput(formState.due_date)}
-                onChange={(v) => setFormField('due_date', v)}
-                disabled={isReadOnly}
-                className="w-full"
-              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">Due Date</label>
+                  <DateInput
+                    value={toDateInput(formState.due_date)}
+                    onChange={(v) => setFormField('due_date', v)}
+                    disabled={isReadOnly}
+                    className="w-full"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">Vessel</label>
+                  <input
+                    value={scheduleDraft.vessel}
+                    onChange={(e) => setScheduleDraft((p: { vessel: string; etd: string; eta: string }) => ({ ...p, vessel: e.target.value }))}
+                    disabled={isReadOnly}
+                    placeholder="e.g. EVER GREEN V.0123W"
+                    className={`w-full px-3 py-2 border border-border rounded-xl text-[13px] ${isReadOnly ? 'bg-slate-100' : ''}`}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">ETD</label>
+                  <DateInput
+                    value={toDateInput(scheduleDraft.etd)}
+                    onChange={(v) => setScheduleDraft((p: { vessel: string; etd: string; eta: string }) => ({ ...p, etd: v }))}
+                    disabled={isReadOnly}
+                    className="w-full"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">ETA</label>
+                  <DateInput
+                    value={toDateInput(scheduleDraft.eta)}
+                    onChange={(v) => setScheduleDraft((p: { vessel: string; etd: string; eta: string }) => ({ ...p, eta: v }))}
+                    disabled={isReadOnly}
+                    className="w-full"
+                  />
+                </div>
+              </div>
               <label className="text-[12px] font-bold text-slate-600">Port of Loading</label>
               <input
                 value={formState.pol ?? ''}
@@ -1926,57 +2097,154 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                 placeholder="e.g. Los Angeles, USA"
                 className={`w-full px-3 py-2 border border-border rounded-xl text-[13px] ${isReadOnly ? 'bg-slate-100' : ''}`}
               />
-              <label className="text-[12px] font-bold text-slate-600">Pickup</label>
-              <input value={formState.pickup || ''} onChange={(e) => setFormField('pickup', e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 border border-border rounded-xl text-[13px]" />
-              <label className="text-[12px] font-bold text-slate-600">Final Destination</label>
-              <input value={formState.final_destination || ''} onChange={(e) => setFormField('final_destination', e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 border border-border rounded-xl text-[13px]" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">Pickup</label>
+                  <input
+                    value={formState.pickup || ''}
+                    onChange={(e) => setFormField('pickup', e.target.value)}
+                    disabled={isReadOnly}
+                    className="w-full px-3 py-2 border border-border rounded-xl text-[13px]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">Final Destination</label>
+                  <input
+                    value={formState.final_destination || ''}
+                    onChange={(e) => setFormField('final_destination', e.target.value)}
+                    disabled={isReadOnly}
+                    className="w-full px-3 py-2 border border-border rounded-xl text-[13px]"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">BILL#</label>
+                  <input
+                    value={formState.bill_no || ''}
+                    onChange={(e) => setFormField('bill_no', e.target.value)}
+                    disabled={isReadOnly}
+                    className="w-full px-3 py-2 border border-border rounded-xl text-[13px]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">CD#</label>
+                  <input
+                    value={formState.customs_declaration_no || ''}
+                    onChange={(e) => setFormField('customs_declaration_no', e.target.value)}
+                    disabled={isReadOnly}
+                    className="w-full px-3 py-2 border border-border rounded-xl text-[13px]"
+                  />
+                </div>
+              </div>
               <label className="text-[12px] font-bold text-slate-600">Cargo Volume</label>
-              <input value={formState.cargo_volume || ''} onChange={(e) => setFormField('cargo_volume', e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 border border-border rounded-xl text-[13px]" />
-              <label className="text-[12px] font-bold text-slate-600">BILL#</label>
               <input
-                value={formState.bill_no || ''}
-                onChange={(e) => setFormField('bill_no', e.target.value)}
-                disabled={isReadOnly}
-                className="w-full px-3 py-2 border border-border rounded-xl text-[13px]"
-              />
-              <label className="text-[12px] font-bold text-slate-600">CD#</label>
-              <input
-                value={formState.customs_declaration_no || ''}
-                onChange={(e) => setFormField('customs_declaration_no', e.target.value)}
+                value={formState.cargo_volume || ''}
+                onChange={(e) => setFormField('cargo_volume', e.target.value)}
                 disabled={isReadOnly}
                 className="w-full px-3 py-2 border border-border rounded-xl text-[13px]"
               />
             </div>
 
+            {/* Sales & finance */}
             <div className="space-y-3">
               <label className="text-[12px] font-bold text-slate-600">Sales Person</label>
-              <SearchableSelect options={salesPersonOptions} value={formState.sales_person_id || ''} onValueChange={(value) => setFormField('sales_person_id', value)} disabled={isReadOnly} placeholder="Select sales person" />
-              <label className="text-[12px] font-bold text-slate-600">Sales Team</label>
-              <input value={formState.business_team || ''} onChange={(e) => setFormField('business_team', e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 border border-border rounded-xl text-[13px]" />
-              <label className="text-[12px] font-bold text-slate-600">Sales Department</label>
-              <input value={formState.business_department || ''} onChange={(e) => setFormField('business_department', e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 border border-border rounded-xl text-[13px]" />
-              <label className="text-[12px] font-bold text-slate-600">Goods</label>
-              <input value={formState.goods || selectedShipment?.commodity || ''} onChange={(e) => setFormField('goods', e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 border border-border rounded-xl text-[13px]" />
-              <label className="text-[12px] font-bold text-slate-600">Incoterms</label>
+              <SearchableSelect
+                options={salesPersonOptions}
+                value={formState.sales_person_id || ''}
+                onValueChange={(value) => setFormField('sales_person_id', value)}
+                disabled={isReadOnly}
+                placeholder="Select sales person"
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">Sales Team</label>
+                  <input
+                    value={formState.business_team || ''}
+                    onChange={(e) => setFormField('business_team', e.target.value)}
+                    disabled={isReadOnly}
+                    className="w-full px-3 py-2 border border-border rounded-xl text-[13px]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">Sales Department</label>
+                  <input
+                    value={formState.business_department || ''}
+                    onChange={(e) => setFormField('business_department', e.target.value)}
+                    disabled={isReadOnly}
+                    className="w-full px-3 py-2 border border-border rounded-xl text-[13px]"
+                  />
+                </div>
+              </div>
+              <label className="text-[12px] font-bold text-slate-600">Commodity</label>
               <input
-                value={formState.incoterms || ''}
-                onChange={(e) => setFormField('incoterms', e.target.value)}
+                value={formState.goods || selectedShipment?.commodity || ''}
+                onChange={(e) => setFormField('goods', e.target.value)}
                 disabled={isReadOnly}
                 className="w-full px-3 py-2 border border-border rounded-xl text-[13px]"
               />
-              <label className="text-[12px] font-bold text-slate-600">Transit Time</label>
-              <input value={formState.transit_time || ''} onChange={(e) => setFormField('transit_time', e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 border border-border rounded-xl text-[13px]" />
-            </div>
-
-            <div className="space-y-3">
-              <label className="text-[12px] font-bold text-slate-600">Services</label>
-              <input value={formState.service_mode || ''} onChange={(e) => setFormField('service_mode', e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 border border-border rounded-xl text-[13px]" />
-              <label className="text-[12px] font-bold text-slate-600">Direction</label>
-              <input value={formState.direction || ''} onChange={(e) => setFormField('direction', e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 border border-border rounded-xl text-[13px]" />
-              <label className="text-[12px] font-bold text-slate-600">Currency</label>
-              <SearchableSelect options={[{ value: 'VND', label: 'VND' }, ...exchangeRates.map((rate) => ({ value: rate.currency_code, label: rate.currency_code }))]} value={formState.currency_code || 'VND'} onValueChange={(value) => setFormField('currency_code', value)} disabled={isReadOnly} hideSearch hideClearIcon />
-              <label className="text-[12px] font-bold text-slate-600">Sales Inquiry No.</label>
-              <input value={formState.sales_inquiry_no || ''} onChange={(e) => setFormField('sales_inquiry_no', e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 border border-border rounded-xl text-[13px]" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">Incoterms</label>
+                  <input
+                    value={formState.incoterms || ''}
+                    onChange={(e) => setFormField('incoterms', e.target.value)}
+                    disabled={isReadOnly}
+                    className="w-full px-3 py-2 border border-border rounded-xl text-[13px]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">Transit Time</label>
+                  <input
+                    value={formState.transit_time || ''}
+                    onChange={(e) => setFormField('transit_time', e.target.value)}
+                    disabled={isReadOnly}
+                    className="w-full px-3 py-2 border border-border rounded-xl text-[13px]"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">Services</label>
+                  <input
+                    value={formState.service_mode || ''}
+                    onChange={(e) => setFormField('service_mode', e.target.value)}
+                    disabled={isReadOnly}
+                    className="w-full px-3 py-2 border border-border rounded-xl text-[13px]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">Direction</label>
+                  <input
+                    value={formState.direction || ''}
+                    onChange={(e) => setFormField('direction', e.target.value)}
+                    disabled={isReadOnly}
+                    className="w-full px-3 py-2 border border-border rounded-xl text-[13px]"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">Currency</label>
+                  <SearchableSelect
+                    options={[{ value: 'VND', label: 'VND' }, ...exchangeRates.map((rate) => ({ value: rate.currency_code, label: rate.currency_code }))]}
+                    value={formState.currency_code || 'VND'}
+                    onValueChange={(value) => setFormField('currency_code', value)}
+                    disabled={isReadOnly}
+                    hideSearch
+                    hideClearIcon
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">Sales Inquiry No.</label>
+                  <input
+                    value={formState.sales_inquiry_no || ''}
+                    onChange={(e) => setFormField('sales_inquiry_no', e.target.value)}
+                    disabled={isReadOnly}
+                    className="w-full px-3 py-2 border border-border rounded-xl text-[13px]"
+                  />
+                </div>
+              </div>
               <ThreeStarRating
                 label="Priority"
                 labelClassName="text-[12px] font-bold text-slate-600"
@@ -1986,16 +2254,35 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                 variant="framed"
               />
               <label className="text-[12px] font-bold text-slate-600">Notes</label>
-              <textarea value={formState.notes || ''} onChange={(e) => setFormField('notes', e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 border border-border rounded-xl text-[13px] min-h-[78px]" />
-              <label className="text-[12px] font-bold text-slate-600">Exchange Rate</label>
-              <input type="number" step="0.0001" value={formState.exchange_rate || 0} onChange={(e) => setFormField('exchange_rate', Number(e.target.value) || 0)} disabled={isReadOnly} className="w-full px-3 py-2 border border-border rounded-xl text-[13px]" />
-              <label className="text-[12px] font-bold text-slate-600">Exchange Rate Date</label>
-              <DateTimePicker24h
-                value={formState.exchange_rate_date || ''}
-                onChange={(v) => setFormField('exchange_rate_date', v)}
+              <textarea
+                value={formState.notes || ''}
+                onChange={(e) => setFormField('notes', e.target.value)}
                 disabled={isReadOnly}
-                className="w-full"
+                className="w-full px-3 py-2 border border-border rounded-xl text-[13px] min-h-[78px]"
               />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">Exchange Rate</label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={formState.exchange_rate || 0}
+                    onChange={(e) => setFormField('exchange_rate', Number(e.target.value) || 0)}
+                    onFocus={(e) => e.currentTarget.select()}
+                    disabled={isReadOnly}
+                    className="w-full px-3 py-2 border border-border rounded-xl text-[13px]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[12px] font-bold text-slate-600">Exchange Rate Date</label>
+                  <DateTimePicker24h
+                    value={formState.exchange_rate_date || ''}
+                    onChange={(v) => setFormField('exchange_rate_date', v)}
+                    disabled={isReadOnly}
+                    className="w-full"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 

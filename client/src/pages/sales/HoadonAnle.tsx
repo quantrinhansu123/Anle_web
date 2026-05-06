@@ -266,8 +266,9 @@ function quotationLogoSrc(): string {
 }
 
 async function downloadPdfFromElement(el: HTMLElement, filename: string): Promise<void> {
+  const scale = Math.max(3, Math.ceil((window.devicePixelRatio || 1) * 2));
   const canvas = await html2canvas(el, {
-    scale: 2,
+    scale,
     useCORS: true,
     allowTaint: false,
     logging: false,
@@ -291,20 +292,20 @@ async function downloadPdfFromElement(el: HTMLElement, filename: string): Promis
       });
     },
   });
-  const imgData = canvas.toDataURL('image/jpeg', 0.92);
-  const pdf = new jsPDF('p', 'mm', 'a4');
+  const imgData = canvas.toDataURL('image/jpeg', 1.0);
+  const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: false });
   const pdfWidth = pdf.internal.pageSize.getWidth();
   const pdfHeight = pdf.internal.pageSize.getHeight();
   const imgWidth = pdfWidth;
   const imgHeight = (canvas.height * imgWidth) / canvas.width;
   let heightLeft = imgHeight;
   let position = 0;
-  pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+  pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
   heightLeft -= pdfHeight;
   while (heightLeft > 0) {
     position = heightLeft - imgHeight;
     pdf.addPage();
-    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
     heightLeft -= pdfHeight;
   }
   pdf.save(filename);
@@ -836,11 +837,11 @@ const HoadonAnle: React.FC = () => {
                 ? `${item.sales_items[0].quantity} ${item.sales_items[0].unit}`
                 : 'N/A',
             term: item.incoterms?.trim() || item.shipments?.term?.trim() || 'N/A',
-            pol: item.shipments?.pol || 'N/A',
-            pod: item.shipments?.pod || 'N/A',
+            pol: item.pol?.trim() || item.shipments?.pol || 'N/A',
+            pod: item.pod?.trim() || item.shipments?.pod || 'N/A',
             etd: formatDate(item.shipments?.etd),
             eta: formatDate(item.shipments?.eta),
-            vessel: 'N/A',
+            vessel: item.shipments?.vessel_voyage?.trim() || 'N/A',
             quoteDateIso,
             currency: headerCurrency,
             progressRows,

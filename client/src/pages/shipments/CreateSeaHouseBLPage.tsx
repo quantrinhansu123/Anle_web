@@ -8,7 +8,6 @@ import {
   DollarSign,
   FileText,
   Receipt,
-  Ship,
 } from 'lucide-react';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { useToastContext } from '../../contexts/ToastContext';
@@ -33,6 +32,8 @@ import { MarksDescriptionTab, emptyMarksDescriptionState } from './bl-tabs/Marks
 import type { MarksDescriptionTabState } from './bl-tabs/MarksDescriptionTab';
 import { FreightTab, emptyFreightState } from './bl-tabs/FreightTab';
 import type { FreightTabState } from './bl-tabs/FreightTab';
+import { TrackingTab, emptyTrackingState } from './bl-tabs/TrackingTab';
+import type { TrackingTabState } from './bl-tabs/TrackingTab';
 import { FieldLabel, inputClass } from './bl-tabs/blSharedHelpers';
 import type { JobBound } from './types';
 
@@ -139,17 +140,6 @@ function StatCard({
   );
 }
 
-function PlaceholderTab({ label }: { label: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-      <FileText size={32} className="mb-3 opacity-30" />
-      <p className="text-[13px] font-semibold">{label}</p>
-      <p className="mt-1 text-[11px]">This section will be available in a future update.</p>
-    </div>
-  );
-}
-
-
 const CreateSeaHouseBLPage: React.FC = () => {
   const navigate = useNavigate();
   const { id: shipmentId } = useParams<{ id: string }>();
@@ -197,6 +187,10 @@ const CreateSeaHouseBLPage: React.FC = () => {
   const patchFreight = (patch: Partial<FreightTabState>) =>
     setFreightState((prev) => ({ ...prev, ...patch }));
 
+  const [trackingState, setTrackingState] = useState<TrackingTabState>(emptyTrackingState);
+  const patchTracking = (patch: Partial<TrackingTabState>) =>
+    setTrackingState((prev) => ({ ...prev, ...patch }));
+
   const seaHousePersistKey = useMemo(
     () =>
       JSON.stringify({
@@ -215,6 +209,7 @@ const CreateSeaHouseBLPage: React.FC = () => {
         containerState,
         marksState,
         freightState,
+        trackingState,
       }),
     [
       hbl,
@@ -232,6 +227,7 @@ const CreateSeaHouseBLPage: React.FC = () => {
       containerState,
       marksState,
       freightState,
+      trackingState,
     ],
   );
 
@@ -255,6 +251,7 @@ const CreateSeaHouseBLPage: React.FC = () => {
     setContainerState(emptyContainerState());
     setMarksState(emptyMarksDescriptionState());
     setFreightState(emptyFreightState());
+    setTrackingState(emptyTrackingState());
     let cancelled = false;
     void (async () => {
       try {
@@ -333,6 +330,7 @@ const CreateSeaHouseBLPage: React.FC = () => {
           setContainerState(parsed.container);
           setMarksState(parsed.marks);
           setFreightState(parsed.freight);
+          setTrackingState(parsed.tracking ?? emptyTrackingState());
         } else {
           setHbl(autoFileNo);
           setJobNo(mjn);
@@ -392,6 +390,7 @@ const CreateSeaHouseBLPage: React.FC = () => {
             container: containerState,
             marks: marksState,
             freight: freightState,
+            tracking: trackingState,
           }),
         )
         .catch((e: unknown) => {
@@ -603,15 +602,6 @@ const CreateSeaHouseBLPage: React.FC = () => {
             ) : null}
             <button
               type="button"
-              disabled={isViewMode}
-              onClick={() => toastOk('Create Master — coming soon')}
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-teal-300 bg-teal-50 px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-teal-700 shadow-sm transition-all hover:bg-teal-100 hover:border-teal-400 disabled:pointer-events-none disabled:opacity-40"
-            >
-              <Ship size={15} />
-              Create Master
-            </button>
-            <button
-              type="button"
               disabled={!shipmentId}
               onClick={() => navigate(`/shipments/sop/${shipmentId}/arrival-notice`)}
               className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-sky-300 bg-sky-50 px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-sky-700 shadow-sm transition-all hover:bg-sky-100 hover:border-sky-400 disabled:pointer-events-none disabled:opacity-40"
@@ -820,7 +810,7 @@ const CreateSeaHouseBLPage: React.FC = () => {
             ) : activeTab === 'freight' ? (
               <FreightTab state={freightState} onChange={patchFreight} />
             ) : (
-              <PlaceholderTab label="Tracking" />
+              <TrackingTab state={trackingState} onChange={patchTracking} />
             )}
           </div>
         </fieldset>

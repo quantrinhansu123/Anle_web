@@ -78,6 +78,18 @@ export const shipmentService = {
   getRunGates: (id: string) =>
     apiFetch<RunGatesResult>(`/shipments/${id}/run-gates`),
 
+  getChecklistHistory: (id: string) =>
+    apiFetch<Array<{
+      id: string;
+      shipment_id: string;
+      field: string;
+      from_value: string | null;
+      to_value: string | null;
+      performed_by: string | null;
+      performed_by_email: string | null;
+      created_at: string;
+    }>>(`/shipments/${id}/checklist-history`),
+
   getFeasibilityApprovals: (id: string) =>
     apiFetch<FeasibilityApproval[]>(`/shipments/${id}/feasibility`),
 

@@ -26,6 +26,20 @@ import type {
 const notificationService = new NotificationService();
 const shipmentCostService = new ShipmentCostService();
 
+const isMissingPostgrestTable = (err: unknown, table: string): boolean => {
+  const e = err as any;
+  const msg = String(e?.message || '');
+  const details = String(e?.details || '');
+  const hint = String(e?.hint || '');
+  const combined = `${msg}\n${details}\n${hint}`;
+  return (
+    e?.code === 'PGRST205' ||
+    combined.includes(`Could not find the table 'public.${table}' in the schema cache`) ||
+    combined.includes(`relation "public.${table}" does not exist`) ||
+    combined.includes(`relation "${table}" does not exist`)
+  );
+};
+
 const normalizeShipmentStatus = (status?: string | null): ShipmentStatus => {
   switch (status) {
     case 'feasibility_checked':
@@ -244,7 +258,11 @@ export class ShipmentService {
     return data;
   }
 
-  async update(id: string, dto: UpdateShipmentDto): Promise<Shipment> {
+  async update(
+    id: string,
+    dto: UpdateShipmentDto,
+    actor?: { id?: string; email?: string } | null,
+  ): Promise<Shipment> {
     const current = await this.findById(id);
     if (!current) {
       throw new AppError('Shipment not found', 404);
@@ -283,6 +301,48 @@ export class ShipmentService {
 
     if (error) throw error;
 
+    // ─── Checklist History ───────────────────────────────────────
+    try {
+      const trackedFields = [
+        'contract_id',
+        'is_docs_ready',
+        'is_hs_confirmed',
+        'is_phytosanitary_ready',
+        'is_cost_locked',
+        'is_truck_booked',
+        'is_agent_booked',
+      ] as const;
+
+      const changes: Array<{ field: string; from_value: string | null; to_value: string | null }> = [];
+      for (const f of trackedFields) {
+        if (!Object.prototype.hasOwnProperty.call(dto as any, f)) continue;
+        const before = (current as any)[f];
+        const after = (data as any)[f];
+        if (String(before ?? '') === String(after ?? '')) continue;
+        changes.push({
+          field: String(f),
+          from_value: before == null ? null : String(before),
+          to_value: after == null ? null : String(after),
+        });
+      }
+
+      if (changes.length > 0) {
+        await supabase.from('shipment_checklist_history').insert(
+          changes.map((c) => ({
+            shipment_id: id,
+            field: c.field,
+            from_value: c.from_value,
+            to_value: c.to_value,
+            performed_by: actor?.id ?? null,
+            performed_by_email: actor?.email ?? null,
+          })),
+        );
+      }
+    } catch (logErr) {
+      // Non-blocking: checklist history should not break shipment updates.
+      console.error('Failed to write checklist history:', (logErr as any)?.message ?? logErr);
+    }
+
     if (bl_lines !== undefined) {
       await this.replaceBlLines(id, bl_lines);
     }
@@ -318,6 +378,18 @@ export class ShipmentService {
     }
 
     return data;
+  }
+
+  async getChecklistHistory(id: string) {
+    const { data, error } = await supabase
+      .from('shipment_checklist_history')
+      .select('id, shipment_id, field, from_value, to_value, performed_by, performed_by_email, created_at')
+      .eq('shipment_id', id)
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    if (error) throw error;
+    return data ?? [];
   }
 
   /**
@@ -529,7 +601,10 @@ export class ShipmentService {
       .eq('shipment_id', shipmentId)
       .order('sort_order', { ascending: true });
 
-    if (error) throw error;
+    if (error) {
+      if (isMissingPostgrestTable(error, 'shipment_bl_lines')) return [];
+      throw error;
+    }
     return data ?? [];
   }
 
@@ -537,7 +612,15 @@ export class ShipmentService {
     if (lines === undefined) return;
 
     const { error: delErr } = await supabase.from('shipment_bl_lines').delete().eq('shipment_id', shipmentId);
-    if (delErr) throw delErr;
+    if (delErr) {
+      if (isMissingPostgrestTable(delErr, 'shipment_bl_lines')) {
+        throw new AppError(
+          "Missing database table 'public.shipment_bl_lines'. Apply migration `server/sql/migrations/20260501_step1_add_job_columns_to_shipments.sql` and reload the PostgREST schema cache.",
+          500,
+        );
+      }
+      throw delErr;
+    }
 
     if (lines.length === 0) return;
 
@@ -559,7 +642,15 @@ export class ShipmentService {
     }));
 
     const { error: insErr } = await supabase.from('shipment_bl_lines').insert(rows);
-    if (insErr) throw insErr;
+    if (insErr) {
+      if (isMissingPostgrestTable(insErr, 'shipment_bl_lines')) {
+        throw new AppError(
+          "Missing database table 'public.shipment_bl_lines'. Apply migration `server/sql/migrations/20260501_step1_add_job_columns_to_shipments.sql` and reload the PostgREST schema cache.",
+          500,
+        );
+      }
+      throw insErr;
+    }
   }
 
   // ─── SEA HOUSE B/L ───────────────────────────────────────────
@@ -600,7 +691,10 @@ export class ShipmentService {
       .select('*')
       .eq('shipment_id', shipmentId)
       .maybeSingle();
-    if (error) throw error;
+    if (error) {
+      if (isMissingPostgrestTable(error, 'arrival_notices')) return null;
+      throw error;
+    }
     return data;
   }
 
@@ -622,7 +716,15 @@ export class ShipmentService {
       .upsert(upsertPayload, { onConflict: 'shipment_id' })
       .select('*')
       .single();
-    if (error) throw error;
+    if (error) {
+      if (isMissingPostgrestTable(error, 'arrival_notices')) {
+        throw new AppError(
+          "Missing database table 'public.arrival_notices'. Apply migration `server/sql/migrations/20260502_add_arrival_and_delivery_note_tables.sql` and reload the PostgREST schema cache.",
+          500,
+        );
+      }
+      throw error;
+    }
     return data;
   }
 
@@ -632,7 +734,10 @@ export class ShipmentService {
       .select('*')
       .eq('shipment_id', shipmentId)
       .maybeSingle();
-    if (error) throw error;
+    if (error) {
+      if (isMissingPostgrestTable(error, 'delivery_notes')) return null;
+      throw error;
+    }
     return data;
   }
 
@@ -659,7 +764,15 @@ export class ShipmentService {
       .upsert(upsertPayload, { onConflict: 'shipment_id' })
       .select('*')
       .single();
-    if (error) throw error;
+    if (error) {
+      if (isMissingPostgrestTable(error, 'delivery_notes')) {
+        throw new AppError(
+          "Missing database table 'public.delivery_notes'. Apply migration `server/sql/migrations/20260502_add_arrival_and_delivery_note_tables.sql` and reload the PostgREST schema cache.",
+          500,
+        );
+      }
+      throw error;
+    }
     return data;
   }
 }

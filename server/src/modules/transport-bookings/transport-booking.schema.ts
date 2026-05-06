@@ -20,6 +20,12 @@ const transportBookingStatusEnum = z.enum([
   'cancelled',
 ]);
 
+const transportBookingStatusHistoryItemSchema = z.object({
+  status: transportBookingStatusEnum,
+  at: z.string().datetime(),
+  by: z.string().uuid().optional().nullable(),
+});
+
 export const createTransportBookingSchema = z.object({
   shipment_id: z.string().uuid(),
   vendor_name: z.string().min(1, 'Vendor name is required'),
@@ -36,6 +42,8 @@ export const createTransportBookingSchema = z.object({
   actual_cost: z.number().min(0).optional().nullable(),
   status: transportBookingStatusEnum.optional(),
   note: z.string().optional().nullable(),
+  status_timeline: z.record(z.string().datetime()).optional().nullable(),
+  status_history: z.array(transportBookingStatusHistoryItemSchema).optional().nullable(),
 });
 
 export const updateTransportBookingSchema = createTransportBookingSchema.partial();

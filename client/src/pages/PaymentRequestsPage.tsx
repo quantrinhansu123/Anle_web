@@ -126,6 +126,7 @@ const PaymentRequestsPage: React.FC = () => {
   // Filter State
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [filterSearch, setFilterSearch] = useState('');
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
   const [suppliers, setSuppliers] = useState<{ id: string, company_name: string }[]>([]);
 
@@ -332,6 +333,12 @@ const PaymentRequestsPage: React.FC = () => {
       if (!supplierId || !selectedSuppliers.includes(supplierId)) return false;
     }
 
+    // Status filter (shipment status)
+    if (selectedStatuses.length > 0) {
+      const st = String(r.shipments?.status || '').trim() || 'draft';
+      if (!selectedStatuses.includes(st)) return false;
+    }
+
     return true;
   });
 
@@ -448,6 +455,43 @@ const PaymentRequestsPage: React.FC = () => {
 
             {/* Filters */}
             <div className="flex flex-wrap items-center gap-2" ref={dropdownRef}>
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setActiveDropdown(activeDropdown === 'status' ? null : 'status');
+                    setFilterSearch('');
+                  }}
+                  className={clsx(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-[12px] font-bold shadow-sm",
+                    activeDropdown === 'status' || selectedStatuses.length > 0
+                      ? "bg-primary/5 border-primary text-primary"
+                      : "bg-white border-border hover:bg-muted text-muted-foreground"
+                  )}
+                >
+                  <Clock size={14} className={clsx(activeDropdown === 'status' || selectedStatuses.length > 0 ? "text-primary" : "text-muted-foreground/50")} />
+                  Status
+                  {selectedStatuses.length > 0 && (
+                    <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
+                      {selectedStatuses.length}
+                    </span>
+                  )}
+                  <ChevronRight size={14} className={clsx("transition-transform ml-1 opacity-40", activeDropdown === 'status' ? "-rotate-90" : "rotate-90")} />
+                </button>
+                <FilterDropdown
+                  isOpen={activeDropdown === 'status'}
+                  options={Array.from(new Set(requests.map(r => String(r.shipments?.status || '').trim() || 'draft')))
+                    .sort()
+                    .map((st) => ({
+                      id: st,
+                      label: st.replace(/_/g, ' '),
+                      count: requests.filter(r => (String(r.shipments?.status || '').trim() || 'draft') === st).length
+                    }))}
+                  selected={selectedStatuses}
+                  onToggle={(id) => setSelectedStatuses(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
+                  searchValue={filterSearch}
+                  onSearchChange={setFilterSearch}
+                />
+              </div>
               <div className="relative">
                 <button
                   onClick={() => {

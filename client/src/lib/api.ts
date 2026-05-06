@@ -1,4 +1,35 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3006/api/v1';
+const resolveBaseUrl = () => {
+  const configured = import.meta.env.VITE_API_URL as string | undefined;
+  if (!configured) return 'http://localhost:3006/api/v1';
+
+  // Avoid mixed-content/network failures on deployed HTTPS clients when env accidentally points to localhost HTTP.
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    const isLocalClient = hostname === 'localhost' || hostname === '127.0.0.1';
+    const isHttpsClient = window.location.protocol === 'https:';
+    const isLocalApi =
+      configured.startsWith('http://localhost') ||
+      configured.startsWith('http://127.0.0.1');
+
+    if (!isLocalClient && isHttpsClient && isLocalApi) {
+      return '/api/v1';
+    }
+
+    // Some Windows environments fail resolving localhost but 127.0.0.1 works.
+    if (isLocalClient && configured.startsWith('http://localhost')) {
+      return configured.replace('http://localhost', 'http://127.0.0.1');
+    }
+  }
+
+  return configured;
+};
+
+const BASE_URL = resolveBaseUrl();
+
+const buildSameOriginFallbackUrl = (endpoint: string) => {
+  // Use same-origin /api/v1 to leverage Vite proxy in dev and avoid mixed content / DNS quirks.
+  return `/api/v1${endpoint}`;
+};
 
 export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${BASE_URL}${endpoint}`;
@@ -16,10 +47,25 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
     headers['Content-Type'] = 'application/json';
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+    });
+  } catch (err) {
+    // Retry once via same-origin route (works with Vite proxy; also safer for HTTPS deployments).
+    const fallbackUrl = buildSameOriginFallbackUrl(endpoint);
+    try {
+      response = await fetch(fallbackUrl, {
+        ...options,
+        headers,
+      });
+    } catch (fallbackErr) {
+      console.error('API Network Error:', { url, fallbackUrl, err, fallbackErr });
+      throw fallbackErr;
+    }
+  }
 
   // Attempt to parse the response body. This will be `result.data` on success,
   // or the error body on failure.
@@ -105,10 +151,24 @@ export async function apiFetchPaginated<TItem>(
     headers['Content-Type'] = 'application/json';
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+    });
+  } catch (err) {
+    const fallbackUrl = buildSameOriginFallbackUrl(endpoint);
+    try {
+      response = await fetch(fallbackUrl, {
+        ...options,
+        headers,
+      });
+    } catch (fallbackErr) {
+      console.error('API Network Error:', { url, fallbackUrl, err, fallbackErr });
+      throw fallbackErr;
+    }
+  }
 
   let result: any;
   try {

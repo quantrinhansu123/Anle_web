@@ -20,8 +20,6 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
         { icon: ClipboardList, title: 'Shipments', description: 'Shipment board: SOP tracking, B/L, operators, and priority.', colorScheme: 'blue', path: '/shipments/information', requiredDepartments: ['logistics', 'finance', 'bod'] },
         { icon: Anchor, title: 'House Sea B/L', description: 'Table of house B/L: MBL, HBL, containers, parties, schedule, and operators.', colorScheme: 'cyan', path: '/shipping/house-sea-bl', requiredDepartments: ['logistics', 'finance', 'bod'] },
         { icon: Package, title: 'Transport Services', description: 'Manage freight charge catalog and transport services.', colorScheme: 'slate', path: '/financials/sales-charges', requiredDepartments: ['logistics', 'finance', 'bod'] },
-        { icon: CreditCard, title: 'Payment Management', description: 'Payment requests and cost flow.', colorScheme: 'teal', path: '/financials/payment-requests', requiredDepartments: ['finance', 'bod'] },
-        { icon: FileText, title: 'Debit Notes', description: 'Customer debit notes and credit-note handling.', colorScheme: 'blue', path: '/financials/debit-notes', requiredDepartments: ['finance', 'bod'] },
       ]
     }
   ],
@@ -58,6 +56,8 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
     {
       section: 'Trading',
       items: [
+        { icon: BadgeDollarSign, title: 'Sales', description: 'Manage outbound sales quotations and orders.', colorScheme: 'amber', path: '/financials/sales', requiredDepartments: ['sales', 'finance', 'bod'] },
+        { icon: FileText, title: 'Sales Quotation', description: 'Create a new sales quotation.', colorScheme: 'cyan', path: '/financials/sales/new', requiredDepartments: ['sales', 'finance', 'bod'] },
         { icon: ShoppingCart, title: 'Purchasing', description: 'Manage purchasing items and costs.', colorScheme: 'orange', path: '/financials/purchasing', requiredDepartments: ['procurement', 'finance', 'bod'] },
         { icon: FileSignature, title: 'Contracts', description: 'Comprehensive list of all shipping contracts.', colorScheme: 'slate', path: '/contracts/directory', requiredDepartments: ['sales', 'procurement', 'finance', 'bod'] },
         { icon: FileText, title: 'Pending Approvals', description: 'Review and approve pending purchase orders.', colorScheme: 'teal', path: '/financials/po-approvals', requiredRoles: ['ceo', 'director', 'manager'] },
@@ -110,6 +110,8 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
           colorScheme: 'blue',
           path: '/financials/accounting-dashboard',
         },
+        { icon: CreditCard, title: 'Payment Management', description: 'Payment requests and cost flow.', colorScheme: 'teal', path: '/financials/payment-requests', requiredDepartments: ['finance', 'bod'] },
+        { icon: FileText, title: 'Debit Notes', description: 'Customer debit notes and credit-note handling.', colorScheme: 'blue', path: '/financials/debit-notes', requiredDepartments: ['finance', 'bod'] },
         {
           icon: Receipt,
           title: 'Invoices',
@@ -117,7 +119,6 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
           colorScheme: 'slate',
           path: '/financials/invoices',
         },
-        { icon: FileText, title: 'Invoicing', description: 'Create and manage customer invoices.', colorScheme: 'teal', path: '/financials/invoicing' },
         {
           icon: Scale,
           title: 'Balance sheet',

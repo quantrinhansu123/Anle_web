@@ -47,7 +47,8 @@ export const TransportBookingController = {
 
   async updateStatus(req: Request, res: Response, next: NextFunction) {
     try {
-      const item = await service.updateStatus(req.params.id, req.body.status);
+      const userId = (req as any).user?.id as string | undefined;
+      const item = await service.updateStatus(req.params.id, req.body.status, userId);
       res.json(successResponse(item, 'Transport booking status updated successfully'));
     } catch (err) {
       next(err);

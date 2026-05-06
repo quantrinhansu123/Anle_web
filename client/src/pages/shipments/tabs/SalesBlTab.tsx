@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Trash2, Ship, Loader2, Save } from 'lucide-react';
 
 import { useNavigate } from 'react-router-dom';
@@ -78,6 +78,14 @@ const emptyBlLine = (order: number): ShipmentBlLine => ({
   delivery_date: '',
 });
 
+let LOOKUP_CACHE:
+  | {
+      employees: Employee[];
+      quotations: Sales[];
+      loadedAt: number;
+    }
+  | undefined;
+
 interface SalesBlTabProps {
   form: ShipmentFormState;
   setField: <K extends keyof ShipmentFormState>(key: K, value: ShipmentFormState[K]) => void;
@@ -94,25 +102,95 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
   const [loadingLines, setLoadingLines] = useState(false);
   const [savingLines, setSavingLines] = useState(false);
 
+  const setLines = useCallback((next: ShipmentBlLine[] | ((prev: ShipmentBlLine[]) => ShipmentBlLine[])) => {
+    setBlLines((prev) => (typeof next === 'function' ? (next as (p: ShipmentBlLine[]) => ShipmentBlLine[])(prev) : next));
+  }, []);
+
+  // Debounce syncing heavy parent form state to reduce typing lag.
+  const syncTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (syncTimerRef.current) window.clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = window.setTimeout(() => {
+      const toDateOrNull = (v: unknown) => {
+        const s = String(v ?? '').trim();
+        if (!s) return null;
+        return s.slice(0, 10);
+      };
+      // Important: shipment schema rejects empty-string dates (expects YYYY-MM-DD or null).
+      setField(
+        'bl_lines',
+        blLines.map((l, i) => ({
+          sort_order: Number.isFinite(l.sort_order as any) ? (l.sort_order as any) : i,
+          name_1: l.name_1 || null,
+          sea_customer: l.sea_customer || null,
+          air_customer: l.air_customer || null,
+          name_2: l.name_2 || null,
+          package_text: l.package_text || null,
+          unit_text: l.unit_text || null,
+          sea_etd: toDateOrNull(l.sea_etd),
+          sea_eta: toDateOrNull(l.sea_eta),
+          air_etd: toDateOrNull(l.air_etd),
+          air_eta: toDateOrNull(l.air_eta),
+          loading_date: toDateOrNull(l.loading_date),
+          delivery_date: toDateOrNull(l.delivery_date),
+        })) as any,
+      );
+    }, 350);
+    return () => {
+      if (syncTimerRef.current) window.clearTimeout(syncTimerRef.current);
+    };
+  }, [blLines, setField]);
+
   useEffect(() => {
     void (async () => {
       try {
-        const [emp, sales] = await Promise.all([
-          employeeService.getEmployees(),
-          salesService.getSalesItems(1, 150),
-        ]);
-        setEmployees(emp || []);
-        setQuotations(Array.isArray(sales) ? sales : []);
+        // Cache lookups to avoid refetching when users switch tabs.
+        const now = Date.now();
+        const cacheFresh = LOOKUP_CACHE && now - LOOKUP_CACHE.loadedAt < 5 * 60 * 1000;
+        if (cacheFresh) {
+          setEmployees(LOOKUP_CACHE!.employees);
+          setQuotations(LOOKUP_CACHE!.quotations);
+          return;
+        }
+
+        // Load independently so a failure doesn't blank everything.
+        let employeesList: Employee[] = [];
+        let quotationList: Sales[] = [];
+
+        try {
+          const emp = await employeeService.getEmployees();
+          employeesList = emp || [];
+          setEmployees(employeesList);
+        } catch (e) {
+          console.error(e);
+          const msg = e instanceof Error ? e.message : 'Employee lookup failed';
+          toastErr(`Could not load employees: ${msg}`);
+        }
+
+        try {
+          const sales = await salesService.getSalesItems(1, 150);
+          quotationList = Array.isArray(sales) ? sales : [];
+          setQuotations(quotationList);
+        } catch (e) {
+          console.error(e);
+          const msg = e instanceof Error ? e.message : 'Quotation lookup failed';
+          toastErr(`Could not load quotations: ${msg}`);
+        }
+
+        // Cache whatever we got (even partial) to avoid repeated failures spamming users.
+        LOOKUP_CACHE = { employees: employeesList, quotations: quotationList, loadedAt: now };
       } catch (e) {
         console.error(e);
-        toastErr('Could not load lookup data');
+        const msg = e instanceof Error ? e.message : 'Unknown error';
+        toastErr(`Could not load lookup data: ${msg}`);
       }
     })();
   }, [toastErr]);
 
+  const loadToastShownRef = useRef(false);
   useEffect(() => {
     if (!shipmentId) {
-      setBlLines([emptyBlLine(0)]);
+      setLines([emptyBlLine(0)]);
       return;
     }
     void (async () => {
@@ -120,7 +198,7 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
         setLoadingLines(true);
         const lines = await shipmentService.getBlLines(shipmentId);
         if (lines && lines.length > 0) {
-          setBlLines(lines.map((l, i) => ({
+          setLines(lines.map((l, i) => ({
             ...l,
             sort_order: l.sort_order ?? i,
             name_1: l.name_1 ?? '',
@@ -137,16 +215,21 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
             delivery_date: l.delivery_date ? String(l.delivery_date).slice(0, 10) : '',
           })));
         } else {
-          setBlLines([emptyBlLine(0)]);
+          setLines([emptyBlLine(0)]);
         }
       } catch (e) {
         console.error(e);
-        toastErr('Failed to load B/L lines');
+        // Avoid repeated toasts when tab remounts; fallback to a blank line.
+        setLines([emptyBlLine(0)]);
+        if (!loadToastShownRef.current) {
+          loadToastShownRef.current = true;
+          toastErr('Failed to load B/L lines');
+        }
       } finally {
         setLoadingLines(false);
       }
     })();
-  }, [shipmentId, toastErr]);
+  }, [shipmentId, toastErr, setLines]);
 
   const employeeOptions = useMemo(
     () => employees.map((e) => ({ value: e.id, label: e.full_name })),
@@ -189,12 +272,12 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
   const showAirColumns = form.transport_air;
 
   const updateBlLine = (index: number, patch: Partial<ShipmentBlLine>) => {
-    setBlLines((rows) => rows.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+    setLines((rows: ShipmentBlLine[]) => rows.map((r: ShipmentBlLine, i: number) => (i === index ? { ...r, ...patch } : r)));
   };
 
-  const addBlLine = () => setBlLines((rows) => [...rows, emptyBlLine(rows.length)]);
+  const addBlLine = () => setLines((rows: ShipmentBlLine[]) => [...rows, emptyBlLine(rows.length)]);
   const removeBlLine = (index: number) =>
-    setBlLines((rows) => (rows.length <= 1 ? rows : rows.filter((_, i) => i !== index)));
+    setLines((rows: ShipmentBlLine[]) => (rows.length <= 1 ? rows : rows.filter((_: ShipmentBlLine, i: number) => i !== index)));
 
   const handleSaveBlLines = async () => {
     if (!shipmentId) {
@@ -373,13 +456,13 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
               </button>
             </div>
           </div>
-          <div className="min-w-0 shrink-0 overflow-x-auto overflow-y-hidden rounded-xl border border-border">
+          <div className="w-full min-w-0 shrink-0 overflow-x-auto overflow-y-hidden rounded-xl border border-border">
             {loadingLines ? (
               <div className="flex items-center justify-center p-8 text-muted-foreground">
                 <Loader2 className="animate-spin" size={24} />
               </div>
             ) : (
-              <table className="w-full text-left text-[11px]">
+              <table className="min-w-[1400px] text-left text-[11px]">
                 <thead className="bg-slate-50 border-b border-border">
                   <tr>
                     {[
@@ -407,7 +490,7 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
                         <input
                           value={row.name_1 || ''}
                           onChange={(e) => updateBlLine(idx, { name_1: e.target.value })}
-                          className="box-border h-8 w-[100px] min-w-0 rounded border border-border px-1.5 text-[11px]"
+                          className="box-border h-8 w-[200px] min-w-0 rounded border border-border px-2 text-[11px]"
                         />
                       </td>
                       {showSeaColumns && (
@@ -415,7 +498,7 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
                           <input
                             value={row.sea_customer || ''}
                             onChange={(e) => updateBlLine(idx, { sea_customer: e.target.value })}
-                            className="box-border h-8 w-[100px] min-w-0 rounded border border-border px-1.5 text-[11px]"
+                            className="box-border h-8 w-[200px] min-w-0 rounded border border-border px-2 text-[11px]"
                           />
                         </td>
                       )}
@@ -424,7 +507,7 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
                           <input
                             value={row.air_customer || ''}
                             onChange={(e) => updateBlLine(idx, { air_customer: e.target.value })}
-                            className="box-border h-8 w-[100px] min-w-0 rounded border border-border px-1.5 text-[11px]"
+                            className="box-border h-8 w-[200px] min-w-0 rounded border border-border px-2 text-[11px]"
                           />
                         </td>
                       )}
@@ -432,14 +515,14 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
                         <input
                           value={row.package_text || ''}
                           onChange={(e) => updateBlLine(idx, { package_text: e.target.value })}
-                          className="box-border h-8 w-[72px] min-w-0 rounded border border-border px-1.5 text-[11px]"
+                          className="box-border h-8 w-[120px] min-w-0 rounded border border-border px-2 text-[11px]"
                         />
                       </td>
                       <td className="p-1 align-middle">
                         <input
                           value={row.unit_text || ''}
                           onChange={(e) => updateBlLine(idx, { unit_text: e.target.value })}
-                          className="box-border h-8 w-[56px] min-w-0 rounded border border-border px-1.5 text-[11px]"
+                          className="box-border h-8 w-[90px] min-w-0 rounded border border-border px-2 text-[11px]"
                         />
                       </td>
                       {showSeaColumns && (
@@ -448,7 +531,7 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
                             dense
                             value={row.sea_etd || ''}
                             onChange={(v) => updateBlLine(idx, { sea_etd: v })}
-                            className="min-w-[108px]"
+                            className="min-w-[140px]"
                           />
                         </td>
                       )}
@@ -458,7 +541,7 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
                             dense
                             value={row.sea_eta || ''}
                             onChange={(v) => updateBlLine(idx, { sea_eta: v })}
-                            className="min-w-[108px]"
+                            className="min-w-[140px]"
                           />
                         </td>
                       )}
@@ -468,7 +551,7 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
                             dense
                             value={row.air_etd || ''}
                             onChange={(v) => updateBlLine(idx, { air_etd: v })}
-                            className="min-w-[108px]"
+                            className="min-w-[140px]"
                           />
                         </td>
                       )}
@@ -478,7 +561,7 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
                             dense
                             value={row.air_eta || ''}
                             onChange={(v) => updateBlLine(idx, { air_eta: v })}
-                            className="min-w-[108px]"
+                            className="min-w-[140px]"
                           />
                         </td>
                       )}
@@ -487,7 +570,7 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
                           dense
                           value={row.loading_date || ''}
                           onChange={(v) => updateBlLine(idx, { loading_date: v })}
-                          className="min-w-[108px]"
+                          className="min-w-[140px]"
                         />
                       </td>
                       <td className="p-1 align-middle">
@@ -495,7 +578,7 @@ const SalesBlTab: React.FC<SalesBlTabProps> = ({ form, setField, shipmentId }) =
                           dense
                           value={row.delivery_date || ''}
                           onChange={(v) => updateBlLine(idx, { delivery_date: v })}
-                          className="min-w-[108px]"
+                          className="min-w-[140px]"
                         />
                       </td>
                       <td className="p-1 align-middle">

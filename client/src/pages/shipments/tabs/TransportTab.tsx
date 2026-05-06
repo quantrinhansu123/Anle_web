@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Truck, Plus, Trash2, Loader2, ChevronRight, Phone, MapPin, Clock, User,
-  Save, ChevronUp, ChevronDown,
+  Save, ChevronUp, ChevronDown, Pencil, X,
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { createPortal } from 'react-dom';
 import {
   transportBookingService,
   type TransportBooking,
@@ -14,6 +15,7 @@ import {
 import { useToastContext } from '../../../contexts/ToastContext';
 import { shipmentService } from '../../../services/shipmentService';
 import { supplierService, type Supplier } from '../../../services/supplierService';
+import { employeeService, type Employee } from '../../../services/employeeService';
 import { DateInput } from '../../../components/ui/DateInput';
 import { SearchableSelect } from '../../../components/ui/SearchableSelect';
 import type {
@@ -90,6 +92,22 @@ const STATUS_FLOW: TransportBookingStatus[] = [
   'pending', 'confirmed', 'dispatched', 'arrived_pickup', 'in_transit', 'arrived_destination', 'completed'
 ];
 
+const toLocalDatetimeInput = (iso?: string | null): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const tz = d.getTimezoneOffset() * 60_000;
+  return new Date(d.getTime() - tz).toISOString().slice(0, 16);
+};
+
+const toIsoFromLocalInput = (local: string): string | null => {
+  const s = String(local || '').trim();
+  if (!s) return null;
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+};
+
 /** VND-style grouping: 1.000.000 */
 const formatMoneyVi = (amount: number) =>
   new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(Math.round(amount));
@@ -113,6 +131,224 @@ const formatTime = (value?: string | null) => {
   return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(d);
 };
 
+function companyLogoSrc(): string {
+  if (import.meta.env.DEV) return '/appsheet-brand-logo';
+  return 'https://www.appsheet.com/template/gettablefileurl?appName=Appsheet-325045268&tableName=Kho%20%E1%BA%A3nh&fileName=Kho%20%E1%BA%A3nh_Images%2Fe6a56fae.%E1%BA%A2nh.064359.png';
+}
+
+const safeHistory = (b: TransportBooking) => {
+  const raw = (b as any).status_history;
+  return Array.isArray(raw) ? (raw as { status: TransportBookingStatus; at: string; by?: string | null }[]) : [];
+};
+
+const REPORT_CSS = `
+.tr-root{
+  box-sizing:border-box;
+  width: 820px;
+  max-width: 100%;
+  margin: 0 auto;
+  background:#fff;
+  color:#0f172a;
+  padding: 26px 34px 34px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 13px;
+  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+}
+.tr-root *, .tr-root *::before, .tr-root *::after{ box-sizing:border-box; }
+.tr-header{ display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:14px; }
+.tr-logo{ width: 190px; flex-shrink:0; padding-top:2px; }
+.tr-logo img{ width:100%; height:auto; display:block; object-fit:contain; }
+.tr-co{ text-align:right; font-size:9px; color:#64748b; text-transform:uppercase; letter-spacing:0.18em; line-height:1.55; }
+.tr-co .tr-co-name{ color:#0f172a; font-weight:800; }
+.tr-titleband{ display:flex; align-items:center; justify-content:space-between; gap:12px; background:#0ea5e9; color:#fff; padding: 10px 14px; border-radius: 10px; margin-bottom: 14px; }
+.tr-titleband .tr-title{ font-weight:900; text-transform:uppercase; letter-spacing:0.06em; font-size: 13px; }
+.tr-titleband .tr-code{ font-weight:800; font-size:12px; opacity:0.95; }
+.tr-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.tr-box{ border:1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; }
+.tr-label{ font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:0.06em; color:#0284c7; margin-bottom:4px; }
+.tr-val{ font-size:13px; font-weight:700; color:#0f172a; }
+.tr-sub{ font-size:11px; font-weight:700; color:#475569; }
+.tr-table{ width:100%; border-collapse:collapse; font-size:12px; margin-top: 8px; }
+.tr-table th, .tr-table td{ border:1px solid #e2e8f0; padding: 8px 8px; vertical-align:top; }
+.tr-table th{ background:#f1f5f9; color:#0f172a; font-size:10px; text-transform:uppercase; letter-spacing:0.06em; }
+.tr-sign{ display:grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+.tr-sign .tr-sigbox{ border:1px dashed #cbd5e1; border-radius: 12px; padding: 12px; min-height: 92px; }
+.tr-sign .tr-sigtitle{ font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin-bottom: 8px; }
+.tr-muted{ color:#64748b; font-weight:700; font-size:11px; }
+.tr-no-print{}
+@media print{
+  @page{ margin: 10mm; size: A4; }
+  html, body{ margin:0 !important; padding:0 !important; }
+  .tr-root{ box-shadow:none; width:100%; padding: 0; }
+  .tr-no-print{ display:none !important; }
+}
+`;
+
+function printHtmlDocument(title: string, html: string, css: string) {
+  const w = window.open('', '_blank', 'noopener,noreferrer,width=1024,height=768');
+  if (!w) return;
+  w.document.open();
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${title}</title>
+    <style>${css}</style>
+    </head><body>${html}</body></html>`);
+  w.document.close();
+  w.focus();
+  setTimeout(() => {
+    w.print();
+  }, 50);
+}
+
+function TransportCompletionReportModal({
+  open,
+  booking,
+  shipment,
+  employeeMap,
+  onClose,
+}: {
+  open: boolean;
+  booking: TransportBooking | null;
+  shipment: Shipment | null;
+  employeeMap: Record<string, string>;
+  onClose: () => void;
+}) {
+  if (!open || !booking) return null;
+
+  const history = safeHistory(booking);
+  const shipmentCode = (shipment as any)?.code || booking.shipment_id;
+  const vendor = booking.vendor_name || '—';
+  const plate = booking.license_plate || '—';
+  const driver = booking.driver_name || '—';
+  const driverPhone = booking.driver_phone || '—';
+  const pickup = booking.pickup_location || '—';
+  const delivery = booking.delivery_location || '—';
+
+  const content = (
+    <div className="tr-root" id="transport-completion-report">
+      <style dangerouslySetInnerHTML={{ __html: REPORT_CSS }} />
+      <header className="tr-header">
+        <div className="tr-logo">
+          <img src={companyLogoSrc()} alt="ANLE-SCM Logo" />
+        </div>
+        <div className="tr-co">
+          <div className="tr-co-name">COMPANY LTD ANLE-SCM</div>
+          <div>Hotline: 0519055056</div>
+          <div>Email: MGM@ANLE-SCM.COM</div>
+          <div>Website: ANLE-SCM.COM</div>
+        </div>
+      </header>
+
+      <div className="tr-titleband">
+        <div className="tr-title">Transport Completion Report</div>
+        <div className="tr-code">Shipment: {shipmentCode}</div>
+      </div>
+
+      <div className="tr-grid">
+        <div className="tr-box">
+          <div className="tr-label">Vendor</div>
+          <div className="tr-val">{vendor}</div>
+          <div className="tr-sub">Vehicle: {booking.vehicle_type || '—'} • Plate: {plate}</div>
+        </div>
+        <div className="tr-box">
+          <div className="tr-label">Driver</div>
+          <div className="tr-val">{driver}</div>
+          <div className="tr-sub">Phone: {driverPhone}</div>
+        </div>
+        <div className="tr-box">
+          <div className="tr-label">Pickup</div>
+          <div className="tr-val">{pickup}</div>
+          <div className="tr-sub">Planned: {formatTime(booking.pickup_time || null)}</div>
+        </div>
+        <div className="tr-box">
+          <div className="tr-label">Delivery</div>
+          <div className="tr-val">{delivery}</div>
+          <div className="tr-sub">Planned: {formatTime(booking.delivery_time || null)}</div>
+        </div>
+      </div>
+
+      <div className="tr-box">
+        <div className="tr-label">Status history</div>
+        {history.length === 0 ? (
+          <div className="tr-muted">No history yet.</div>
+        ) : (
+          <table className="tr-table">
+            <thead>
+              <tr>
+                <th style={{ width: '34%' }}>Status</th>
+                <th style={{ width: '33%' }}>Time</th>
+                <th style={{ width: '33%' }}>By</th>
+              </tr>
+            </thead>
+            <tbody>
+              {history
+                .slice()
+                .reverse()
+                .map((h, idx) => (
+                  <tr key={`${h.at}-${idx}`}>
+                    <td><strong>{STATUS_CONFIG[h.status].label}</strong></td>
+                    <td>{formatTime(h.at)}</td>
+                    <td>{h.by ? (employeeMap[h.by] || h.by) : '—'}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="tr-sign">
+        <div className="tr-sigbox">
+          <div className="tr-sigtitle">Carrier / Driver signature</div>
+          <div className="tr-muted">Full name, signature</div>
+        </div>
+        <div className="tr-sigbox">
+          <div className="tr-sigtitle">Company representative</div>
+          <div className="tr-muted">Full name, signature, stamp</div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+      <div className="w-full max-w-4xl rounded-2xl border border-border bg-white shadow-xl overflow-hidden">
+        <div className="tr-no-print flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Print preview</p>
+            <p className="text-[14px] font-black text-slate-900 truncate">Transport completion report</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const el = document.getElementById('transport-completion-report');
+                if (!el) return;
+                printHtmlDocument('Transport Completion Report', el.outerHTML, REPORT_CSS);
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-[12px] font-black uppercase tracking-wide text-white shadow-sm hover:opacity-95"
+            >
+              Print
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-10 w-10 rounded-xl border border-border bg-white text-slate-500 hover:bg-slate-50"
+              aria-label="Close"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+
+        <div className="max-h-[80vh] overflow-auto bg-slate-100 p-4">
+          {content}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 const TransportTab: React.FC<Props> = ({ shipmentId }) => {
   const { success, error: toastError } = useToastContext();
   const [bookings, setBookings] = useState<TransportBooking[]>([]);
@@ -134,17 +370,37 @@ const TransportTab: React.FC<Props> = ({ shipmentId }) => {
   const [trucking, setTrucking] = useState<TruckingTabState>(emptyTruckingTabState());
   const [isTruckingExpanded, setIsTruckingExpanded] = useState(false);
   const [isSavingDetails, setIsSavingDetails] = useState(false);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+
+  const employeeMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const e of employees) {
+      if (e?.id) map[e.id] = e.full_name || e.id;
+    }
+    return map;
+  }, [employees]);
+
+  const [editingCheckpoint, setEditingCheckpoint] = useState<{
+    bookingId: string;
+    status: TransportBookingStatus;
+    value: string;
+  } | null>(null);
+
+  const [printBookingId, setPrintBookingId] = useState<string | null>(null);
+  const [printBookingSnapshot, setPrintBookingSnapshot] = useState<TransportBooking | null>(null);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [bookingsData, shipmentData, suppliersData] = await Promise.all([
+      const [bookingsData, shipmentData, suppliersData, employeesData] = await Promise.all([
         transportBookingService.getTransportBookings(shipmentId),
         shipmentService.getShipmentById(shipmentId),
         supplierService.getSuppliers(1, 1000),
+        employeeService.getEmployees(),
       ]);
       setBookings(Array.isArray(bookingsData) ? bookingsData : []);
       setSuppliersList(Array.isArray(suppliersData) ? suppliersData : []);
+      setEmployees(Array.isArray(employeesData) ? employeesData : []);
       setShipment(shipmentData);
 
       if (shipmentData?.service_details?.trucking) {
@@ -279,10 +535,16 @@ const TransportTab: React.FC<Props> = ({ shipmentId }) => {
     const nextStatus = STATUS_FLOW[currentIdx + 1];
     try {
       setSavingId(booking.id);
-      await transportBookingService.updateTransportBookingStatus(booking.id, nextStatus);
+      const updated = await transportBookingService.updateTransportBookingStatus(booking.id, nextStatus);
+      setPrintBookingSnapshot(updated);
       fetchData();
+      if (nextStatus === 'completed') {
+        // Show completion report immediately after completing.
+        setPrintBookingId(updated.id);
+      }
     } catch (err) {
       console.error('Failed to advance status:', err);
+      toastError((err as any)?.message || 'Failed to update transport status');
     } finally {
       setSavingId(null);
     }
@@ -312,6 +574,65 @@ const TransportTab: React.FC<Props> = ({ shipmentId }) => {
     }
   };
 
+  const isPickupOverdue = (b: TransportBooking) => {
+    if (!b.pickup_time) return false;
+    const due = new Date(b.pickup_time).getTime();
+    if (!Number.isFinite(due)) return false;
+    const now = Date.now();
+    const step = STATUS_CONFIG[b.status]?.step ?? 0;
+    return now > due && step < STATUS_CONFIG.arrived_pickup.step;
+  };
+
+  const isDeliveryOverdue = (b: TransportBooking) => {
+    if (!b.delivery_time) return false;
+    const due = new Date(b.delivery_time).getTime();
+    if (!Number.isFinite(due)) return false;
+    const now = Date.now();
+    const step = STATUS_CONFIG[b.status]?.step ?? 0;
+    return now > due && step < STATUS_CONFIG.arrived_destination.step;
+  };
+
+  const openCheckpointEditor = (b: TransportBooking, s: TransportBookingStatus) => {
+    const timeline =
+      b.status_timeline && typeof b.status_timeline === 'object' ? (b.status_timeline as Record<string, string>) : {};
+    const iso = timeline[s];
+    setEditingCheckpoint({
+      bookingId: b.id,
+      status: s,
+      value: toLocalDatetimeInput(iso || null) || toLocalDatetimeInput(new Date().toISOString()),
+    });
+  };
+
+  const saveCheckpoint = async () => {
+    if (!editingCheckpoint) return;
+    const { bookingId, status, value } = editingCheckpoint;
+    const iso = toIsoFromLocalInput(value);
+    if (!iso) {
+      toastError('Invalid date/time');
+      return;
+    }
+    try {
+      setSavingId(bookingId);
+      const booking = bookings.find((b) => b.id === bookingId);
+      const prevTimeline =
+        booking?.status_timeline && typeof booking.status_timeline === 'object'
+          ? (booking.status_timeline as Record<string, string>)
+          : {};
+      const nextTimeline = { ...prevTimeline, [status]: iso };
+      await transportBookingService.updateTransportBooking(bookingId, {
+        status,
+        status_timeline: nextTimeline,
+      });
+      setEditingCheckpoint(null);
+      fetchData();
+      success('Checkpoint updated');
+    } catch (err: any) {
+      toastError(err?.message || 'Failed to update checkpoint');
+    } finally {
+      setSavingId(null);
+    }
+  };
+
   /** Trucking tables (House B/L, billing, selling) chỉ dùng cho lô có chân vận tải biển (over sea). */
   const showTruckingDetailsSection = Boolean(shipment && (shipment.transport_sea ?? true));
 
@@ -325,6 +646,20 @@ const TransportTab: React.FC<Props> = ({ shipmentId }) => {
 
   return (
     <div className="space-y-4">
+      <TransportCompletionReportModal
+        open={Boolean(printBookingId)}
+        booking={
+          printBookingId
+            ? bookings.find((b) => b.id === printBookingId) || printBookingSnapshot || null
+            : null
+        }
+        shipment={shipment}
+        employeeMap={employeeMap}
+        onClose={() => {
+          setPrintBookingId(null);
+          setPrintBookingSnapshot(null);
+        }}
+      />
       {/* Header */}
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
@@ -357,6 +692,8 @@ const TransportTab: React.FC<Props> = ({ shipmentId }) => {
             const statusMeta = STATUS_CONFIG[booking.status];
             const currentStep = statusMeta.step;
             const isTerminal = booking.status === 'completed' || booking.status === 'cancelled';
+            const pickupLate = isPickupOverdue(booking);
+            const deliveryLate = isDeliveryOverdue(booking);
 
             return (
               <div key={booking.id} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden hover:border-slate-300 transition-all">
@@ -365,15 +702,28 @@ const TransportTab: React.FC<Props> = ({ shipmentId }) => {
                   <div className="flex items-center gap-0.5">
                     {STATUS_FLOW.map((s, idx) => {
                       const filled = currentStep >= idx;
+                      const timeline =
+                        booking.status_timeline && typeof booking.status_timeline === 'object'
+                          ? (booking.status_timeline as Record<string, string>)
+                          : {};
+                      const hasTs = Boolean(timeline[s]);
+                      const lateRing =
+                        (pickupLate && idx <= STATUS_CONFIG.arrived_pickup.step) ||
+                        (deliveryLate && idx <= STATUS_CONFIG.arrived_destination.step);
                       return (
                         <React.Fragment key={s}>
-                          <div
+                          <button
+                            type="button"
+                            onClick={() => openCheckpointEditor(booking, s)}
                             className={clsx(
-                              'w-2 h-2 rounded-full transition-all',
-                              filled ? 'bg-primary scale-110' : 'bg-slate-200',
-                              currentStep === idx && 'ring-2 ring-primary/20 scale-125'
+                              'relative w-2.5 h-2.5 rounded-full transition-all',
+                              filled ? 'bg-primary' : 'bg-slate-200',
+                              currentStep === idx && 'ring-2 ring-primary/20 scale-125',
+                              hasTs && 'outline outline-2 outline-emerald-300/70',
+                              lateRing && 'outline outline-2 outline-red-300/80',
                             )}
                             title={STATUS_CONFIG[s].label}
+                            aria-label={`Update ${STATUS_CONFIG[s].label}`}
                           />
                           {idx < STATUS_FLOW.length - 1 && (
                             <div className={clsx('flex-1 h-0.5', filled ? 'bg-primary/60' : 'bg-slate-100')} />
@@ -404,6 +754,11 @@ const TransportTab: React.FC<Props> = ({ shipmentId }) => {
                       <p className="text-[13px] font-black text-primary tabular-nums">{formatMoneyVi(booking.planned_cost)} <span className="text-[9px]">VND</span></p>
                       {booking.actual_cost != null && (
                         <p className="text-[11px] font-bold text-emerald-600 tabular-nums">Actual: {formatMoneyVi(booking.actual_cost)}</p>
+                      )}
+                      {(pickupLate || deliveryLate) && (
+                        <p className="mt-1 text-[11px] font-bold text-red-600">
+                          {pickupLate ? 'Pickup overdue' : 'Delivery overdue'}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -446,6 +801,12 @@ const TransportTab: React.FC<Props> = ({ shipmentId }) => {
                         <span className="font-medium">{formatTime(booking.pickup_time)}</span>
                       </div>
                     )}
+                    {booking.delivery_time && (
+                      <div className="flex items-center gap-1.5 text-slate-500">
+                        <Clock size={10} className="text-slate-400" />
+                        <span className="font-medium">{formatTime(booking.delivery_time)}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Actions */}
@@ -483,12 +844,92 @@ const TransportTab: React.FC<Props> = ({ shipmentId }) => {
                       <Trash2 size={14} />
                     </button>
                   </div>
+
+                  {/* History */}
+                  {safeHistory(booking).length > 0 && (
+                    <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50/70 px-3 py-2">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">History</p>
+                      <div className="mt-1 space-y-1">
+                        {safeHistory(booking)
+                          .slice()
+                          .reverse()
+                          .map((h, i) => (
+                            <div key={`${h.at}-${i}`} className="flex items-center justify-between gap-3 text-[11px]">
+                              <div className="min-w-0">
+                                <span className="font-black text-slate-700">{STATUS_CONFIG[h.status].label}</span>
+                                <span className="mx-1 text-slate-400">•</span>
+                                <span className="font-medium text-slate-600">{formatTime(h.at)}</span>
+                              </div>
+                              <div className="shrink-0 text-[10px] font-bold text-slate-500">
+                                {h.by ? `by ${employeeMap[h.by] || h.by.slice(0, 8)}` : 'by —'}
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
       )}
+
+      {/* Checkpoint editor modal */}
+      {editingCheckpoint ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-white shadow-xl">
+            <div className="border-b border-border px-5 py-4 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Update checkpoint</p>
+                <p className="text-[14px] font-black text-slate-900 truncate">
+                  {STATUS_CONFIG[editingCheckpoint.status].label}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingCheckpoint(null)}
+                className="h-9 w-9 rounded-xl border border-border bg-white text-slate-500 hover:bg-slate-50"
+                aria-label="Close"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              <div>
+                <FieldLabel>Date & time</FieldLabel>
+                <input
+                  type="datetime-local"
+                  value={editingCheckpoint.value}
+                  onChange={(e) => setEditingCheckpoint((p) => (p ? { ...p, value: e.target.value } : p))}
+                  className="w-full rounded-xl border border-border bg-muted/10 px-3 py-2 text-[13px] font-medium"
+                />
+              </div>
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={saveCheckpoint}
+                  disabled={savingId === editingCheckpoint.bookingId}
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-[12px] font-black uppercase tracking-wide text-white shadow-sm hover:opacity-95 disabled:opacity-50"
+                >
+                  {savingId === editingCheckpoint.bookingId ? <Loader2 size={16} className="animate-spin" /> : <Pencil size={16} />}
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingCheckpoint(null)}
+                  className="px-4 py-2.5 rounded-xl border border-border bg-white text-[12px] font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Click any dot on the progress line to set its timestamp.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Trucking Details — chỉ hiện khi lô bật vận tải biển (over sea) */}
       {showTruckingDetailsSection ? (

@@ -5,6 +5,14 @@ import { successResponse, paginatedResponse } from '../../utils/response';
 const service = new ShipmentService();
 
 export const ShipmentController = {
+  async getChecklistHistory(req: Request, res: Response, next: NextFunction) {
+    try {
+      const rows = await service.getChecklistHistory(req.params.id);
+      res.json(successResponse(rows));
+    } catch (err) {
+      next(err);
+    }
+  },
   async list(req: Request, res: Response, next: NextFunction) {
     try {
       const page = Number(req.query.page) || 1;
@@ -58,7 +66,8 @@ export const ShipmentController = {
 
   async update(req: Request, res: Response, next: NextFunction) {
     try {
-      const item = await service.update(req.params.id, req.body);
+      const actor = (req as any).user as { id?: string; email?: string } | undefined;
+      const item = await service.update(req.params.id, req.body, actor);
       res.json(successResponse(item, 'Shipment updated successfully'));
     } catch (err) {
       next(err);

@@ -35,6 +35,8 @@ export interface TransportBooking {
   actual_cost?: number | null;
   status: TransportBookingStatus;
   note?: string | null;
+  status_timeline?: Record<string, string> | null;
+  status_history?: { status: TransportBookingStatus; at: string; by?: string | null }[] | null;
   created_at: string;
 }
 
@@ -54,6 +56,8 @@ export interface CreateTransportBookingDto {
   actual_cost?: number | null;
   status?: TransportBookingStatus;
   note?: string | null;
+  status_timeline?: Record<string, string> | null;
+  status_history?: { status: TransportBookingStatus; at: string; by?: string | null }[] | null;
 }
 
 export interface UpdateTransportBookingDto extends Partial<CreateTransportBookingDto> {}

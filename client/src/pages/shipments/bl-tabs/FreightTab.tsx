@@ -132,6 +132,38 @@ export function FreightTab({
   state: FreightTabState;
   onChange: (patch: Partial<FreightTabState>) => void;
 }) {
+  const n = (v: unknown): number => {
+    const s = String(v ?? '').replace(/[^\d.-]/g, '');
+    const x = Number(s);
+    return Number.isFinite(x) ? x : 0;
+  };
+  const fmt = (value: number) => new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(Math.round(value || 0));
+
+  const computedFromTables = (() => {
+    const sellingLocal = state.sellingRows.reduce((sum, r) => {
+      const amtForeign = n(r.amtForeign);
+      const ex = n(r.exchangeRate || state.rate || 1);
+      const currency = (r.currency || state.currency || '').trim().toUpperCase();
+      const local = currency === 'VND' || currency === '' ? amtForeign : amtForeign * (ex || 1);
+      return sum + local;
+    }, 0);
+
+    const buyingLocal = state.buyingRows.reduce((sum, r) => {
+      const local = n(r.localAmt);
+      if (local > 0) return sum + local;
+      const amtForeign = n(r.amtForeign);
+      const ex = n(r.exchangeRate || state.rate || 1);
+      const currency = (r.currency || state.currency || '').trim().toUpperCase();
+      const inferred = currency === 'VND' || currency === '' ? amtForeign : amtForeign * (ex || 1);
+      return sum + inferred;
+    }, 0);
+
+    return { sellingLocal, buyingLocal };
+  })();
+
+  const grossDefault = computedFromTables.sellingLocal - computedFromTables.buyingLocal;
+  const pctDefault = computedFromTables.sellingLocal > 0 ? (grossDefault / computedFromTables.sellingLocal) * 100 : 0;
+
   const updateRow = (idx: number, patch: Partial<SellingRow>) =>
     onChange({ sellingRows: state.sellingRows.map((r, i) => (i === idx ? { ...r, ...patch } : r)) });
   const addRow = () => onChange({ sellingRows: [...state.sellingRows, emptySellingRow()] });
@@ -194,7 +226,7 @@ export function FreightTab({
                 value={state.totalLocalSelling}
                 onChange={(e) => onChange({ totalLocalSelling: e.target.value })}
                 className={inputClass}
-                placeholder="0.00"
+                placeholder={fmt(computedFromTables.sellingLocal)}
               />
             </div>
             <div>
@@ -203,7 +235,7 @@ export function FreightTab({
                 value={state.totalLocalBuying}
                 onChange={(e) => onChange({ totalLocalBuying: e.target.value })}
                 className={inputClass}
-                placeholder="0.00"
+                placeholder={fmt(computedFromTables.buyingLocal)}
               />
             </div>
             <div>
@@ -212,7 +244,7 @@ export function FreightTab({
                 value={state.grossMargin}
                 onChange={(e) => onChange({ grossMargin: e.target.value })}
                 className={inputClass}
-                placeholder="0.00"
+                placeholder={fmt(grossDefault)}
               />
             </div>
             <div>
@@ -221,7 +253,7 @@ export function FreightTab({
                 value={state.percentMargin}
                 onChange={(e) => onChange({ percentMargin: e.target.value })}
                 className={inputClass}
-                placeholder="0.00%"
+                placeholder={`${pctDefault.toFixed(2)}%`}
               />
             </div>
           </div>
@@ -240,8 +272,8 @@ export function FreightTab({
             <Plus size={14} /> Get Carrier Local Charge
           </button>
         </div>
-        <div className="overflow-x-auto rounded-xl border border-border">
-          <table className="w-full text-left text-[11px]">
+        <div className="w-full min-w-0 overflow-x-auto overflow-y-hidden rounded-xl border border-border">
+          <table className="min-w-[1400px] text-left text-[11px]">
             <thead className="bg-slate-50 border-b border-border">
               <tr>
                 {['Customer', 'Service', 'Fare', 'Fare Name', 'Currency', 'Exchange Rate', 'Unit', 'Rate', 'Amt (Foreign)', 'VAT', ''].map((h) => (
@@ -259,16 +291,16 @@ export function FreightTab({
               ) : (
                 state.sellingRows.map((row, idx) => (
                   <tr key={idx} className="border-b border-border/60 last:border-0">
-                    <td className="p-1"><input value={row.customer} onChange={(e) => updateRow(idx, { customer: e.target.value })} className={tblInput + ' !w-[100px]'} /></td>
-                    <td className="p-1"><input value={row.service} onChange={(e) => updateRow(idx, { service: e.target.value })} className={tblInput + ' !w-[80px]'} /></td>
-                    <td className="p-1"><input value={row.fare} onChange={(e) => updateRow(idx, { fare: e.target.value })} className={tblInput + ' !w-[70px]'} /></td>
-                    <td className="p-1"><input value={row.fareName} onChange={(e) => updateRow(idx, { fareName: e.target.value })} className={tblInput + ' !w-[110px]'} /></td>
-                    <td className="p-1"><input value={row.currency} onChange={(e) => updateRow(idx, { currency: e.target.value })} className={tblInput + ' !w-[60px]'} /></td>
-                    <td className="p-1"><input value={row.exchangeRate} onChange={(e) => updateRow(idx, { exchangeRate: e.target.value })} className={tblInput + ' !w-[80px]'} /></td>
-                    <td className="p-1"><input value={row.unit} onChange={(e) => updateRow(idx, { unit: e.target.value })} className={tblInput + ' !w-[50px]'} /></td>
-                    <td className="p-1"><input value={row.rate} onChange={(e) => updateRow(idx, { rate: e.target.value })} className={tblInput + ' !w-[70px]'} /></td>
-                    <td className="p-1"><input value={row.amtForeign} onChange={(e) => updateRow(idx, { amtForeign: e.target.value })} className={tblInput + ' !w-[90px]'} /></td>
-                    <td className="p-1"><input value={row.vat} onChange={(e) => updateRow(idx, { vat: e.target.value })} className={tblInput + ' !w-[50px]'} /></td>
+                    <td className="p-1"><input value={row.customer} onChange={(e) => updateRow(idx, { customer: e.target.value })} className={tblInput + ' !w-[200px]'} /></td>
+                    <td className="p-1"><input value={row.service} onChange={(e) => updateRow(idx, { service: e.target.value })} className={tblInput + ' !w-[160px]'} /></td>
+                    <td className="p-1"><input value={row.fare} onChange={(e) => updateRow(idx, { fare: e.target.value })} className={tblInput + ' !w-[140px]'} /></td>
+                    <td className="p-1"><input value={row.fareName} onChange={(e) => updateRow(idx, { fareName: e.target.value })} className={tblInput + ' !w-[260px]'} /></td>
+                    <td className="p-1"><input value={row.currency} onChange={(e) => updateRow(idx, { currency: e.target.value })} className={tblInput + ' !w-[110px]'} /></td>
+                    <td className="p-1"><input value={row.exchangeRate} onChange={(e) => updateRow(idx, { exchangeRate: e.target.value })} className={tblInput + ' !w-[150px]'} /></td>
+                    <td className="p-1"><input value={row.unit} onChange={(e) => updateRow(idx, { unit: e.target.value })} className={tblInput + ' !w-[110px]'} /></td>
+                    <td className="p-1"><input value={row.rate} onChange={(e) => updateRow(idx, { rate: e.target.value })} className={tblInput + ' !w-[140px]'} /></td>
+                    <td className="p-1"><input value={row.amtForeign} onChange={(e) => updateRow(idx, { amtForeign: e.target.value })} className={tblInput + ' !w-[160px]'} /></td>
+                    <td className="p-1"><input value={row.vat} onChange={(e) => updateRow(idx, { vat: e.target.value })} className={tblInput + ' !w-[110px]'} /></td>
                     <td className="p-1">
                       <button type="button" onClick={() => removeRow(idx)} className="inline-flex h-8 w-8 items-center justify-center rounded text-red-500 hover:bg-red-50">
                         <Trash2 size={14} />
@@ -294,8 +326,8 @@ export function FreightTab({
             <Plus size={14} /> Apply Vendor Local Charge
           </button>
         </div>
-        <div className="overflow-x-auto rounded-xl border border-border">
-          <table className="w-full text-left text-[11px]">
+        <div className="w-full min-w-0 overflow-x-auto overflow-y-hidden rounded-xl border border-border">
+          <table className="min-w-[2000px] text-left text-[11px]">
             <thead className="bg-slate-50 border-b border-border">
               <tr>
                 {['Vendor', 'Vendor Name', 'Payer', 'Service', 'Employee', 'Expense', 'Fare', 'Fare Name', 'Tax', 'Fare Type', 'Currency', 'Exchange Rate', 'Unit', 'Qty', 'Rate', 'Amt (Foreign)', 'Local Amt', ''].map((h) => (
@@ -313,23 +345,23 @@ export function FreightTab({
               ) : (
                 state.buyingRows.map((row, idx) => (
                   <tr key={idx} className="border-b border-border/60 last:border-0">
-                    <td className="p-1"><input value={row.vendor} onChange={(e) => updateBuyingRow(idx, { vendor: e.target.value })} className={tblInput + ' !w-[80px]'} /></td>
-                    <td className="p-1"><input value={row.vendorName} onChange={(e) => updateBuyingRow(idx, { vendorName: e.target.value })} className={tblInput + ' !w-[100px]'} /></td>
-                    <td className="p-1"><input value={row.payer} onChange={(e) => updateBuyingRow(idx, { payer: e.target.value })} className={tblInput + ' !w-[80px]'} /></td>
-                    <td className="p-1"><input value={row.service} onChange={(e) => updateBuyingRow(idx, { service: e.target.value })} className={tblInput + ' !w-[80px]'} /></td>
-                    <td className="p-1"><input value={row.employee} onChange={(e) => updateBuyingRow(idx, { employee: e.target.value })} className={tblInput + ' !w-[80px]'} /></td>
-                    <td className="p-1"><input value={row.expense} onChange={(e) => updateBuyingRow(idx, { expense: e.target.value })} className={tblInput + ' !w-[80px]'} /></td>
-                    <td className="p-1"><input value={row.fare} onChange={(e) => updateBuyingRow(idx, { fare: e.target.value })} className={tblInput + ' !w-[70px]'} /></td>
-                    <td className="p-1"><input value={row.fareName} onChange={(e) => updateBuyingRow(idx, { fareName: e.target.value })} className={tblInput + ' !w-[110px]'} /></td>
-                    <td className="p-1"><input value={row.tax} onChange={(e) => updateBuyingRow(idx, { tax: e.target.value })} className={tblInput + ' !w-[60px]'} /></td>
-                    <td className="p-1"><input value={row.fareType} onChange={(e) => updateBuyingRow(idx, { fareType: e.target.value })} className={tblInput + ' !w-[80px]'} /></td>
-                    <td className="p-1"><input value={row.currency} onChange={(e) => updateBuyingRow(idx, { currency: e.target.value })} className={tblInput + ' !w-[60px]'} /></td>
-                    <td className="p-1"><input value={row.exchangeRate} onChange={(e) => updateBuyingRow(idx, { exchangeRate: e.target.value })} className={tblInput + ' !w-[80px]'} /></td>
-                    <td className="p-1"><input value={row.unit} onChange={(e) => updateBuyingRow(idx, { unit: e.target.value })} className={tblInput + ' !w-[50px]'} /></td>
-                    <td className="p-1"><input value={row.qty} onChange={(e) => updateBuyingRow(idx, { qty: e.target.value })} className={tblInput + ' !w-[60px]'} /></td>
-                    <td className="p-1"><input value={row.rate} onChange={(e) => updateBuyingRow(idx, { rate: e.target.value })} className={tblInput + ' !w-[80px]'} /></td>
-                    <td className="p-1"><input value={row.amtForeign} onChange={(e) => updateBuyingRow(idx, { amtForeign: e.target.value })} className={tblInput + ' !w-[90px]'} /></td>
-                    <td className="p-1"><input value={row.localAmt} onChange={(e) => updateBuyingRow(idx, { localAmt: e.target.value })} className={tblInput + ' !w-[90px]'} /></td>
+                    <td className="p-1"><input value={row.vendor} onChange={(e) => updateBuyingRow(idx, { vendor: e.target.value })} className={tblInput + ' !w-[140px]'} /></td>
+                    <td className="p-1"><input value={row.vendorName} onChange={(e) => updateBuyingRow(idx, { vendorName: e.target.value })} className={tblInput + ' !w-[220px]'} /></td>
+                    <td className="p-1"><input value={row.payer} onChange={(e) => updateBuyingRow(idx, { payer: e.target.value })} className={tblInput + ' !w-[140px]'} /></td>
+                    <td className="p-1"><input value={row.service} onChange={(e) => updateBuyingRow(idx, { service: e.target.value })} className={tblInput + ' !w-[180px]'} /></td>
+                    <td className="p-1"><input value={row.employee} onChange={(e) => updateBuyingRow(idx, { employee: e.target.value })} className={tblInput + ' !w-[180px]'} /></td>
+                    <td className="p-1"><input value={row.expense} onChange={(e) => updateBuyingRow(idx, { expense: e.target.value })} className={tblInput + ' !w-[180px]'} /></td>
+                    <td className="p-1"><input value={row.fare} onChange={(e) => updateBuyingRow(idx, { fare: e.target.value })} className={tblInput + ' !w-[140px]'} /></td>
+                    <td className="p-1"><input value={row.fareName} onChange={(e) => updateBuyingRow(idx, { fareName: e.target.value })} className={tblInput + ' !w-[260px]'} /></td>
+                    <td className="p-1"><input value={row.tax} onChange={(e) => updateBuyingRow(idx, { tax: e.target.value })} className={tblInput + ' !w-[110px]'} /></td>
+                    <td className="p-1"><input value={row.fareType} onChange={(e) => updateBuyingRow(idx, { fareType: e.target.value })} className={tblInput + ' !w-[160px]'} /></td>
+                    <td className="p-1"><input value={row.currency} onChange={(e) => updateBuyingRow(idx, { currency: e.target.value })} className={tblInput + ' !w-[110px]'} /></td>
+                    <td className="p-1"><input value={row.exchangeRate} onChange={(e) => updateBuyingRow(idx, { exchangeRate: e.target.value })} className={tblInput + ' !w-[150px]'} /></td>
+                    <td className="p-1"><input value={row.unit} onChange={(e) => updateBuyingRow(idx, { unit: e.target.value })} className={tblInput + ' !w-[110px]'} /></td>
+                    <td className="p-1"><input value={row.qty} onChange={(e) => updateBuyingRow(idx, { qty: e.target.value })} className={tblInput + ' !w-[110px]'} /></td>
+                    <td className="p-1"><input value={row.rate} onChange={(e) => updateBuyingRow(idx, { rate: e.target.value })} className={tblInput + ' !w-[140px]'} /></td>
+                    <td className="p-1"><input value={row.amtForeign} onChange={(e) => updateBuyingRow(idx, { amtForeign: e.target.value })} className={tblInput + ' !w-[160px]'} /></td>
+                    <td className="p-1"><input value={row.localAmt} onChange={(e) => updateBuyingRow(idx, { localAmt: e.target.value })} className={tblInput + ' !w-[160px]'} /></td>
                     <td className="p-1">
                       <button type="button" onClick={() => removeBuyingRow(idx)} className="inline-flex h-8 w-8 items-center justify-center rounded text-red-500 hover:bg-red-50">
                         <Trash2 size={14} />
@@ -355,8 +387,8 @@ export function FreightTab({
             <Plus size={14} /> Add Pay on behalf
           </button>
         </div>
-        <div className="overflow-x-auto rounded-xl border border-border">
-          <table className="w-full text-left text-[11px]">
+        <div className="w-full min-w-0 overflow-x-auto overflow-y-hidden rounded-xl border border-border">
+          <table className="min-w-[1600px] text-left text-[11px]">
             <thead className="bg-slate-50 border-b border-border">
               <tr>
                 {['Vendor', 'Vendor Name', 'Prepaid By', 'Service', 'Expense', 'Fare', 'Fare Name', 'Tax', 'Fare Type', 'Currency', 'Exchange Rate', 'Unit', ''].map((h) => (
@@ -374,18 +406,18 @@ export function FreightTab({
               ) : (
                 state.payOnBehalfRows.map((row, idx) => (
                   <tr key={idx} className="border-b border-border/60 last:border-0">
-                    <td className="p-1"><input value={row.vendor} onChange={(e) => updatePayOnBehalfRow(idx, { vendor: e.target.value })} className={tblInput + ' !w-[80px]'} /></td>
-                    <td className="p-1"><input value={row.vendorName} onChange={(e) => updatePayOnBehalfRow(idx, { vendorName: e.target.value })} className={tblInput + ' !w-[100px]'} /></td>
-                    <td className="p-1"><input value={row.prepaidBy} onChange={(e) => updatePayOnBehalfRow(idx, { prepaidBy: e.target.value })} className={tblInput + ' !w-[90px]'} /></td>
-                    <td className="p-1"><input value={row.service} onChange={(e) => updatePayOnBehalfRow(idx, { service: e.target.value })} className={tblInput + ' !w-[80px]'} /></td>
-                    <td className="p-1"><input value={row.expense} onChange={(e) => updatePayOnBehalfRow(idx, { expense: e.target.value })} className={tblInput + ' !w-[80px]'} /></td>
-                    <td className="p-1"><input value={row.fare} onChange={(e) => updatePayOnBehalfRow(idx, { fare: e.target.value })} className={tblInput + ' !w-[70px]'} /></td>
-                    <td className="p-1"><input value={row.fareName} onChange={(e) => updatePayOnBehalfRow(idx, { fareName: e.target.value })} className={tblInput + ' !w-[110px]'} /></td>
-                    <td className="p-1"><input value={row.tax} onChange={(e) => updatePayOnBehalfRow(idx, { tax: e.target.value })} className={tblInput + ' !w-[60px]'} /></td>
-                    <td className="p-1"><input value={row.fareType} onChange={(e) => updatePayOnBehalfRow(idx, { fareType: e.target.value })} className={tblInput + ' !w-[80px]'} /></td>
-                    <td className="p-1"><input value={row.currency} onChange={(e) => updatePayOnBehalfRow(idx, { currency: e.target.value })} className={tblInput + ' !w-[60px]'} /></td>
-                    <td className="p-1"><input value={row.exchangeRate} onChange={(e) => updatePayOnBehalfRow(idx, { exchangeRate: e.target.value })} className={tblInput + ' !w-[80px]'} /></td>
-                    <td className="p-1"><input value={row.unit} onChange={(e) => updatePayOnBehalfRow(idx, { unit: e.target.value })} className={tblInput + ' !w-[50px]'} /></td>
+                    <td className="p-1"><input value={row.vendor} onChange={(e) => updatePayOnBehalfRow(idx, { vendor: e.target.value })} className={tblInput + ' !w-[140px]'} /></td>
+                    <td className="p-1"><input value={row.vendorName} onChange={(e) => updatePayOnBehalfRow(idx, { vendorName: e.target.value })} className={tblInput + ' !w-[220px]'} /></td>
+                    <td className="p-1"><input value={row.prepaidBy} onChange={(e) => updatePayOnBehalfRow(idx, { prepaidBy: e.target.value })} className={tblInput + ' !w-[180px]'} /></td>
+                    <td className="p-1"><input value={row.service} onChange={(e) => updatePayOnBehalfRow(idx, { service: e.target.value })} className={tblInput + ' !w-[180px]'} /></td>
+                    <td className="p-1"><input value={row.expense} onChange={(e) => updatePayOnBehalfRow(idx, { expense: e.target.value })} className={tblInput + ' !w-[180px]'} /></td>
+                    <td className="p-1"><input value={row.fare} onChange={(e) => updatePayOnBehalfRow(idx, { fare: e.target.value })} className={tblInput + ' !w-[140px]'} /></td>
+                    <td className="p-1"><input value={row.fareName} onChange={(e) => updatePayOnBehalfRow(idx, { fareName: e.target.value })} className={tblInput + ' !w-[260px]'} /></td>
+                    <td className="p-1"><input value={row.tax} onChange={(e) => updatePayOnBehalfRow(idx, { tax: e.target.value })} className={tblInput + ' !w-[110px]'} /></td>
+                    <td className="p-1"><input value={row.fareType} onChange={(e) => updatePayOnBehalfRow(idx, { fareType: e.target.value })} className={tblInput + ' !w-[160px]'} /></td>
+                    <td className="p-1"><input value={row.currency} onChange={(e) => updatePayOnBehalfRow(idx, { currency: e.target.value })} className={tblInput + ' !w-[110px]'} /></td>
+                    <td className="p-1"><input value={row.exchangeRate} onChange={(e) => updatePayOnBehalfRow(idx, { exchangeRate: e.target.value })} className={tblInput + ' !w-[150px]'} /></td>
+                    <td className="p-1"><input value={row.unit} onChange={(e) => updatePayOnBehalfRow(idx, { unit: e.target.value })} className={tblInput + ' !w-[110px]'} /></td>
                     <td className="p-1">
                       <button type="button" onClick={() => removePayOnBehalfRow(idx)} className="inline-flex h-8 w-8 items-center justify-center rounded text-red-500 hover:bg-red-50">
                         <Trash2 size={14} />

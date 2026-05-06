@@ -5,7 +5,7 @@ import {
   ChevronLeft, Search, Plus, List,
   Edit, Trash2, RefreshCcw,
   BadgeDollarSign, TrendingUp,
-  BarChart2, Calculator, DollarSign, ChevronRight, X, Building2, Printer, CheckCircle2, Filter
+  BarChart2, Calculator, DollarSign, ChevronRight, X, Building2, Printer, CheckCircle2, Filter, LayoutGrid, Eye
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
@@ -25,6 +25,8 @@ import { ThreeStarRating } from '../components/ui/ThreeStarRating';
 
 type ColDef = { label: string; thClass: string; tdClass: string; renderContent: (s: Sales) => React.ReactNode };
 
+type StatusFilter = 'all' | 'draft' | 'confirmed' | 'sent' | 'won' | 'lost';
+
 const QUOTATION_STATUS_META: Record<string, { label: string; className: string }> = {
   draft: { label: 'Draft', className: 'bg-slate-100 text-slate-700 border-slate-200' },
   confirmed: { label: 'Confirmed', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -33,6 +35,22 @@ const QUOTATION_STATUS_META: Record<string, { label: string; className: string }
   lost: { label: 'Lost', className: 'bg-rose-50 text-rose-700 border-rose-200' },
   converted: { label: 'Won', className: 'bg-teal-50 text-teal-700 border-teal-200' },
   final: { label: 'Sent', className: 'bg-blue-50 text-blue-700 border-blue-200' },
+};
+
+const normalizeQuotationStatus = (s?: string | null): Exclude<StatusFilter, 'all'> => {
+  if (s === 'converted') return 'won';
+  if (s === 'final') return 'sent';
+  if (s === 'confirmed' || s === 'sent' || s === 'won' || s === 'lost') return s;
+  return 'draft';
+};
+
+const formatNumber = (value: number) =>
+  new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(Math.round(value || 0));
+
+const calcSalesTotalVnd = (sale: Sales) => {
+  const items = sale.sales_items || [];
+  const total = items.reduce((acc, i) => acc + (i.total || 0), 0);
+  return total;
 };
 
 const formatDate = (value?: string) => {
@@ -161,7 +179,7 @@ const DEFAULT_COL_ORDER = Object.keys(COLUMN_DEFS);
 const SalesPage: React.FC = () => {
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToastContext();
-  const [activeTab, setActiveTab] = useState<'list' | 'stats'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'kanban' | 'stats'>('list');
   const [salesItems, setSalesItems] = useState<Sales[]>([]);
   const [selectedSalesItems, setSelectedSalesItems] = useState<string[]>([]);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
@@ -179,7 +197,9 @@ const SalesPage: React.FC = () => {
   const [selectedCurrencies, setSelectedCurrencies] = useState<string[]>([]);
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
   // Column Settings State
   const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_COL_ORDER);
@@ -299,6 +319,11 @@ const SalesPage: React.FC = () => {
   };
 
   const filteredItems = salesItems.filter(item => {
+    // Status filter
+    if (statusFilter !== 'all') {
+      if (normalizeQuotationStatus(item.status) !== statusFilter) return false;
+    }
+
     // Text search
     if (searchText) {
       const search = searchText.toLowerCase();
@@ -332,6 +357,38 @@ const SalesPage: React.FC = () => {
     return true;
   });
 
+  const kanbanColumns = React.useMemo(() => {
+    const cols: Array<{ id: Exclude<StatusFilter, 'all'>; title: string; meta: { label: string; className: string } }> = [
+      { id: 'draft', title: 'Draft', meta: QUOTATION_STATUS_META.draft },
+      { id: 'confirmed', title: 'Confirmed', meta: QUOTATION_STATUS_META.confirmed },
+      { id: 'sent', title: 'Sent', meta: QUOTATION_STATUS_META.sent },
+      { id: 'won', title: 'Won', meta: QUOTATION_STATUS_META.won },
+      { id: 'lost', title: 'Lost', meta: QUOTATION_STATUS_META.lost },
+    ];
+
+    return cols.map((c) => {
+      const items = filteredItems
+        .filter((s) => normalizeQuotationStatus(s.status) === c.id)
+        .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+      const totalVnd = items.reduce((acc, s) => acc + calcSalesTotalVnd(s), 0);
+      return { ...c, items, totalVnd };
+    });
+  }, [filteredItems]);
+
+  const updateStatusOptimistic = async (saleId: string, next: Exclude<StatusFilter, 'all'>) => {
+    const prev = salesItems.find((s) => s.id === saleId);
+    if (!prev) return;
+    const prevStatus = prev.status;
+    setSalesItems((list) => list.map((s) => (s.id === saleId ? { ...s, status: next } : s)));
+    try {
+      await salesService.updateSalesItem(saleId, { status: next } as any);
+      toastSuccess(`Moved to ${QUOTATION_STATUS_META[next].label}`);
+    } catch (err: unknown) {
+      setSalesItems((list) => list.map((s) => (s.id === saleId ? { ...s, status: prevStatus } : s)));
+      toastError(err instanceof Error ? err.message : 'Failed to update status');
+    }
+  };
+
   const toggleCurrency = (curr: string) => {
     setSelectedCurrencies(prev =>
       prev.includes(curr) ? prev.filter(c => c !== curr) : [...prev, curr]
@@ -364,6 +421,7 @@ const SalesPage: React.FC = () => {
   const [mobileExpandedSection, setMobileExpandedSection] = useState<string | null>('currency');
   const [pendingCurrencies, setPendingCurrencies] = useState<string[]>([]);
   const [pendingSuppliers, setPendingSuppliers] = useState<string[]>([]);
+  const [pendingStatus, setPendingStatus] = useState<StatusFilter>('all');
 
   const closeMobileFilter = () => {
     setMobileFilterClosing(true);
@@ -376,6 +434,7 @@ const SalesPage: React.FC = () => {
   const openMobileFilter = () => {
     setPendingCurrencies(selectedCurrencies);
     setPendingSuppliers(selectedSuppliers);
+    setPendingStatus(statusFilter);
     setMobileExpandedSection('currency');
     setShowMobileFilter(true);
   };
@@ -383,6 +442,7 @@ const SalesPage: React.FC = () => {
   const applyMobileFilter = () => {
     setSelectedCurrencies(pendingCurrencies);
     setSelectedSuppliers(pendingSuppliers);
+    setStatusFilter(pendingStatus);
     closeMobileFilter();
   };
 
@@ -447,7 +507,10 @@ const SalesPage: React.FC = () => {
     );
   }
 
-  const hasActiveFilters = selectedCurrencies.length > 0 || selectedSuppliers.length > 0;
+  const hasActiveFilters =
+    selectedCurrencies.length > 0 ||
+    selectedSuppliers.length > 0 ||
+    statusFilter !== 'all';
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full flex-1 flex flex-col -mt-2 min-h-0">
@@ -462,6 +525,16 @@ const SalesPage: React.FC = () => {
         >
           <List size={14} />
           List View
+        </button>
+        <button
+          onClick={() => setActiveTab('kanban')}
+          className={clsx(
+            "flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold transition-all",
+            activeTab === 'kanban' ? "bg-white text-primary shadow-sm ring-1 ring-border" : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <LayoutGrid size={14} />
+          Kanban
         </button>
         <button
           onClick={() => setActiveTab('stats')}
@@ -500,7 +573,7 @@ const SalesPage: React.FC = () => {
               <Filter size={18} />
               {hasActiveFilters && (
                 <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-white text-[9px] font-bold flex items-center justify-center">
-                  {selectedCurrencies.length + selectedSuppliers.length}
+                  {selectedCurrencies.length + selectedSuppliers.length + (statusFilter !== 'all' ? 1 : 0)}
                 </span>
               )}
             </button>
@@ -546,7 +619,7 @@ const SalesPage: React.FC = () => {
                       </div>
                       <div className="flex flex-col items-end gap-1.5 shrink-0">
                         <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100">{quoteItems.length} Products</span>
-                        <span className="text-[15px] font-black text-primary tabular-nums">{new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(total)} VND</span>
+                        <span className="text-[15px] font-black text-primary tabular-nums">{new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(total)} VND</span>
                       </div>
                     </div>
                     <div className="mt-4 flex items-center justify-end gap-2 pt-3 border-t border-slate-50">
@@ -610,6 +683,33 @@ const SalesPage: React.FC = () => {
                 >
                   <RefreshCcw size={16} className={loading ? 'animate-spin' : ''} />
                 </button>
+                <div className="hidden lg:flex items-center gap-1.5 px-2 py-1.5 rounded-xl border border-border bg-white shadow-sm">
+                  {(
+                    [
+                      { id: 'all', label: 'All' },
+                      { id: 'draft', label: 'Draft' },
+                      { id: 'confirmed', label: 'Confirmed' },
+                      { id: 'sent', label: 'Sent' },
+                      { id: 'won', label: 'Won' },
+                      { id: 'lost', label: 'Lost' },
+                    ] as Array<{ id: StatusFilter; label: string }>
+                  ).map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setStatusFilter(s.id)}
+                      className={clsx(
+                        'px-2.5 py-1 rounded-lg text-[11px] font-black uppercase tracking-tight transition-all',
+                        statusFilter === s.id
+                          ? 'bg-primary text-white shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted/40',
+                      )}
+                      title={`Filter: ${s.label}`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
                 <ColumnSettings
                   columns={COLUMN_DEFS}
                   visibleColumns={visibleColumns}
@@ -630,6 +730,43 @@ const SalesPage: React.FC = () => {
 
             {/* Secondary Filters */}
             <div className="hidden md:flex flex-wrap items-center gap-2" ref={dropdownRef}>
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setActiveDropdown(activeDropdown === 'status' ? null : 'status');
+                    setFilterSearch('');
+                  }}
+                  className={clsx(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-[12px] font-bold shadow-sm",
+                    activeDropdown === 'status' || statusFilter !== 'all'
+                      ? "bg-primary/5 border-primary text-primary"
+                      : "bg-white border-border hover:bg-muted text-muted-foreground"
+                  )}
+                >
+                  <CheckCircle2 size={14} className={clsx(activeDropdown === 'status' || statusFilter !== 'all' ? "text-primary" : "text-muted-foreground/50")} />
+                  Status
+                  {statusFilter !== 'all' && (
+                    <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
+                      1
+                    </span>
+                  )}
+                  <ChevronRight size={14} className={clsx("transition-transform ml-1 opacity-40", activeDropdown === 'status' ? "-rotate-90" : "rotate-90")} />
+                </button>
+                <FilterDropdown
+                  isOpen={activeDropdown === 'status'}
+                  options={[
+                    { id: 'draft', label: 'Draft', count: salesItems.filter(i => normalizeQuotationStatus(i.status) === 'draft').length },
+                    { id: 'confirmed', label: 'Confirmed', count: salesItems.filter(i => normalizeQuotationStatus(i.status) === 'confirmed').length },
+                    { id: 'sent', label: 'Sent', count: salesItems.filter(i => normalizeQuotationStatus(i.status) === 'sent').length },
+                    { id: 'won', label: 'Won', count: salesItems.filter(i => normalizeQuotationStatus(i.status) === 'won').length },
+                    { id: 'lost', label: 'Lost', count: salesItems.filter(i => normalizeQuotationStatus(i.status) === 'lost').length },
+                  ]}
+                  selected={statusFilter === 'all' ? [] : [statusFilter]}
+                  onToggle={(id) => setStatusFilter((prev) => (prev === id ? 'all' : (id as StatusFilter)))}
+                  searchValue={filterSearch}
+                  onSearchChange={setFilterSearch}
+                />
+              </div>
               <div className="relative">
                 <button
                   onClick={() => {
@@ -686,9 +823,9 @@ const SalesPage: React.FC = () => {
                 />
               </div>
 
-              {(selectedCurrencies.length > 0 || selectedSuppliers.length > 0) && (
+              {(selectedCurrencies.length > 0 || selectedSuppliers.length > 0 || statusFilter !== 'all') && (
                 <button
-                  onClick={() => { setSelectedCurrencies([]); setSelectedSuppliers([]); }}
+                  onClick={() => { setSelectedCurrencies([]); setSelectedSuppliers([]); setStatusFilter('all'); }}
                   className="text-[12px] text-muted-foreground hover:text-primary font-bold px-3 py-1 transition-colors flex items-center gap-1 opacity-60 hover:opacity-100"
                 >
                   Reset Filters
@@ -805,6 +942,153 @@ const SalesPage: React.FC = () => {
             </div>
           </div>
         </div>
+      ) : activeTab === 'kanban' ? (
+        <div className="bg-white rounded-2xl border border-border shadow-sm flex flex-col flex-1 min-h-0">
+          <div className="p-4 border-b border-border/40 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <LayoutGrid size={16} className="text-primary" />
+              <span className="text-[13px] font-black text-slate-900 truncate">Quotation Kanban</span>
+              <span className="text-[11px] font-bold text-muted-foreground hidden sm:inline">
+                Drag & drop cards between columns
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={fetchData}
+                className="px-3 py-1.5 rounded-xl border border-border bg-white text-muted-foreground hover:bg-muted transition-all active:scale-95 shadow-sm"
+                title="Refresh"
+              >
+                <RefreshCcw size={16} className={loading ? 'animate-spin' : ''} />
+              </button>
+              <button
+                onClick={handleOpenAdd}
+                className="flex items-center gap-2 px-4 py-1.5 bg-primary text-white rounded-xl text-[13px] font-bold shadow-md shadow-primary/20 hover:bg-primary/90 transition-all active:scale-95 font-inter"
+              >
+                <Plus size={16} />
+                New Item
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 min-h-0 overflow-x-auto bg-slate-50/20">
+            <div className="min-w-[1100px] h-full p-4 flex gap-4">
+              {kanbanColumns.map((col) => (
+                <div
+                  key={col.id}
+                  className="w-[340px] shrink-0 flex flex-col rounded-2xl border border-border bg-white shadow-sm overflow-hidden"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const saleId = e.dataTransfer.getData('text/plain');
+                    if (!saleId) return;
+                    void updateStatusOptimistic(saleId, col.id);
+                    setDraggingId(null);
+                  }}
+                >
+                  <div className="px-4 py-3 border-b border-border bg-muted/10 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={clsx('px-2 py-1 rounded-lg border text-[10px] font-black uppercase tracking-tight', col.meta.className)}>
+                        {col.meta.label}
+                      </span>
+                      <span className="text-[12px] font-black text-slate-900 truncate">{col.title}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[11px] font-black text-slate-600 tabular-nums">{col.items.length}</span>
+                      <span className="text-[11px] font-bold text-slate-400">·</span>
+                      <span className="text-[11px] font-black text-primary tabular-nums">{formatNumber(col.totalVnd)} ₫</span>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-2 bg-white">
+                    {loading ? (
+                      Array.from({ length: 5 }).map((_, i) => (
+                        <div key={i} className="rounded-2xl border border-border p-3 bg-slate-50/50 animate-pulse">
+                          <div className="h-3 bg-slate-100 rounded w-2/3 mb-2" />
+                          <div className="h-3 bg-slate-100 rounded w-1/2" />
+                        </div>
+                      ))
+                    ) : col.items.length === 0 ? (
+                      <div className="py-10 text-center text-[12px] text-muted-foreground italic border border-dashed border-border rounded-2xl bg-slate-50/30">
+                        No items
+                      </div>
+                    ) : (
+                      col.items.map((s) => {
+                        const totalVnd = calcSalesTotalVnd(s);
+                        const desc = s.sales_items?.[0]?.description || s.sales_charge_items?.[0]?.charge_name || s.service_mode || '—';
+                        const customer = s.customer_trade_name || s.shipments?.customers?.company_name || '—';
+                        return (
+                          <div
+                            key={s.id}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('text/plain', s.id);
+                              setDraggingId(s.id);
+                            }}
+                            onDragEnd={() => setDraggingId(null)}
+                            onClick={() => handleOpenDetail(s)}
+                            className={clsx(
+                              'rounded-2xl border border-border p-3 bg-white hover:bg-slate-50/40 hover:border-primary/20 transition-all cursor-pointer',
+                              draggingId === s.id && 'opacity-60',
+                            )}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="text-[10px] font-black text-primary uppercase tracking-tight opacity-70">
+                                  {s.no_doc || `Q-${s.id.slice(0, 8)}`}
+                                </div>
+                                <div className="text-[13px] font-black text-slate-900 line-clamp-2 mt-1">
+                                  {desc}
+                                </div>
+                                <div className="text-[11px] font-bold text-slate-500 line-clamp-1 mt-1">
+                                  {customer}
+                                </div>
+                              </div>
+                              <div className="shrink-0 text-right">
+                                <div className="text-[12px] font-black text-primary tabular-nums">{formatNumber(totalVnd)} ₫</div>
+                                <div className="text-[10px] font-bold text-slate-400 mt-1">{formatDate(s.quote_date)}</div>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); handleOpenDetail(s); }}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                className="p-1.5 rounded-lg text-muted-foreground hover:text-emerald-700 hover:bg-emerald-50 transition-all"
+                                title="View"
+                              >
+                                <Eye size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); handleOpenEdit(s); }}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-700 hover:bg-blue-50 transition-all"
+                                title="Edit"
+                              >
+                                <Edit size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteClick(s.id, e)}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                className="p-1.5 rounded-lg text-muted-foreground hover:text-red-700 hover:bg-red-50 transition-all"
+                                title="Delete"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       ) : (
         /* STATISTICS TAB */
         <div className="bg-white rounded-2xl border border-border shadow-sm flex flex-col flex-1 min-h-0 animate-in fade-in duration-300">
@@ -907,7 +1191,7 @@ const SalesPage: React.FC = () => {
 
               {hasActiveFilters && (
                 <button
-                  onClick={() => { setSelectedCurrencies([]); setSelectedSuppliers([]); }}
+                  onClick={() => { setSelectedCurrencies([]); setSelectedSuppliers([]); setStatusFilter('all'); }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-dashed border-red-300 text-red-500 text-[12px] font-bold hover:bg-red-50 transition-all"
                 >
                   <X size={13} />
@@ -924,7 +1208,7 @@ const SalesPage: React.FC = () => {
               {[
                 { label: 'Total Items', value: filteredItems.length, icon: <List size={18} />, color: 'text-blue-600', bg: 'bg-blue-500/10' },
                 { label: 'Total (VND)', value: new Intl.NumberFormat('vi-VN').format(Math.round(stats.totalVND)), icon: <Calculator size={18} />, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
-                { label: 'Total (USD)', value: '$' + new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(stats.totalUSD), icon: <BadgeDollarSign size={18} />, color: 'text-indigo-600', bg: 'bg-indigo-500/10' },
+                { label: 'Total (USD)', value: '$' + new Intl.NumberFormat('vi-VN', { minimumFractionDigits: 2 }).format(stats.totalUSD), icon: <BadgeDollarSign size={18} />, color: 'text-indigo-600', bg: 'bg-indigo-500/10' },
                 { label: 'Avg Tax', value: stats.avgTax.toFixed(1) + '%', icon: <TrendingUp size={18} />, color: 'text-orange-600', bg: 'bg-orange-500/10' },
               ].map((item) => (
                 <div key={item.label} className="bg-white rounded-2xl border border-border shadow-sm p-4 md:p-5 flex items-center gap-3 md:gap-4">
@@ -1047,6 +1331,52 @@ const SalesPage: React.FC = () => {
             </div>
             <div className="flex-1 overflow-y-auto">
               <div className="divide-y divide-border/60">
+                {/* Status Section */}
+                <div className="px-5 py-4">
+                  <button
+                    onClick={() => setMobileExpandedSection(mobileExpandedSection === 'status' ? null : 'status')}
+                    className="w-full flex items-center justify-between mb-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={16} className="text-muted-foreground" />
+                      <span className="text-[15px] font-bold text-slate-800">Status</span>
+                      {pendingStatus !== 'all' && <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">1</span>}
+                    </div>
+                    <ChevronRight size={18} className={clsx('text-slate-400 transition-transform', mobileExpandedSection === 'status' && 'rotate-90')} />
+                  </button>
+                  {mobileExpandedSection === 'status' && (
+                    <div className="space-y-1 mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                      {(
+                        [
+                          { id: 'all', label: 'All' },
+                          { id: 'draft', label: 'Draft' },
+                          { id: 'confirmed', label: 'Confirmed' },
+                          { id: 'sent', label: 'Sent' },
+                          { id: 'won', label: 'Won' },
+                          { id: 'lost', label: 'Lost' },
+                        ] as Array<{ id: StatusFilter; label: string }>
+                      ).map((s) => {
+                        const isSelected = pendingStatus === s.id;
+                        return (
+                          <button
+                            key={s.id}
+                            onClick={() => setPendingStatus(s.id)}
+                            className={clsx(
+                              'w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all',
+                              isSelected ? 'bg-primary/5 border-primary/30 text-primary' : 'bg-slate-50/50 border-slate-200/60 text-slate-600'
+                            )}
+                          >
+                            <span className="text-[13px] font-bold truncate pr-4">{s.label}</span>
+                            <div className={clsx('w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all', isSelected ? 'bg-primary border-primary' : 'border-slate-300')}>
+                              {isSelected && <CheckCircle2 size={12} className="text-white" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
                 {/* Currency Section */}
                 <div className="px-5 py-4">
                   <button
@@ -1121,6 +1451,7 @@ const SalesPage: React.FC = () => {
                 onClick={() => {
                   setPendingCurrencies([]);
                   setPendingSuppliers([]);
+                  setPendingStatus('all');
                 }}
                 className="w-full py-3 rounded-2xl border border-red-200 text-red-500 text-[14px] font-bold hover:bg-red-50 transition-all active:scale-95"
               >
