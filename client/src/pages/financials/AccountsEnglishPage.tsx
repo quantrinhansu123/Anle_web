@@ -51,6 +51,8 @@ export default function AccountsEnglishPage() {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<DraftRow[]>([]);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const rowsRef = useRef<DraftRow[]>([]);
 
   const fetchData = async () => {
     try {
@@ -78,12 +80,56 @@ export default function AccountsEnglishPage() {
     void fetchData();
   }, []);
 
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
+
+  useEffect(() => {
+    // Keep selection valid when rows change (e.g. after refresh/import/delete).
+    const existing = new Set(rows.filter((r) => !r.isNew).map((r) => r.id));
+    setSelectedIds((prev) => prev.filter((id) => existing.has(id)));
+  }, [rows]);
+
   const addRow = () => setRows((p) => [emptyDraft(), ...p]);
 
   const updateRow = (id: string, patch: Partial<DraftRow>) => {
     setRows((p) =>
       p.map((r) => (r.id === id ? { ...r, ...patch, dirty: true } : r)),
     );
+  };
+
+  const toggleSelectAll = () => {
+    const selectable = rows.filter((r) => !r.isNew).map((r) => r.id);
+    if (selectedIds.length === selectable.length) setSelectedIds([]);
+    else setSelectedIds(selectable);
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  };
+
+  const bulkDeleteSelected = async () => {
+    const targets = rows.filter((r) => selectedIds.includes(r.id) && !r.isNew);
+    if (!targets.length) return;
+    let ok = 0;
+    let fail = 0;
+    const deletedIds: string[] = [];
+    for (const r of targets) {
+      try {
+        await accountDictionaryService.remove(r.id);
+        ok++;
+        deletedIds.push(r.id);
+      } catch (e) {
+        console.error(e);
+        fail++;
+      }
+    }
+    if (deletedIds.length) {
+      setRows((p) => p.filter((r) => !deletedIds.includes(r.id)));
+    }
+    setSelectedIds((p) => p.filter((id) => !deletedIds.includes(id)));
+    if (ok) success(`Deleted ${ok} row(s)`);
+    if (fail) error(`Failed to delete ${fail} row(s). (Server may be missing table account_dictionary)`);
   };
 
   const removeRow = async (r: DraftRow) => {
@@ -141,6 +187,29 @@ export default function AccountsEnglishPage() {
       updateRow(r.id, { saving: false });
       error(e?.message || 'Failed to save');
     }
+  };
+
+  const saveAll = async () => {
+    const ids = rowsRef.current.filter((r) => r.dirty).map((r) => r.id);
+    if (!ids.length) return;
+
+    let ok = 0;
+    let fail = 0;
+
+    for (const id of ids) {
+      const r = rowsRef.current.find((x) => x.id === id);
+      if (!r || !r.dirty) continue;
+      try {
+        await saveRow(r);
+        ok++;
+      } catch (e) {
+        console.error(e);
+        fail++;
+      }
+    }
+
+    if (ok) success(`Saved ${ok} row(s)`);
+    if (fail) error(`Failed to save ${fail} row(s)`);
   };
 
   const downloadTemplate = () => {
@@ -210,7 +279,8 @@ export default function AccountsEnglishPage() {
     }
 
     await fetchData();
-    success(`Imported ${ok} row(s)` + (fail ? `, failed ${fail}` : ''));
+    if (ok) success(`Imported ${ok} row(s)`);
+    if (fail) error(`Failed to import ${fail} row(s). (Server may be missing table account_dictionary)`);
   };
 
   const onUpload = async (f?: File | null) => {
@@ -223,6 +293,7 @@ export default function AccountsEnglishPage() {
   };
 
   const dirtyCount = useMemo(() => rows.filter((r) => r.dirty).length, [rows]);
+  const selectableCount = useMemo(() => rows.filter((r) => !r.isNew).length, [rows]);
 
   return (
     <div className="animate-in fade-in duration-300 w-full flex-1 flex flex-col min-h-0 -mt-2 bg-muted/30">
@@ -255,6 +326,21 @@ export default function AccountsEnglishPage() {
               >
                 <RefreshCcw size={16} className={loading ? 'animate-spin' : ''} />
               </button>
+              <button
+                type="button"
+                onClick={() => void saveAll()}
+                disabled={dirtyCount === 0}
+                className={clsx(
+                  'inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] font-black shadow-sm active:scale-95',
+                  dirtyCount === 0
+                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-border'
+                    : 'bg-emerald-600 text-white shadow-emerald-600/20 hover:bg-emerald-700',
+                )}
+                title="Save all"
+              >
+                <Save size={16} />
+                Save all
+              </button>
               <input
                 ref={fileRef}
                 type="file"
@@ -280,6 +366,17 @@ export default function AccountsEnglishPage() {
                 <Upload size={16} />
                 Upload
               </button>
+              {selectedIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => void bulkDeleteSelected()}
+                  className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-3 py-2 text-[12px] font-black text-white shadow-md shadow-red-600/20 hover:bg-red-700 active:scale-95"
+                  title="Delete selected"
+                >
+                  <Trash2 size={16} />
+                  Delete ({selectedIds.length})
+                </button>
+              )}
               <button
                 type="button"
                 onClick={addRow}
@@ -303,6 +400,15 @@ export default function AccountsEnglishPage() {
             <table className="min-w-[1200px] w-full border-separate border-spacing-0">
               <thead className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm shadow-[0_1px_0_rgba(0,0,0,0.05)]">
                 <tr>
+                  <th className={clsx(th, 'w-12 text-center')}>
+                    <input
+                      type="checkbox"
+                      checked={selectableCount > 0 && selectedIds.length === selectableCount}
+                      onChange={toggleSelectAll}
+                      className="rounded border-border"
+                      aria-label="Select all"
+                    />
+                  </th>
                   <th className={th}>Mã tài khoản</th>
                   <th className={th}>Tên tài khoản</th>
                   <th className={th}>In English</th>
@@ -314,13 +420,26 @@ export default function AccountsEnglishPage() {
               <tbody className="bg-white">
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className={clsx(td, 'py-12 text-center text-muted-foreground italic')}>
+                    <td colSpan={7} className={clsx(td, 'py-12 text-center text-muted-foreground italic')}>
                       {loading ? 'Loading…' : 'No data. Click “New row” to add.'}
                     </td>
                   </tr>
                 ) : (
                   rows.map((r) => (
                     <tr key={r.id} className={clsx('hover:bg-slate-50/60', r.dirty && 'bg-amber-50/40')}>
+                      <td className={clsx(td, 'text-center')} onClick={(e) => e.stopPropagation()}>
+                        {!r.isNew ? (
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(r.id)}
+                            onChange={() => toggleSelect(r.id)}
+                            className="rounded border-border"
+                            aria-label={`Select ${r.account_code || r.id}`}
+                          />
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
                       <td className={td}>
                         <input
                           value={r.account_code}
