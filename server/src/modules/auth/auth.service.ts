@@ -15,10 +15,12 @@ export const authService = {
   },
 
   async login(email: string, password: string) {
+    const emailNorm = String(email || '').trim().toLowerCase();
     const { data: employee, error } = await supabase
       .from('employees')
       .select('*')
-      .eq('email', email)
+      // Emails are case-insensitive; tolerate mixed casing and whitespace.
+      .ilike('email', emailNorm)
       .single();
 
     if (error || !employee) {
@@ -29,7 +31,12 @@ export const authService = {
       throw new AppError('Account not set up with a password. Please contact admin.', 401);
     }
 
-    const isMatch = await this.comparePassword(password, employee.password);
+    const stored = String(employee.password || '');
+    const input = String(password || '');
+
+    // Some legacy rows may have plain-text passwords. Prefer bcrypt when detected.
+    const isBcryptHash = /^\$2[aby]\$/.test(stored);
+    const isMatch = isBcryptHash ? await this.comparePassword(input, stored) : input === stored;
     if (!isMatch) {
       throw new AppError('Invalid email or password', 401);
     }

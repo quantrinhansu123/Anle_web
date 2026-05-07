@@ -2,8 +2,8 @@ import {
   FileText, FileSignature, Anchor,
   Users,
   BadgeDollarSign, CreditCard,
-  Truck, Handshake, Package, ShoppingCart, Palette, Building2, ImageIcon, Boxes,
-  Calendar, Activity, LayoutDashboard, LayoutGrid, Database, Zap, Mail, Link as LinkIcon, Briefcase, GraduationCap, Grid,
+  Handshake, Package, ShoppingCart, Palette, Building2, ImageIcon, Boxes,
+  Calendar, Activity, LayoutDashboard, LayoutGrid, Zap, Mail, Link as LinkIcon, Briefcase, GraduationCap, Grid, BookOpen,
   MessageSquare, Banknote, Coins, AppWindow, Receipt,
   Bot, Shield, UserCircle, BarChart3, ClipboardList, Scale, LineChart, ArrowRightLeft, CalendarRange,
 } from 'lucide-react';
@@ -46,17 +46,9 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
   ],
   '/operations': [
     {
-      section: 'Logistics & Supply Chain',
-      items: [
-        { icon: Package, title: 'Shipments', description: 'General shipment data and specifications.', colorScheme: 'slate', path: '/shipments/information' },
-        { icon: Database, title: 'Inventory', description: 'Stock, warehouses, overview, and operations hub.', colorScheme: 'emerald', path: '/inventory' },
-        { icon: Truck, title: 'Fleet', description: 'Manage vehicles, contracts, and costs.', colorScheme: 'slate', path: '/fleet' },
-      ]
-    },
-    {
       section: 'Trading',
       items: [
-        { icon: BadgeDollarSign, title: 'Sales', description: 'Manage outbound sales quotations and orders.', colorScheme: 'amber', path: '/financials/sales', requiredDepartments: ['sales', 'finance', 'bod'] },
+        { icon: BadgeDollarSign, title: 'Trading Sale', description: 'Trading sales list: supplier, shipment, HS code, quantity, costs, and totals.', colorScheme: 'amber', path: '/operations/trading-sale', requiredDepartments: ['sales', 'finance', 'bod'] },
         { icon: FileText, title: 'Sales Quotation', description: 'Create a new sales quotation.', colorScheme: 'cyan', path: '/financials/sales/new', requiredDepartments: ['sales', 'finance', 'bod'] },
         { icon: ShoppingCart, title: 'Purchasing', description: 'Manage purchasing items and costs.', colorScheme: 'orange', path: '/financials/purchasing', requiredDepartments: ['procurement', 'finance', 'bod'] },
         { icon: FileSignature, title: 'Contracts', description: 'Comprehensive list of all shipping contracts.', colorScheme: 'slate', path: '/contracts/directory', requiredDepartments: ['sales', 'procurement', 'finance', 'bod'] },
@@ -125,6 +117,29 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
           description: 'B01-DN style: line items, codes, balances — view and export.',
           colorScheme: 'emerald',
           path: '/financials/balance-sheet',
+        },
+        {
+          icon: Grid,
+          title: 'Balance Accounts',
+          description: 'Trial balance by account: opening, period, ending (debit/credit).',
+          colorScheme: 'cyan',
+          path: '/financials/balance-accounts',
+        },
+        {
+          icon: BookOpen,
+          title: 'Accounts',
+          description: 'Account dictionary: code, Vietnamese name, English name, voucher template, level 1.',
+          colorScheme: 'slate',
+          path: '/financials/accounts',
+          requiredDepartments: ['finance', 'bod'],
+        },
+        {
+          icon: ClipboardList,
+          title: 'General Journal',
+          description: 'Journal entries (English): posting date, voucher no/date, account, debit/credit.',
+          colorScheme: 'amber',
+          path: '/financials/general-journal',
+          requiredDepartments: ['finance', 'bod'],
         },
         {
           icon: LineChart,

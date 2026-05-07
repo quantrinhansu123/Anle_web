@@ -53,6 +53,11 @@ import WebsitePage from './pages/WebsitePage';
 import LoginPage from './pages/auth/LoginPage';
 import ApprovalsPage from './pages/ApprovalsPage';
 import LinkTrackerPage from './pages/LinkTrackerPage';
+import OperationsPage from './pages/OperationsPage';
+import TradingSalePage from './pages/trading/TradingSalePage';
+import BalanceAccountsPage from './pages/financials/BalanceAccountsPage';
+import AccountsEnglishPage from './pages/financials/AccountsEnglishPage';
+import GeneralJournalPage from './pages/financials/GeneralJournalPage';
 import { AuthProvider } from './contexts/AuthContext';
 import { BreadcrumbProvider } from './contexts/BreadcrumbContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -84,7 +89,7 @@ function App() {
 
                 {/* Module Directory Pages */}
                 <Route path="/shipping" element={<ModulePage />} />
-                <Route path="/operations" element={<ModulePage />} />
+                <Route path="/operations" element={<OperationsPage />} />
                 <Route path="/marketing" element={<ModulePage />} />
                 <Route path="/hr" element={<ModulePage />} />
                 <Route path="/finance" element={<ModulePage />} />
@@ -136,6 +141,7 @@ function App() {
                 <Route path="/financials/sales/quotation/:id" element={<HoadonAnle />} />
                 <Route path="/financials/sales-charges" element={<SalesChargeCatalogPage />} />
                 <Route path="/financials/purchasing" element={<PurchasingPage />} />
+                <Route path="/operations/trading-sale" element={<TradingSalePage />} />
                 <Route path="/financials/po-approvals" element={<POApprovalsPage />} />
                 <Route path="/financials/approvals" element={<ApprovalsPage />} />
                 <Route path="/financials/payment-requests" element={<PaymentRequestsPage />} />
@@ -157,6 +163,9 @@ function App() {
                 <Route path="/elearning" element={<PlaceholderPage />} />
                 <Route path="/financials/accounting-dashboard" element={<AccountingDashboardPage />} />
                 <Route path="/financials/balance-sheet" element={<BalanceSheetPage />} />
+                <Route path="/financials/balance-accounts" element={<BalanceAccountsPage />} />
+                <Route path="/financials/accounts" element={<AccountsEnglishPage />} />
+                <Route path="/financials/general-journal" element={<GeneralJournalPage />} />
                 <Route path="/financials/profit-loss" element={<ProfitLossPage />} />
                 <Route path="/financials/cash-flow" element={<CashFlowPage />} />
                 <Route path="/financials/receivable-aging" element={<ReceivableAgingPage />} />

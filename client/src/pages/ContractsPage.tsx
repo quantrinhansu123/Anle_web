@@ -4,7 +4,7 @@ import {
   ChevronLeft, Search, Plus,
   Edit, Trash2, List,
   ChevronRight, RefreshCcw,
-  BarChart2, FileText, User as UserIcon, Truck, ShoppingCart, ExternalLink, X
+  BarChart2, FileText, User as UserIcon, Truck, ShoppingCart, ExternalLink, X, Printer
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
@@ -18,6 +18,8 @@ import { useAuth } from '../contexts/AuthContext';
 import type { Contract, CreateContractDto } from './contracts/types';
 import ContractDialog from './contracts/dialogs/ContractDialog';
 import { useToastContext } from '../contexts/ToastContext';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 // --- CONFIGURATION ---
 const INITIAL_FORM_STATE: Partial<Contract> = {
@@ -103,6 +105,64 @@ const COLUMN_DEFS: Record<string, ColDef> = {
 
 const DEFAULT_COL_ORDER = Object.keys(COLUMN_DEFS);
 
+function companyLogoSrc(): string {
+  if (import.meta.env.DEV) return '/appsheet-brand-logo';
+  return 'https://www.appsheet.com/template/gettablefileurl?appName=Appsheet-325045268&tableName=Kho%20%E1%BA%A3nh&fileName=Kho%20%E1%BA%A3nh_Images%2Fe6a56fae.%E1%BA%A2nh.064359.png';
+}
+
+async function downloadPdfFromElement(el: HTMLElement, filename: string): Promise<void> {
+  const canvas = await html2canvas(el, {
+    scale: 2,
+    useCORS: true,
+    allowTaint: false,
+    logging: false,
+    backgroundColor: '#ffffff',
+    onclone: (clonedDoc) => {
+      clonedDoc.querySelectorAll('link[rel="stylesheet"]').forEach((node) => node.remove());
+    },
+  });
+  const imgData = canvas.toDataURL('image/jpeg', 0.92);
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  const pdfWidth = pdf.internal.pageSize.getWidth();
+  const pdfHeight = pdf.internal.pageSize.getHeight();
+  const imgWidth = pdfWidth;
+  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+  let heightLeft = imgHeight;
+  let position = 0;
+  pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+  heightLeft -= pdfHeight;
+  while (heightLeft > 0) {
+    position -= pdfHeight;
+    pdf.addPage();
+    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pdfHeight;
+  }
+  pdf.save(filename);
+}
+
+const CONTRACT_PDF_CSS = `
+.ct-root{ box-sizing:border-box; width: 800px; max-width:100%; margin:0 auto; background:#fff; color:#0f172a; padding:26px 36px 34px; font-family: Arial, Helvetica, sans-serif; font-size: 13px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+.ct-root *, .ct-root *::before, .ct-root *::after{ box-sizing:border-box; }
+.ct-header{ display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:12px; }
+.ct-logo{ width:190px; flex-shrink:0; padding-top:2px; }
+.ct-logo img{ width:100%; height:auto; display:block; object-fit:contain; }
+.ct-co{ text-align:right; font-size:9px; color:#64748b; text-transform:uppercase; letter-spacing:0.18em; line-height:1.55; }
+.ct-co .ct-co-name{ color:#0f172a; font-weight:800; }
+.ct-band{ display:flex; align-items:center; justify-content:space-between; gap:12px; background:#0ea5e9; color:#fff; padding:10px 14px; border-radius:10px; margin-bottom:14px; }
+.ct-title{ font-weight:900; text-transform:uppercase; letter-spacing:0.06em; font-size:13px; }
+.ct-meta{ font-weight:800; font-size:11px; opacity:0.95; text-align:right; }
+.ct-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px; }
+.ct-box{ border:1px solid #e2e8f0; border-radius:12px; padding:10px 12px; }
+.ct-label{ font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:0.06em; color:#0284c7; margin-bottom:4px; }
+.ct-val{ font-size:13px; font-weight:700; color:#0f172a; }
+.ct-sub{ font-size:11px; font-weight:700; color:#475569; }
+.ct-sign{ display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:16px; }
+.ct-sigbox{ border:1px dashed #cbd5e1; border-radius:12px; padding:12px; min-height:92px; }
+.ct-sigtitle{ font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin-bottom:8px; }
+.ct-muted{ color:#64748b; font-weight:700; font-size:11px; }
+@media print{ @page{ margin:10mm; size:A4;} html, body{ margin:0 !important; padding:0 !important;} .ct-root{ box-shadow:none; width:100%; padding:0; } }
+`;
+
 const ContractsPage: React.FC = () => {
   const navigate = useNavigate();
   const { success, error } = useToastContext();
@@ -142,6 +202,17 @@ const ContractsPage: React.FC = () => {
   // Column Settings State
   const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_COL_ORDER);
   const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_COL_ORDER);
+
+  const contractPdfRef = useRef<HTMLDivElement | null>(null);
+  const [contractPdfDoc, setContractPdfDoc] = useState<{
+    contractNo: string;
+    entityName: string;
+    entityType: string;
+    kind: string;
+    paymentTerm: string;
+    picName: string;
+    date: string;
+  } | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -222,6 +293,24 @@ const ContractsPage: React.FC = () => {
       setIsDialogOpen(false);
       setIsClosing(false);
     }, 350);
+  };
+
+  const handleExportContractPdf = async (c: Contract) => {
+    const entityName = c.customers?.company_name || c.suppliers?.company_name || '—';
+    const entityType = c.customer_id ? 'Customer' : (c.supplier_id ? 'Supplier' : '—');
+    const kind = [c.type_logistic ? 'Logistic' : null, c.type_trading ? 'Trading' : null].filter(Boolean).join(' / ') || '—';
+    const contractNo = c.no_contract || `#${c.id.slice(0, 8)}`;
+    const paymentTerm = c.type_trading ? (c.payment_term || '—') : '—';
+    const picName = c.employees?.full_name || '—';
+    const date = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date());
+
+    setContractPdfDoc({ contractNo, entityName, entityType, kind, paymentTerm, picName, date });
+    await new Promise((r) => setTimeout(r, 50));
+    if (!contractPdfRef.current) return;
+
+    const safe = String(contractNo).replace(/[\\/:*?"<>|]+/g, '-').slice(0, 60);
+    await downloadPdfFromElement(contractPdfRef.current, `Contract_${safe}_${new Date().toISOString().slice(0, 10)}.pdf`);
+    success('Contract PDF exported');
   };
 
   const handleSave = async () => {
@@ -329,6 +418,68 @@ const ContractsPage: React.FC = () => {
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full flex-1 flex flex-col -mt-2 min-h-0">
+      {/* Hidden PDF template */}
+      <div className="fixed left-[-99999px] top-0 w-[900px]">
+        {contractPdfDoc ? (
+          <div ref={contractPdfRef} className="ct-root">
+            <style dangerouslySetInnerHTML={{ __html: CONTRACT_PDF_CSS }} />
+            <header className="ct-header">
+              <div className="ct-logo">
+                <img src={companyLogoSrc()} alt="ANLE-SCM Logo" />
+              </div>
+              <div className="ct-co">
+                <div className="ct-co-name">COMPANY LTD ANLE-SCM</div>
+                <div>Hotline: 0519055056</div>
+                <div>Email: MGM@ANLE-SCM.COM</div>
+                <div>Website: ANLE-SCM.COM</div>
+              </div>
+            </header>
+
+            <div className="ct-band">
+              <div className="ct-title">Contract</div>
+              <div className="ct-meta">
+                Date: {contractPdfDoc.date}
+                <br />
+                No: {contractPdfDoc.contractNo}
+              </div>
+            </div>
+
+            <div className="ct-grid">
+              <div className="ct-box">
+                <div className="ct-label">Entity</div>
+                <div className="ct-val">{contractPdfDoc.entityName}</div>
+                <div className="ct-sub">{contractPdfDoc.entityType}</div>
+              </div>
+              <div className="ct-box">
+                <div className="ct-label">PIC</div>
+                <div className="ct-val">{contractPdfDoc.picName}</div>
+                <div className="ct-sub">Kind: {contractPdfDoc.kind}</div>
+              </div>
+              <div className="ct-box">
+                <div className="ct-label">Payment term</div>
+                <div className="ct-val">{contractPdfDoc.paymentTerm}</div>
+                <div className="ct-sub">Applies to Trading contracts</div>
+              </div>
+              <div className="ct-box">
+                <div className="ct-label">Notes</div>
+                <div className="ct-val">—</div>
+                <div className="ct-sub">Generated from Contracts Directory</div>
+              </div>
+            </div>
+
+            <div className="ct-sign">
+              <div className="ct-sigbox">
+                <div className="ct-sigtitle">Company representative</div>
+                <div className="ct-muted">Full name, signature, stamp</div>
+              </div>
+              <div className="ct-sigbox">
+                <div className="ct-sigtitle">Customer / Supplier</div>
+                <div className="ct-muted">Full name, signature</div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
       {/* Tabs */}
       <div className="flex items-center gap-1 mb-4">
         <button
@@ -533,6 +684,17 @@ const ContractsPage: React.FC = () => {
                               <ExternalLink size={14} />
                             </a>
                           )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleExportContractPdf(c);
+                            }}
+                            className="p-1.5 rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 transition-all active:scale-95 shadow-sm"
+                            title="Export PDF"
+                          >
+                            <Printer size={14} />
+                          </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
