@@ -8,16 +8,16 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: process.env.VITE_API_URL ? new URL(process.env.VITE_API_URL).origin : 'http://localhost:3006',
+        target: process.env.VITE_API_URL ? new URL(process.env.VITE_API_URL).origin : 'http://localhost:3000',
         changeOrigin: true,
       },
       '/uploads': {
-        target: process.env.VITE_API_URL ? new URL(process.env.VITE_API_URL).origin : 'http://localhost:3006',
+        target: process.env.VITE_API_URL ? new URL(process.env.VITE_API_URL).origin : 'http://localhost:3000',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/uploads/, '/api/v1/f/uploads')
       },
       '/avatars': {
-        target: process.env.VITE_API_URL ? new URL(process.env.VITE_API_URL).origin : 'http://localhost:3006',
+        target: process.env.VITE_API_URL ? new URL(process.env.VITE_API_URL).origin : 'http://localhost:3000',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/avatars/, '/api/v1/f/avatars')
       },

@@ -1,6 +1,6 @@
 const resolveBaseUrl = () => {
   const configured = import.meta.env.VITE_API_URL as string | undefined;
-  if (!configured) return 'http://localhost:3006/api/v1';
+  if (!configured) return 'http://localhost:3000/api/v1';
 
   // Avoid mixed-content/network failures on deployed HTTPS clients when env accidentally points to localhost HTTP.
   if (typeof window !== 'undefined') {

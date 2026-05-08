@@ -24,6 +24,7 @@ import salesUnitCatalogRoutes from './modules/sales-unit-catalog/sales-unit-cata
 import fmsDashboardRoutes from './modules/fms-dashboard/fms-dashboard.routes';
 import businessDashboardRoutes from './modules/business-dashboard/business-dashboard.routes';
 import reportsRoutes from './modules/reports/reports.routes';
+import tradingSalesRoutes from './modules/trading-sales/trading-sales.routes';
 
 import salaryAdvanceRequestRoutes from './modules/salary-advance-requests/salary-advance-request.routes';
 import customerExpenseRoutes from './modules/customer-expenses/customer-expense.routes';
@@ -72,6 +73,7 @@ app.use(`${v1}/fms-dashboard`, fmsDashboardRoutes);
 app.use(`${v1}/business-dashboard`, businessDashboardRoutes);
 app.use(`${v1}/reports`, reportsRoutes);
 app.use(`${v1}/sales`, departmentAccess('sales', 'bod'), salesRoutes);
+app.use(`${v1}/trading-sales`, departmentAccess('sales', 'finance', 'bod'), tradingSalesRoutes);
 app.use(`${v1}/sales-charge-catalog`, salesChargeCatalogRoutes);
 app.use(`${v1}/sales-unit-catalog`, salesUnitCatalogRoutes);
 app.use(`${v1}/purchasing`, departmentAccess('procurement', 'bod'), purchasingRoutes);

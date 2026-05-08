@@ -255,7 +255,7 @@ const SalesPage: React.FC = () => {
   };
 
   const handleOpenAdd = () => {
-    navigate('/financials/sales/new');
+    navigate('/financials/sales-quotation/new');
   };
 
   const handleOpenEdit = (item: Sales) => {

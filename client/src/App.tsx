@@ -135,7 +135,10 @@ function App() {
                 <Route path="/employees/directory/:id" element={<EmployeeDetailsPage />} />
                 <Route path="/contracts/directory" element={<ContractsPage />} />
                 <Route path="/financials/sales" element={<SalesPage />} />
-                <Route path="/financials/sales/new" element={<SalesEditorPage mode="add" />} />
+                {/* Redirect: use Trading Sale module instead of logistics SalesEditor */}
+                <Route path="/financials/sales/new" element={<Navigate to="/operations/trading-sale" replace />} />
+                {/* Legacy/alternate route: create Sales Quotation (logistics) */}
+                <Route path="/financials/sales-quotation/new" element={<SalesEditorPage mode="add" />} />
                 <Route path="/financials/sales/:id" element={<SalesEditorPage mode="detail" />} />
                 <Route path="/financials/sales/:id/edit" element={<SalesEditorPage mode="edit" />} />
                 <Route path="/financials/sales/quotation/:id" element={<HoadonAnle />} />
