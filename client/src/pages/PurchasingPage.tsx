@@ -133,36 +133,6 @@ function companyLogoSrc(): string {
   return 'https://www.appsheet.com/template/gettablefileurl?appName=Appsheet-325045268&tableName=Kho%20%E1%BA%A3nh&fileName=Kho%20%E1%BA%A3nh_Images%2Fe6a56fae.%E1%BA%A2nh.064359.png';
 }
 
-async function downloadPdfFromElement(el: HTMLElement, filename: string): Promise<void> {
-  const canvas = await html2canvas(el, {
-    scale: 2,
-    useCORS: true,
-    allowTaint: false,
-    logging: false,
-    backgroundColor: '#ffffff',
-    onclone: (clonedDoc) => {
-      clonedDoc.querySelectorAll('link[rel="stylesheet"]').forEach((node) => node.remove());
-    },
-  });
-  const imgData = canvas.toDataURL('image/jpeg', 0.92);
-  const pdf = new jsPDF('p', 'mm', 'a4');
-  const pdfWidth = pdf.internal.pageSize.getWidth();
-  const pdfHeight = pdf.internal.pageSize.getHeight();
-  const imgWidth = pdfWidth;
-  const imgHeight = (canvas.height * imgWidth) / canvas.width;
-  let heightLeft = imgHeight;
-  let position = 0;
-  pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-  heightLeft -= pdfHeight;
-  while (heightLeft > 0) {
-    position -= pdfHeight;
-    pdf.addPage();
-    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-    heightLeft -= pdfHeight;
-  }
-  pdf.save(filename);
-}
-
 async function downloadMultiPagePdf(elements: HTMLElement[], filename: string): Promise<void> {
   const pdf = new jsPDF('p', 'mm', 'a4');
   const pdfWidth = pdf.internal.pageSize.getWidth();

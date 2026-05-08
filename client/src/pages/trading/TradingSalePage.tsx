@@ -225,13 +225,18 @@ const TradingSalePage: React.FC = () => {
 
   const handleCustomerNameChange = (value: string) => {
     const raw = value || '';
-    const match = customers.find((c) => (c.company_name || '').toLowerCase() === raw.trim().toLowerCase());
+    const match: Customer | undefined = customers.find(
+      (c) => (c.company_name || '').toLowerCase() === raw.trim().toLowerCase(),
+    );
+    const matchId = match?.id || null;
+    const matchTax = match?.tax_code || '';
+    const matchAddr = match ? (match.office_address || match.address || match.bl_address || '') : '';
     setDraft((p) => ({
       ...p,
-      customer_id: match?.id || null,
+      customer_id: matchId,
       customer_company_name: raw,
-      customer_tax_code: match?.tax_code || (p.customer_id === match?.id ? p.customer_tax_code : ''),
-      customer_address: match ? (match.office_address || match.address || match.bl_address || '') : (p.customer_id === match?.id ? p.customer_address : ''),
+      customer_tax_code: matchTax || (p.customer_id === matchId ? p.customer_tax_code : ''),
+      customer_address: matchAddr || (p.customer_id === matchId ? p.customer_address : ''),
     }));
   };
 
