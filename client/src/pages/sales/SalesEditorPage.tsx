@@ -42,16 +42,8 @@ import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 import { SalesChargeCatalogDialog } from './dialogs/SalesChargeCatalogDialog';
 import { SalesUnitCatalogDialog } from './dialogs/SalesUnitCatalogDialog';
 import { customerService, type Customer } from '../../services/customerService';
-import { Edit3, Send, CheckCircle2, FileCheck, CheckSquare } from 'lucide-react';
-import { WorkflowStepper, type WorkflowStep } from '../../components/ui/WorkflowStepper';
-
-export const QUOTATION_STATUS_STEPS: WorkflowStep<QuotationStatus>[] = [
-  { id: 'draft', label: 'Draft', icon: Edit3 },
-  { id: 'confirmed', label: 'Confirmed', icon: CheckSquare },
-  { id: 'sent', label: 'Sent', icon: Send },
-  { id: 'won', label: 'Won', icon: CheckCircle2 },
-  { id: 'lost', label: 'Lost', icon: FileCheck },
-];
+import { WorkflowStepper } from '../../components/ui/WorkflowStepper';
+import { QUOTATION_STATUS_STEPS } from './quotationStatusSteps';
 
 
 const INITIAL_FORM_STATE: SalesFormState = {
@@ -151,10 +143,34 @@ const parseViNumber = (value: unknown): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
+const getErrorMessage = (err: unknown) =>
+  err instanceof Error ? err.message : '';
+
+const getChargeNumber = (
+  row: SalesChargeItem,
+  key: 'quantity' | 'unit_price' | 'vat_percent',
+) => parseViNumber(row[key]);
+
+const normalizeSalesExchangeRate = (
+  currencyCode: string | undefined,
+  value: unknown,
+  exchangeRates: ExchangeRate[],
+): number | undefined => {
+  const currency = (currencyCode || '').trim().toUpperCase();
+  const rate = parseViNumber(value);
+  if (currency === 'VND') return 1;
+  if (rate > 0) return rate;
+
+  const catalogRate = exchangeRates.find((item) => item.currency_code.trim().toUpperCase() === currency)?.rate;
+  if (catalogRate && catalogRate > 0) return catalogRate;
+
+  return undefined;
+};
+
 const calculateRow = (row: SalesChargeItem) => {
-  const quantity = parseViNumber((row as any).quantity);
-  const unitPrice = parseViNumber((row as any).unit_price);
-  const vatPercent = parseViNumber((row as any).vat_percent);
+  const quantity = getChargeNumber(row, 'quantity');
+  const unitPrice = getChargeNumber(row, 'unit_price');
+  const vatPercent = getChargeNumber(row, 'vat_percent');
   const amountExVat = quantity * unitPrice;
   const vatAmount = (amountExVat * vatPercent) / 100;
   return { amountExVat, vatAmount };
@@ -189,9 +205,9 @@ const isBlankChargeRow = (row: SalesChargeItem) =>
   !ztrim(row.charge_type) &&
   !ztrim(row.unit) &&
   !ztrim(row.note) &&
-  parseViNumber((row as any).quantity) === 0 &&
-  parseViNumber((row as any).unit_price) === 0 &&
-  parseViNumber((row as any).vat_percent) === 0;
+  getChargeNumber(row, 'quantity') === 0 &&
+  getChargeNumber(row, 'unit_price') === 0 &&
+  getChargeNumber(row, 'vat_percent') === 0;
 
 const isPureTrailingBlankRow = (row: SalesChargeItem) =>
   isBlankChargeRow(row) && !row._mobileNewSlot;
@@ -271,6 +287,12 @@ const filterNonBlankChargeItems = (items: SalesChargeItem[]) =>
   items.filter((r) => !isBlankChargeRow(r));
 
 const cloneFormState = (state: SalesFormState): SalesFormState => JSON.parse(JSON.stringify(state));
+
+const stripMobileNewSlot = (row: SalesChargeItem): SalesChargeItem => {
+  const clone = { ...row };
+  delete clone._mobileNewSlot;
+  return clone;
+};
 
 const pickCustomerTradeName = (c?: {
   local_name?: string;
@@ -366,16 +388,12 @@ const SalesEditorPage: React.FC<Props> = ({ mode }) => {
 
   const [loading, setLoading] = useState(mode !== 'add');
   const [saving, setSaving] = useState(false);
-  const [isInlineEditing, setIsInlineEditing] = useState(mode === 'edit');
+  const [isInlineEditing, setIsInlineEditing] = useState(false);
   const [formState, setFormState] = useState<SalesFormState>(INITIAL_FORM_STATE);
   const [loadedFormState, setLoadedFormState] = useState<SalesFormState | null>(null);
   const effectiveMode: 'add' | 'edit' | 'detail' = mode === 'detail'
     ? (isInlineEditing ? 'edit' : 'detail')
     : mode;
-
-  useEffect(() => {
-    setIsInlineEditing(mode === 'edit');
-  }, [mode]);
 
   useEffect(() => {
     if (mode === 'add') {
@@ -430,6 +448,9 @@ const SalesEditorPage: React.FC<Props> = ({ mode }) => {
       transit_time: item.transit_time,
       service_mode: item.service_mode,
       direction: item.direction,
+      vessel_voyage: item.vessel_voyage ?? item.shipments?.vessel_voyage ?? '',
+      etd: item.etd ?? item.shipments?.etd ?? '',
+      eta: item.eta ?? item.shipments?.eta ?? '',
       currency_code: item.currency_code,
       job_no: item.job_no,
       sales_inquiry_no: item.sales_inquiry_no,
@@ -437,7 +458,7 @@ const SalesEditorPage: React.FC<Props> = ({ mode }) => {
       customs_declaration_no: item.customs_declaration_no ?? item.shipments?.customs_declaration_no ?? '',
       incoterms: item.incoterms ?? item.shipments?.term ?? '',
       notes: item.notes,
-      exchange_rate: item.exchange_rate,
+      exchange_rate: normalizeSalesExchangeRate(item.currency_code, item.exchange_rate, exchangeRates),
       exchange_rate_date: item.exchange_rate_date,
       items:
         item.sales_items?.map((si) => ({
@@ -489,11 +510,7 @@ const SalesEditorPage: React.FC<Props> = ({ mode }) => {
   }, []);
 
   useEffect(() => {
-    if (mode === 'add') {
-      setFormState(INITIAL_FORM_STATE);
-      setLoading(false);
-      return;
-    }
+    if (mode === 'add') return;
 
     if (!id) {
       navigate('/financials/sales', { replace: true });
@@ -505,9 +522,9 @@ const SalesEditorPage: React.FC<Props> = ({ mode }) => {
         setLoading(true);
         const item = await salesService.getSalesItemById(id);
         setFormStateFromItem(item);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Failed to fetch sales item:', err);
-        toastError(err?.message || 'Failed to load quotation');
+        toastError(getErrorMessage(err) || 'Failed to load quotation');
         navigate('/financials/sales', { replace: true });
       } finally {
         setLoading(false);
@@ -526,13 +543,21 @@ const SalesEditorPage: React.FC<Props> = ({ mode }) => {
 
       const payload: SalesFormState = {
         ...formState,
+        exchange_rate: normalizeSalesExchangeRate(
+          formState.currency_code,
+          formState.exchange_rate,
+          exchangeRates,
+        ),
         charge_items: filterNonBlankChargeItems(
-          (formState.charge_items || []).map(({ _mobileNewSlot: _ms, ...r }) => ({
-            ...r,
-            quantity: parseViNumber((r as any).quantity),
-            unit_price: parseViNumber((r as any).unit_price),
-            vat_percent: parseViNumber((r as any).vat_percent),
-          })),
+          (formState.charge_items || []).map((row) => {
+            const r = stripMobileNewSlot(row);
+            return {
+              ...r,
+              quantity: getChargeNumber(r, 'quantity'),
+              unit_price: getChargeNumber(r, 'unit_price'),
+              vat_percent: getChargeNumber(r, 'vat_percent'),
+            };
+          }),
         ),
       };
 
@@ -552,9 +577,9 @@ const SalesEditorPage: React.FC<Props> = ({ mode }) => {
       }
 
       navigate('/financials/sales', { replace: true });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to save sales item:', err);
-      toastError(err?.message || 'Failed to save sales item. Please check your data.');
+      toastError(getErrorMessage(err) || 'Failed to save sales item. Please check your data.');
     } finally {
       setSaving(false);
     }
@@ -668,22 +693,12 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
     index: number;
   } | null>(null);
   const [creatingJob, setCreatingJob] = useState(false);
-  const [scheduleDraft, setScheduleDraft] = useState<{ vessel: string; etd: string; eta: string }>({
-    vessel: '',
-    etd: '',
-    eta: '',
-  });
   const lastAutoRateCurrencyRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    const s = formState.relatedShipment;
-    if (!s) return;
-    setScheduleDraft((prev) => ({
-      vessel: prev.vessel || s.vessel_voyage || '',
-      etd: prev.etd || s.etd || '',
-      eta: prev.eta || s.eta || '',
-    }));
-  }, [formState.relatedShipment?.id]);
+  const scheduleValues = {
+    vessel: formState.vessel_voyage || formState.relatedShipment?.vessel_voyage || '',
+    etd: formState.etd || formState.relatedShipment?.etd || '',
+    eta: formState.eta || formState.relatedShipment?.eta || '',
+  };
 
   const exchangeRateByCode = useMemo(() => {
     const m = new Map<string, number>();
@@ -705,9 +720,9 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
     setCreatingJob(true);
     try {
       const shipmentPatch: Record<string, unknown> = {};
-      if (scheduleDraft.vessel.trim()) shipmentPatch.vessel_voyage = scheduleDraft.vessel.trim();
-      if (scheduleDraft.etd.trim()) shipmentPatch.etd = scheduleDraft.etd.trim();
-      if (scheduleDraft.eta.trim()) shipmentPatch.eta = scheduleDraft.eta.trim();
+      if (scheduleValues.vessel.trim()) shipmentPatch.vessel_voyage = scheduleValues.vessel.trim();
+      if (scheduleValues.etd.trim()) shipmentPatch.etd = scheduleValues.etd.trim();
+      if (scheduleValues.eta.trim()) shipmentPatch.eta = scheduleValues.eta.trim();
 
       const result = await salesService.createJobFromQuotation(
         formState.id,
@@ -736,7 +751,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
     }
   }, [
     formState,
-    scheduleDraft,
+    scheduleValues,
     onPersistedStatusChange,
     navigate,
     toastSuccess,
@@ -939,7 +954,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
     const groupItems = [...getGroupItems(group)];
     const prev = groupItems[index];
     if (!prev) return;
-    const { _mobileNewSlot: _ms, ...rest } = prev;
+    const rest = stripMobileNewSlot(prev);
     groupItems[index] = { ...rest, [key]: value };
     setGroupItems(group, groupItems);
   };
@@ -952,7 +967,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
     const groupItems = [...getGroupItems(group)];
     const row = groupItems[index];
     if (!row) return;
-    const { _mobileNewSlot: _ms, ...rest } = row;
+    const rest = stripMobileNewSlot(row);
     groupItems[index] = {
       ...rest,
       freight_code: cat.freight_code,
@@ -1165,7 +1180,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                         <input
                           type="number"
                           step="0.01"
-                          value={Number((row as any).quantity) || 0}
+                          value={getChargeNumber(row, 'quantity')}
                           onChange={(e) => updateChargeRow(group, index, 'quantity', Number(e.target.value) || 0)}
                           onFocus={(e) => {
                             e.currentTarget.select();
@@ -1180,7 +1195,7 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                         <input
                           type="number"
                           step="0.01"
-                          value={Number((row as any).unit_price) || 0}
+                          value={getChargeNumber(row, 'unit_price')}
                           onChange={(e) => updateChargeRow(group, index, 'unit_price', Number(e.target.value) || 0)}
                           onFocus={(e) => {
                             e.currentTarget.select();
@@ -1195,12 +1210,12 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                         <input
                           type="number"
                           step="0.1"
-                          value={(row as any).vat_percent ?? ''}
+                          value={row.vat_percent ?? ''}
                           onChange={(e) =>
                             updateChargeRow(group, index, 'vat_percent', e.target.value === '' ? '' : Number(e.target.value))
                           }
                           onFocus={(e) => {
-                            if ((Number((row as any).vat_percent) || 0) === 0) {
+                            if ((getChargeNumber(row, 'vat_percent')) === 0) {
                               updateChargeRow(group, index, 'vat_percent', '');
                             }
                             e.currentTarget.select();
@@ -1364,13 +1379,13 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                           />
                         </td>
                         <td className="px-3 py-2 border-b border-border/60 min-w-[120px]">
-                          <input type="number" step="0.01" value={Number((row as any).quantity) || 0} onChange={(e) => updateChargeRow(group, index, 'quantity', Number(e.target.value) || 0)} onFocus={(e) => { e.currentTarget.select(); }} disabled={isReadOnly} className="w-full px-2 py-1 border border-border rounded-md text-[12px] text-right" />
+                          <input type="number" step="0.01" value={getChargeNumber(row, 'quantity')} onChange={(e) => updateChargeRow(group, index, 'quantity', Number(e.target.value) || 0)} onFocus={(e) => { e.currentTarget.select(); }} disabled={isReadOnly} className="w-full px-2 py-1 border border-border rounded-md text-[12px] text-right" />
                         </td>
                         <td className="px-3 py-2 border-b border-border/60 min-w-[140px]">
-                          <input type="number" step="0.01" value={Number((row as any).unit_price) || 0} onChange={(e) => updateChargeRow(group, index, 'unit_price', Number(e.target.value) || 0)} onFocus={(e) => { e.currentTarget.select(); }} disabled={isReadOnly} className="w-full px-2 py-1 border border-border rounded-md text-[12px] text-right" />
+                          <input type="number" step="0.01" value={getChargeNumber(row, 'unit_price')} onChange={(e) => updateChargeRow(group, index, 'unit_price', Number(e.target.value) || 0)} onFocus={(e) => { e.currentTarget.select(); }} disabled={isReadOnly} className="w-full px-2 py-1 border border-border rounded-md text-[12px] text-right" />
                         </td>
                         <td className="px-3 py-2 border-b border-border/60 min-w-[110px]">
-                          <input type="number" step="0.1" value={(row as any).vat_percent ?? ''} onChange={(e) => updateChargeRow(group, index, 'vat_percent', e.target.value === '' ? '' : Number(e.target.value))} onFocus={(e) => { if ((Number((row as any).vat_percent) || 0) === 0) updateChargeRow(group, index, 'vat_percent', ''); e.currentTarget.select(); }} disabled={isReadOnly} className="w-full px-2 py-1 border border-border rounded-md text-[12px] text-right" />
+                          <input type="number" step="0.1" value={row.vat_percent ?? ''} onChange={(e) => updateChargeRow(group, index, 'vat_percent', e.target.value === '' ? '' : Number(e.target.value))} onFocus={(e) => { if ((getChargeNumber(row, 'vat_percent')) === 0) updateChargeRow(group, index, 'vat_percent', ''); e.currentTarget.select(); }} disabled={isReadOnly} className="w-full px-2 py-1 border border-border rounded-md text-[12px] text-right" />
                         </td>
                         <td className="px-3 py-2 border-b border-border/60 text-[12px] font-bold text-right tabular-nums">
                           {amountExVnd}
@@ -1707,8 +1722,10 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
               <div className="space-y-1.5">
                 <label className={mobileLabelClass}>Vessel</label>
                 <input
-                  value={scheduleDraft.vessel}
-                  onChange={(e) => setScheduleDraft((p) => ({ ...p, vessel: e.target.value }))}
+                  value={scheduleValues.vessel}
+                  onChange={(e) => {
+                    setFormField('vessel_voyage', e.target.value);
+                  }}
                   disabled={isReadOnly}
                   className={mf('emerald', isReadOnly)}
                   placeholder="e.g. EVER GREEN V.0123W"
@@ -1717,8 +1734,10 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
               <div className="space-y-1.5">
                 <label className={mobileLabelClass}>ETD</label>
                 <DateInput
-                  value={toDateInput(scheduleDraft.etd)}
-                  onChange={(v) => setScheduleDraft((p) => ({ ...p, etd: v }))}
+                  value={toDateInput(scheduleValues.etd)}
+                  onChange={(v) => {
+                    setFormField('etd', v);
+                  }}
                   disabled={isReadOnly}
                   className="w-full"
                 />
@@ -1726,8 +1745,10 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
               <div className="space-y-1.5">
                 <label className={mobileLabelClass}>ETA</label>
                 <DateInput
-                  value={toDateInput(scheduleDraft.eta)}
-                  onChange={(v) => setScheduleDraft((p) => ({ ...p, eta: v }))}
+                  value={toDateInput(scheduleValues.eta)}
+                  onChange={(v) => {
+                    setFormField('eta', v);
+                  }}
                   disabled={isReadOnly}
                   className="w-full"
                 />
@@ -2053,8 +2074,10 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                 <div className="space-y-2">
                   <label className="text-[12px] font-bold text-slate-600">Vessel</label>
                   <input
-                    value={scheduleDraft.vessel}
-                    onChange={(e) => setScheduleDraft((p: { vessel: string; etd: string; eta: string }) => ({ ...p, vessel: e.target.value }))}
+                    value={scheduleValues.vessel}
+                    onChange={(e) => {
+                      setFormField('vessel_voyage', e.target.value);
+                    }}
                     disabled={isReadOnly}
                     placeholder="e.g. EVER GREEN V.0123W"
                     className={`w-full px-3 py-2 border border-border rounded-xl text-[13px] ${isReadOnly ? 'bg-slate-100' : ''}`}
@@ -2065,8 +2088,10 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                 <div className="space-y-2">
                   <label className="text-[12px] font-bold text-slate-600">ETD</label>
                   <DateInput
-                    value={toDateInput(scheduleDraft.etd)}
-                    onChange={(v) => setScheduleDraft((p: { vessel: string; etd: string; eta: string }) => ({ ...p, etd: v }))}
+                    value={toDateInput(scheduleValues.etd)}
+                    onChange={(v) => {
+                      setFormField('etd', v);
+                    }}
                     disabled={isReadOnly}
                     className="w-full"
                   />
@@ -2074,8 +2099,10 @@ const SalesEditorForm: React.FC<SalesEditorFormProps> = ({
                 <div className="space-y-2">
                   <label className="text-[12px] font-bold text-slate-600">ETA</label>
                   <DateInput
-                    value={toDateInput(scheduleDraft.eta)}
-                    onChange={(v) => setScheduleDraft((p: { vessel: string; etd: string; eta: string }) => ({ ...p, eta: v }))}
+                    value={toDateInput(scheduleValues.eta)}
+                    onChange={(v) => {
+                      setFormField('eta', v);
+                    }}
                     disabled={isReadOnly}
                     className="w-full"
                   />

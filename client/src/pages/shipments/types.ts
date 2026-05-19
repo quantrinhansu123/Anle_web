@@ -54,6 +54,8 @@ export interface Shipment {
   contract_id?: string | null;
   planned_cost?: any;
   actual_cost?: any;
+  currency?: string | null;
+  exchange_rate?: number | null;
   created_at: string;
   updated_at?: string;
   // Job-merged fields
@@ -178,6 +180,8 @@ export interface CreateShipmentDto {
   cost_locked_at?: string | null;
   quotation_id?: string | null;
   contract_id?: string | null;
+  currency?: string | null;
+  exchange_rate?: number | null;
   // Job-merged fields
   master_job_no?: string | null;
   job_date?: string | null;
