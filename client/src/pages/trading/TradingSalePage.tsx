@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { ChevronLeft, Plus, RefreshCcw, Save, X, Trash2, Printer } from 'lucide-react';
-import { clsx } from 'clsx';
+import { ChevronLeft, Plus, RefreshCcw, Trash2, Printer } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { tradingSalesService, type TradingSale, type CreateTradingSaleDto } from '../../services/tradingSalesService';
 import { useToastContext } from '../../contexts/ToastContext';
-import { customerService, type Customer } from '../../services/customerService';
+import { customerService, type Customer, type CreateCustomerDto } from '../../services/customerService';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import TradingSaleDialog from './dialogs/TradingSaleDialog';
+import { computeTradingSaleDerived } from './tradingSaleCalculations';
 
 const formatNumber = (value: number) =>
   new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(Math.round(value || 0));
@@ -17,28 +17,6 @@ const formatDate = (value?: string | null) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
   return new Intl.DateTimeFormat('en-GB').format(date);
-};
-
-const inputBase =
-  'w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-[12px] font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/30';
-
-const computeDerived = (d: CreateTradingSaleDto) => {
-  const price = Number(d.price_usd || 0);
-  const qty = Number(d.quantity || 0);
-  const payment = Number(d.payment_percent || 0) / 100;
-  const rate = Number(d.exchange_rate || 0);
-  const amountUsd = price * qty;
-  const totalVnd = amountUsd * payment * rate;
-  return { amountUsd, totalVnd };
-};
-
-const parseLooseNumber = (raw: string): number => {
-  const s = String(raw || '')
-    .replace(/\s+/g, '')
-    .replace(/[.,](?=\d{3}(\D|$))/g, '') // remove thousand separators like "." or ","
-    .replace(/,/g, '.'); // treat comma as decimal separator if any
-  const n = Number(s);
-  return Number.isFinite(n) ? n : 0;
 };
 
 const nextSupplierId = (existing: Array<string | null | undefined>): string => {
@@ -88,6 +66,10 @@ async function downloadPdfFromElement(el: HTMLElement, filename: string): Promis
   pdf.save(filename);
 }
 
+const getErrorMessage = (error: unknown, fallback: string) => {
+  return error instanceof Error ? error.message : fallback;
+};
+
 const TradingSalePage: React.FC = () => {
   const navigate = useNavigate();
   const { success: toastOk, error: toastErr } = useToastContext();
@@ -98,6 +80,10 @@ const TradingSalePage: React.FC = () => {
   const [limit] = useState(100);
 
   const [addOpen, setAddOpen] = useState(false);
+  const [addClosing, setAddClosing] = useState(false);
+  const [isNewCustomer, setIsNewCustomer] = useState(false);
+  const [newCustomer, setNewCustomer] = useState<Partial<CreateCustomerDto>>({ company_name: '', code: '' });
+  const [savingCustomer, setSavingCustomer] = useState(false);
   const [draft, setDraft] = useState<CreateTradingSaleDto>({
     trade_date: new Date().toISOString().slice(0, 10),
     commodity_code: 'S17',
@@ -126,24 +112,40 @@ const TradingSalePage: React.FC = () => {
       setLoading(true);
       const res = await tradingSalesService.getTradingSales(page, limit);
       setRows(res.items || []);
-    } catch (e: any) {
-      toastErr(e?.message || 'Failed to fetch trading sales');
+    } catch (error: unknown) {
+      toastErr(getErrorMessage(error, 'Failed to fetch trading sales'));
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    void fetchData();
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const res = await tradingSalesService.getTradingSales(page, limit);
+        if (!cancelled) setRows(res.items || []);
+      } catch (error: unknown) {
+        if (!cancelled) toastErr(getErrorMessage(error, 'Failed to fetch trading sales'));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
     void (async () => {
       try {
         const list = await customerService.getCustomers().catch(() => []);
-        setCustomers(Array.isArray(list) ? list : []);
+        if (!cancelled) setCustomers(Array.isArray(list) ? list : []);
       } catch {
         // ignore
       }
     })();
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [limit, page, toastErr]);
 
   const tableRows = useMemo(() => {
     return rows.slice().sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
@@ -170,27 +172,63 @@ const TradingSalePage: React.FC = () => {
       customer_tax_code: '',
       customer_address: '',
     });
+    setIsNewCustomer(false);
+    setNewCustomer({ company_name: '', code: '' });
+    setAddClosing(false);
     setAddOpen(true);
   };
 
-  const cancelAdd = () => setAddOpen(false);
+  const closeAddDialog = () => {
+    setAddClosing(true);
+    window.setTimeout(() => {
+      setAddOpen(false);
+      setAddClosing(false);
+    }, 350);
+  };
 
   const saveAdd = async () => {
     try {
       setSavingDraft(true);
-      const { amountUsd, totalVnd } = computeDerived(draft);
+      const { amountUsd, totalVnd } = computeTradingSaleDerived(draft);
       const created = await tradingSalesService.createTradingSale({
         ...draft,
         amount_usd: amountUsd,
         total_vnd: totalVnd,
       });
       setRows((prev) => [created, ...prev]);
-      setAddOpen(false);
+      closeAddDialog();
       toastOk('Created');
-    } catch (e: any) {
-      toastErr(e?.message || 'Create failed');
+    } catch (error: unknown) {
+      toastErr(getErrorMessage(error, 'Create failed'));
     } finally {
       setSavingDraft(false);
+    }
+  };
+
+  const createCustomerForDraft = async () => {
+    if (!newCustomer.company_name || !newCustomer.code || newCustomer.code.length !== 3) return;
+    try {
+      setSavingCustomer(true);
+      const created = await customerService.createCustomer({
+        ...newCustomer,
+        company_name: newCustomer.company_name,
+        code: newCustomer.code.toUpperCase(),
+      });
+      setCustomers((previous) => [created, ...previous.filter((customer) => customer.id !== created.id)]);
+      setDraft((previous) => ({
+        ...previous,
+        customer_id: created.id,
+        customer_company_name: created.company_name || '',
+        customer_tax_code: created.tax_code || '',
+        customer_address: created.office_address || created.address || created.bl_address || '',
+      }));
+      setIsNewCustomer(false);
+      setNewCustomer({ company_name: '', code: '' });
+      toastOk('Created new customer');
+    } catch (error: unknown) {
+      toastErr(getErrorMessage(error, 'Create customer failed'));
+    } finally {
+      setSavingCustomer(false);
     }
   };
 
@@ -200,8 +238,8 @@ const TradingSalePage: React.FC = () => {
       await tradingSalesService.deleteTradingSale(id);
       setRows((prev) => prev.filter((x) => x.id !== id));
       toastOk('Deleted');
-    } catch (e: any) {
-      toastErr(e?.message || 'Delete failed');
+    } catch (error: unknown) {
+      toastErr(getErrorMessage(error, 'Delete failed'));
     }
   };
 
@@ -215,29 +253,12 @@ const TradingSalePage: React.FC = () => {
     try {
       const safeDoc = (row.no_doc || `TS-${row.id.slice(0, 8)}`).replace(/[\\/:*?"<>|]+/g, '-');
       await downloadPdfFromElement(printRef.current, `BaoGia_${safeDoc}.pdf`);
-      toastOk('Đã xuất PDF');
-    } catch (e: any) {
-      toastErr(e?.message || 'Export PDF failed');
+      toastOk('PDF exported');
+    } catch (error: unknown) {
+      toastErr(getErrorMessage(error, 'Export PDF failed'));
     } finally {
       setPrintRow(null);
     }
-  };
-
-  const handleCustomerNameChange = (value: string) => {
-    const raw = value || '';
-    const match: Customer | undefined = customers.find(
-      (c) => (c.company_name || '').toLowerCase() === raw.trim().toLowerCase(),
-    );
-    const matchId = match?.id || null;
-    const matchTax = match?.tax_code || '';
-    const matchAddr = match ? (match.office_address || match.address || match.bl_address || '') : '';
-    setDraft((p) => ({
-      ...p,
-      customer_id: matchId,
-      customer_company_name: raw,
-      customer_tax_code: matchTax || (p.customer_id === matchId ? p.customer_tax_code : ''),
-      customer_address: matchAddr || (p.customer_id === matchId ? p.customer_address : ''),
-    }));
   };
 
   return (
@@ -254,7 +275,7 @@ const TradingSalePage: React.FC = () => {
           <div className="min-w-0">
             <h1 className="text-lg sm:text-xl font-black text-foreground truncate">Trading Sale</h1>
             <p className="text-[12px] text-muted-foreground font-medium">
-              Danh sách Trading Sales (table view).
+              Trading Sales list (table view).
             </p>
           </div>
         </div>
@@ -418,258 +439,24 @@ const TradingSalePage: React.FC = () => {
         </div>
       </div>
 
-      {addOpen &&
-        createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-            <button
-              type="button"
-              className="absolute inset-0 bg-black/40"
-              onClick={cancelAdd}
-              aria-label="Close"
-            />
-            <div className="relative w-full max-w-2xl rounded-2xl border border-border bg-white shadow-2xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-[14px] font-black text-slate-900">Add Trading Sale</div>
-                  <div className="text-[12px] text-muted-foreground font-medium">Tạo record mới trong bảng `trading_sales`.</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={cancelAdd}
-                  className="p-2 rounded-lg border border-border bg-white text-slate-500 hover:bg-slate-50 transition-all active:scale-95"
-                  title="Close"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-tight mb-1">
-                    Customer name
-                  </label>
-                  <input
-                    list="trading-sale-customer-list"
-                    className={inputBase}
-                    value={draft.customer_company_name || ''}
-                    onChange={(e) => handleCustomerNameChange(e.target.value)}
-                    placeholder="Gõ để tìm khách hàng…"
-                  />
-                  <datalist id="trading-sale-customer-list">
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.company_name} />
-                    ))}
-                  </datalist>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-tight mb-1">
-                    Customer name
-                  </label>
-                  <input className={inputBase} value={draft.customer_company_name || ''} readOnly />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-tight mb-1">
-                    Tax code
-                  </label>
-                  <input className={inputBase} value={draft.customer_tax_code || ''} readOnly />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-tight mb-1">
-                    Address
-                  </label>
-                  <input className={inputBase} value={draft.customer_address || ''} readOnly />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-tight mb-1">
-                    Trade date
-                  </label>
-                  <input
-                    type="date"
-                    className={inputBase}
-                    value={draft.trade_date || ''}
-                    onChange={(e) => setDraft((p) => ({ ...p, trade_date: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-tight mb-1">
-                    Currency (exchange rate)
-                  </label>
-                  <input
-                    inputMode="decimal"
-                    className={clsx(inputBase, 'text-right tabular-nums')}
-                    value={draft.exchange_rate ? formatNumber(draft.exchange_rate) : ''}
-                    onChange={(e) => {
-                      const exchange_rate = parseLooseNumber(e.target.value);
-                      const next = { ...draft, exchange_rate };
-                      const { amountUsd, totalVnd } = computeDerived(next);
-                      setDraft({ ...next, amount_usd: amountUsd, total_vnd: totalVnd });
-                    }}
-                    placeholder="Tỷ giá tự nhập"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-tight mb-1">
-                    Supplier ID
-                  </label>
-                  <input
-                    className={inputBase}
-                    value={draft.supplier_id || ''}
-                    readOnly
-                  />
-                </div>
-                <div />
-
-                <div>
-                  <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-tight mb-1">
-                    Commodity Code
-                  </label>
-                  <input
-                    className={inputBase}
-                    value={draft.commodity_code || ''}
-                    onChange={(e) => setDraft((p) => ({ ...p, commodity_code: e.target.value }))}
-                    placeholder="S17"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-tight mb-1">
-                    Unit
-                  </label>
-                  <input
-                    className={inputBase}
-                    value={draft.unit || ''}
-                    onChange={(e) => setDraft((p) => ({ ...p, unit: e.target.value }))}
-                    placeholder="Tons"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-tight mb-1">
-                    Name of Commodity
-                  </label>
-                  <input
-                    className={inputBase}
-                    value={draft.commodity_name || ''}
-                    onChange={(e) => setDraft((p) => ({ ...p, commodity_name: e.target.value }))}
-                    placeholder="Ớt khô nguyên quả có cuống S17 Ấn Độ"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-tight mb-1">
-                    Quantity
-                  </label>
-                  <input
-                    inputMode="decimal"
-                    className={clsx(inputBase, 'text-right tabular-nums')}
-                    value={draft.quantity ? formatNumber(draft.quantity) : ''}
-                    onChange={(e) => {
-                      const quantity = parseLooseNumber(e.target.value);
-                      const next = { ...draft, quantity };
-                      const { amountUsd, totalVnd } = computeDerived(next);
-                      setDraft({ ...next, amount_usd: amountUsd, total_vnd: totalVnd });
-                    }}
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-tight mb-1">
-                    Price (USD)
-                  </label>
-                  <input
-                    inputMode="decimal"
-                    className={clsx(inputBase, 'text-right tabular-nums')}
-                    value={draft.price_usd ? formatNumber(draft.price_usd) : ''}
-                    onChange={(e) => {
-                      const price_usd = parseLooseNumber(e.target.value);
-                      const next = { ...draft, price_usd };
-                      const { amountUsd, totalVnd } = computeDerived(next);
-                      setDraft({ ...next, amount_usd: amountUsd, total_vnd: totalVnd });
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-tight mb-1">
-                    Payment (%)
-                  </label>
-                  <input
-                    inputMode="decimal"
-                    className={clsx(inputBase, 'text-right tabular-nums')}
-                    value={draft.payment_percent ? formatNumber(draft.payment_percent) : ''}
-                    onChange={(e) => {
-                      const payment_percent = parseLooseNumber(e.target.value);
-                      const next = { ...draft, payment_percent };
-                      const { amountUsd, totalVnd } = computeDerived(next);
-                      setDraft({ ...next, amount_usd: amountUsd, total_vnd: totalVnd });
-                    }}
-                    placeholder="30"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-tight mb-1">
-                    Amount (USD)
-                  </label>
-                  <input
-                    readOnly
-                    className={clsx(inputBase, 'text-right tabular-nums bg-slate-50')}
-                    value={formatNumber(Number(draft.amount_usd || 0))}
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-tight mb-1">
-                    Total (VND) = Amount × Payment × Currency
-                  </label>
-                  <input
-                    readOnly
-                    className={clsx(inputBase, 'text-right tabular-nums bg-slate-50')}
-                    value={formatNumber(Number(draft.total_vnd || 0))}
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-tight mb-1">
-                    Note
-                  </label>
-                  <textarea
-                    rows={3}
-                    className={clsx(inputBase, 'resize-y')}
-                    value={draft.note || ''}
-                    onChange={(e) => setDraft((p) => ({ ...p, note: e.target.value }))}
-                    placeholder="Ghi chú..."
-                  />
-                </div>
-              </div>
-
-              <div className="px-5 py-4 border-t border-border bg-slate-50/60 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={cancelAdd}
-                  className="px-4 py-2 rounded-xl border border-border bg-white text-slate-600 hover:bg-slate-50 transition-all text-[12px] font-bold active:scale-95"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void saveAdd()}
-                  disabled={savingDraft}
-                  className={clsx(
-                    'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-[12px] font-black text-white shadow-md transition-all active:scale-95',
-                    savingDraft ? 'bg-slate-300 cursor-not-allowed shadow-none' : 'bg-primary hover:bg-primary/90 shadow-primary/20',
-                  )}
-                >
-                  <Save size={14} />
-                  Save
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
+      {addOpen && (
+        <TradingSaleDialog
+          isOpen={addOpen}
+          isClosing={addClosing}
+          draft={draft}
+          customers={customers}
+          saving={savingDraft}
+          isNewCustomer={isNewCustomer}
+          newCustomer={newCustomer}
+          isSavingCustomer={savingCustomer}
+          onClose={closeAddDialog}
+          onSave={() => void saveAdd()}
+          onCreateCustomer={() => void createCustomerForDraft()}
+          setIsNewCustomer={setIsNewCustomer}
+          setNewCustomer={setNewCustomer}
+          setDraft={setDraft}
+        />
+      )}
 
       {/* Hidden print template */}
       {printRow && (
@@ -705,10 +492,10 @@ const TradingSalePage: React.FC = () => {
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 700, color: '#c92a2a', fontSize: 14, marginBottom: 4, letterSpacing: '0.01em' }}>
-                        CÔNG TY TNHH ANLE - SCM
+                        ANLE - SCM CO., LTD
                       </div>
                       <div style={{ fontSize: 11, lineHeight: 1.6 }}>
-                        571/23 đường Phạm Văn Bạch, phường Tân Sơn, TP. Hồ Chí Minh, Việt Nam
+                        571/23 Pham Van Bach Street, Tan Son Ward, Ho Chi Minh City, Vietnam
                         <br />
                         Tel: 0962 787 877
                         <br />
@@ -719,7 +506,7 @@ const TradingSalePage: React.FC = () => {
 
                   {/* Title */}
                   <div style={{ textAlign: 'center', fontSize: 18, fontWeight: 700, color: '#c92a2a', margin: '14px 0 2px', letterSpacing: '0.04em' }}>
-                    PHIẾU BÁO GIÁ
+                    QUOTATION
                   </div>
                   <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, marginBottom: 10 }}>
                     {printRow.no_doc || `TS-${printRow.id.slice(0, 8)}`} — {formatDate(printRow.trade_date)}
@@ -729,24 +516,24 @@ const TradingSalePage: React.FC = () => {
                   <div style={{ border: '1.5px solid #c92a2a', marginBottom: 12 }}>
                     <div style={{ padding: '10px 12px', fontSize: 11, lineHeight: 1.6 }}>
                       <div>
-                        <span style={{ color: '#c92a2a', fontStyle: 'italic', fontWeight: 600 }}>Khách hàng:</span>{' '}
+                        <span style={{ color: '#c92a2a', fontStyle: 'italic', fontWeight: 600 }}>Customer:</span>{' '}
                         <strong>{printRow.customer_company_name || '—'}</strong>
                       </div>
                       <div>
                         <span style={{ color: '#c92a2a', fontStyle: 'italic', fontWeight: 600 }}>MST:</span> {printRow.customer_tax_code || '—'}
                       </div>
                       <div>
-                        <span style={{ color: '#c92a2a', fontStyle: 'italic', fontWeight: 600 }}>Địa chỉ:</span> {printRow.customer_address || '—'}
+                        <span style={{ color: '#c92a2a', fontStyle: 'italic', fontWeight: 600 }}>Address:</span> {printRow.customer_address || '—'}
                       </div>
                     </div>
                   </div>
 
                   {/* Top right exchange + percent like screenshot */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                    <div style={{ fontWeight: 700 }}>I. Tiền Cọc</div>
+                    <div style={{ fontWeight: 700 }}>I. Deposit</div>
                     <div style={{ textAlign: 'right', fontSize: 11, lineHeight: 1.5 }}>
                       <div>
-                        <span style={{ fontWeight: 700 }}>Tỷ giá :</span> {formatNumber(tyGia)}
+                        <span style={{ fontWeight: 700 }}>Exchange rate:</span> {formatNumber(tyGia)}
                       </div>
                       <div>
                         <span style={{ fontWeight: 700 }}>{formatNumber(percent)}%</span>
@@ -760,14 +547,14 @@ const TradingSalePage: React.FC = () => {
                       <tr>
                         {[
                           { label: 'STT', w: '6%', align: 'center' as const },
-                          { label: 'Nội Dung', w: '34%', align: 'center' as const },
-                          { label: 'ĐVT', w: '8%', align: 'center' as const },
-                          { label: 'Đơn Giá (USD)', w: '10%', align: 'center' as const },
-                          { label: 'Số lượng', w: '10%', align: 'center' as const },
-                          { label: 'Thành tiền (VND)', w: '14%', align: 'center' as const },
-                          { label: 'Thuế VAT', w: '8%', align: 'center' as const },
-                          { label: 'Tổng cộng', w: '12%', align: 'center' as const },
-                          { label: 'Chú ý', w: '8%', align: 'center' as const },
+                          { label: 'Description', w: '34%', align: 'center' as const },
+                          { label: 'Unit', w: '8%', align: 'center' as const },
+                          { label: 'Unit Price (USD)', w: '10%', align: 'center' as const },
+                          { label: 'Quantity', w: '10%', align: 'center' as const },
+                          { label: 'Amount (VND)', w: '14%', align: 'center' as const },
+                          { label: 'VAT', w: '8%', align: 'center' as const },
+                          { label: 'Total', w: '12%', align: 'center' as const },
+                          { label: 'Note', w: '8%', align: 'center' as const },
                         ].map((c) => (
                           <th
                             key={c.label}
@@ -789,7 +576,7 @@ const TradingSalePage: React.FC = () => {
                       <tr>
                         <td style={{ padding: '10px 6px', border: '1px solid #333', textAlign: 'center' }}>1</td>
                         <td style={{ padding: '10px 6px', border: '1px solid #333', textAlign: 'center' }}>
-                          {`Cọc ${formatNumber(percent)}% giá trị hàng, ${printRow.commodity_name || '—'} (${printRow.commodity_code || '—'})`}
+                          {`Deposit ${formatNumber(percent)}% of goods value, ${printRow.commodity_name || '—'} (${printRow.commodity_code || '—'})`}
                         </td>
                         <td style={{ padding: '10px 6px', border: '1px solid #333', textAlign: 'center' }}>{printRow.unit || '—'}</td>
                         <td style={{ padding: '10px 6px', border: '1px solid #333', textAlign: 'right' }}>{formatNumber(priceUsd)}</td>
@@ -802,7 +589,7 @@ const TradingSalePage: React.FC = () => {
                       {/* Total row */}
                       <tr>
                         <td colSpan={5} style={{ padding: '10px 6px', border: '1px solid #333', textAlign: 'center', fontWeight: 700 }}>
-                          Tổng Cộng (I)
+                          Total (I)
                         </td>
                         <td style={{ padding: '10px 6px', border: '1px solid #333', textAlign: 'right', fontWeight: 700 }}>
                           {formatNumber(thanhTienVnd)}
