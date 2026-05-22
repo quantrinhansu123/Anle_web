@@ -8,6 +8,7 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import TradingSaleDialog from './dialogs/TradingSaleDialog';
 import { computeTradingSaleDerived } from './tradingSaleCalculations';
+import { supplierService, type Supplier } from '../../services/supplierService';
 
 const formatNumber = (value: number) =>
   new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(Math.round(value || 0));
@@ -17,18 +18,6 @@ const formatDate = (value?: string | null) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
   return new Intl.DateTimeFormat('en-GB').format(date);
-};
-
-const nextSupplierId = (existing: Array<string | null | undefined>): string => {
-  let max = 0;
-  for (const v of existing) {
-    const m = String(v || '').match(/^SUP(\d{1,})$/i);
-    if (!m) continue;
-    const num = parseInt(m[1], 10);
-    if (Number.isFinite(num)) max = Math.max(max, num);
-  }
-  const next = max + 1;
-  return `SUP${String(next).padStart(3, '0')}`;
 };
 
 function companyLogoSrc(): string {
@@ -76,6 +65,7 @@ const TradingSalePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<TradingSale[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [page] = useState(1);
   const [limit] = useState(100);
 
@@ -142,6 +132,15 @@ const TradingSalePage: React.FC = () => {
       }
     })();
 
+    void (async () => {
+      try {
+        const list = await supplierService.getSuppliers().catch(() => []);
+        if (!cancelled) setSuppliers(Array.isArray(list) ? list : []);
+      } catch {
+        // ignore
+      }
+    })();
+
     return () => {
       cancelled = true;
     };
@@ -152,7 +151,6 @@ const TradingSalePage: React.FC = () => {
   }, [rows]);
 
   const startAdd = () => {
-    const supplierAuto = nextSupplierId(rows.map((r) => r.supplier_id));
     setDraft({
       trade_date: new Date().toISOString().slice(0, 10),
       commodity_code: 'S17',
@@ -166,7 +164,7 @@ const TradingSalePage: React.FC = () => {
       total_vnd: 0,
       note: '',
       shipment_id: null,
-      supplier_id: supplierAuto,
+      supplier_id: null,
       customer_id: null,
       customer_company_name: '',
       customer_tax_code: '',
@@ -445,6 +443,7 @@ const TradingSalePage: React.FC = () => {
           isClosing={addClosing}
           draft={draft}
           customers={customers}
+          suppliers={suppliers}
           saving={savingDraft}
           isNewCustomer={isNewCustomer}
           newCustomer={newCustomer}

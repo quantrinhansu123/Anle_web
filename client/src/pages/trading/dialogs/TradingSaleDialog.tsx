@@ -6,6 +6,7 @@ import {
   ChevronRight,
   DollarSign,
   Hash,
+  Building2,
   Loader2,
   Mail,
   MapPin,
@@ -21,6 +22,7 @@ import { Button } from '../../../components/ui/button';
 import { DateInput } from '../../../components/ui/DateInput';
 import { SearchableSelect } from '../../../components/ui/SearchableSelect';
 import type { CreateCustomerDto, Customer } from '../../../services/customerService';
+import type { Supplier } from '../../../services/supplierService';
 import type { CreateTradingSaleDto } from '../../../services/tradingSalesService';
 import { computeTradingSaleDerived } from '../tradingSaleCalculations';
 
@@ -29,6 +31,7 @@ interface Props {
   isClosing: boolean;
   draft: CreateTradingSaleDto;
   customers: Customer[];
+  suppliers: Supplier[];
   saving: boolean;
   isNewCustomer: boolean;
   newCustomer: Partial<CreateCustomerDto>;
@@ -104,6 +107,7 @@ const TradingSaleDialog: React.FC<Props> = ({
   isClosing,
   draft,
   customers,
+  suppliers,
   saving,
   isNewCustomer,
   newCustomer,
@@ -128,7 +132,12 @@ const TradingSaleDialog: React.FC<Props> = ({
     value: customer.id,
     label: customer.company_name || customer.local_name || customer.english_name || customer.id,
   }));
+  const supplierOptions = suppliers.map((supplier) => ({
+    value: supplier.id,
+    label: supplier.company_name || supplier.id,
+  }));
   const selectedCustomer = customers.find((customer) => customer.id === draft.customer_id);
+  const selectedSupplier = suppliers.find((supplier) => supplier.id === draft.supplier_id);
   const canCreateCustomer = Boolean(newCustomer.company_name && newCustomer.code && newCustomer.code.length === 3);
 
   const setField = <K extends keyof CreateTradingSaleDto>(key: K, value: CreateTradingSaleDto[K]) => {
@@ -167,6 +176,14 @@ const TradingSaleDialog: React.FC<Props> = ({
       customer_company_name: customer?.company_name || customer?.local_name || customer?.english_name || '',
       customer_tax_code: customer?.tax_code || '',
       customer_address: customer ? (customer.office_address || customer.address || customer.bl_address || '') : '',
+    }));
+  };
+
+  const handleSupplierChange = (supplierId: string) => {
+    const supplier = suppliers.find((item) => item.id === supplierId);
+    setDraft((previous) => ({
+      ...previous,
+      supplier_id: supplier?.id || null,
     }));
   };
 
@@ -395,6 +412,70 @@ const TradingSaleDialog: React.FC<Props> = ({
             </div>
           </section>
 
+          <section className="bg-white rounded-2xl border border-emerald-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-emerald-50 bg-emerald-50/50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Building2 size={16} className="text-emerald-600" />
+                <span className="text-[12px] font-bold text-emerald-600 uppercase tracking-wider">Supplier Information</span>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-1.5">
+              <div className="flex items-center gap-2">
+                <Building2 size={16} className="text-muted-foreground/70" />
+                <label className="text-[13px] font-bold text-foreground">Select Supplier</label>
+              </div>
+              <SearchableSelect
+                options={supplierOptions}
+                value={draft.supplier_id || undefined}
+                onValueChange={handleSupplierChange}
+                placeholder="Select supplier..."
+                searchPlaceholder="Search supplier..."
+                emptyMessage="No supplier found."
+              />
+
+              {selectedSupplier && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3 pt-4 border-t border-emerald-50 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Hash size={12} className="opacity-70" />
+                      Supplier ID
+                    </label>
+                    <input readOnly value={selectedSupplier.id || '—'} className="w-full bg-emerald-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-emerald-900 focus:ring-0 cursor-default" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Hash size={12} className="opacity-70" />
+                      Tax Code
+                    </label>
+                    <input readOnly value={selectedSupplier.tax_code || '—'} className="w-full bg-emerald-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-emerald-900 focus:ring-0 cursor-default" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Phone size={12} className="opacity-70" />
+                      Phone
+                    </label>
+                    <input readOnly value={selectedSupplier.phone || '—'} className="w-full bg-emerald-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-emerald-900 focus:ring-0 cursor-default" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Mail size={12} className="opacity-70" />
+                      Email
+                    </label>
+                    <input readOnly value={selectedSupplier.email || '—'} className="w-full bg-emerald-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-emerald-900 focus:ring-0 cursor-default" />
+                  </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <MapPin size={12} className="opacity-70" />
+                      Address
+                    </label>
+                    <input readOnly value={selectedSupplier.address || '—'} className="w-full bg-emerald-50/30 border-none rounded-lg py-1 px-3 text-[13px] font-bold text-emerald-900 focus:ring-0 cursor-default" />
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
           <section className="bg-white rounded-2xl border border-border shadow-sm p-6 space-y-4">
             <div className="flex items-center gap-2 pb-1">
               <Package size={18} className="text-primary" />
@@ -405,10 +486,6 @@ const TradingSaleDialog: React.FC<Props> = ({
               <div>
                 <FieldLabel>Trade date</FieldLabel>
                 <DateInput value={draft.trade_date || ''} onChange={(value) => setField('trade_date', value)} />
-              </div>
-              <div>
-                <FieldLabel icon={<Hash size={16} className="text-muted-foreground/70" />}>Supplier ID</FieldLabel>
-                <input className={inputBase} value={draft.supplier_id || ''} readOnly />
               </div>
               <div>
                 <FieldLabel>Commodity Code</FieldLabel>
