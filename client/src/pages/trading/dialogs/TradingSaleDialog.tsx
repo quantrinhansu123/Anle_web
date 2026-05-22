@@ -482,7 +482,7 @@ const TradingSaleDialog: React.FC<Props> = ({
               <h3 className="text-[14px] font-black text-foreground">Trading Details</h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <FieldLabel>Trade date</FieldLabel>
                 <DateInput value={draft.trade_date || ''} onChange={(value) => setField('trade_date', value)} />
@@ -505,7 +505,7 @@ const TradingSaleDialog: React.FC<Props> = ({
                   placeholder="Tons"
                 />
               </div>
-              <div className="md:col-span-2">
+              <div className="md:col-span-3">
                 <FieldLabel>Name of Commodity</FieldLabel>
                 <input
                   className={inputBase}
