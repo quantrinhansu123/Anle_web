@@ -48,12 +48,23 @@ const HEADER_FIELDS: Array<keyof CreateSalesDto> = [
   'exchange_rate_date',
 ];
 
+const DATE_HEADER_FIELDS = new Set<keyof CreateSalesDto>([
+  'quote_date',
+  'due_date',
+  'validity_from',
+  'validity_to',
+  'etd',
+  'eta',
+  'exchange_rate_date',
+]);
+
 const pickHeaderPayload = (dto: Partial<CreateSalesDto>) => {
   const payload: Record<string, unknown> = {};
   for (const key of HEADER_FIELDS) {
     const value = dto[key];
     if (value !== undefined) {
-      payload[key] = value;
+      payload[key] =
+        DATE_HEADER_FIELDS.has(key) && value === '' ? null : value;
     }
   }
   return payload;
