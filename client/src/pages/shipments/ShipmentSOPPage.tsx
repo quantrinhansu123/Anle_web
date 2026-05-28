@@ -22,6 +22,7 @@ import {
   type CreateShipmentDocumentDto,
   type ShipmentDocument,
 } from '../../services/shipmentDocumentService';
+import { uploadService } from '../../services/uploadService';
 import {
   customsClearanceService,
   type CustomsClearance,
@@ -222,8 +223,9 @@ const ShipmentSOPPage: React.FC = () => {
   const [checklistHistory, setChecklistHistory] = useState<ChecklistHistoryRow[]>([]);
 
   // new doc/customs state
-  const [newDocType, setNewDocType] = useState<CreateShipmentDocumentDto['doc_type']>('commercial_invoice');
-  const [newDocNumber, setNewDocNumber] = useState('');
+  const [newDocType, setNewDocType] = useState<CreateShipmentDocumentDto['doc_type'] | ''>('');
+  const [newDocFile, setNewDocFile] = useState<File | null>(null);
+  const [newDocFormKey, setNewDocFormKey] = useState(0);
   const [isCreatingDocument, setIsCreatingDocument] = useState(false);
   const [documentActionLoadingId, setDocumentActionLoadingId] = useState<string | null>(null);
 
@@ -731,21 +733,61 @@ const ShipmentSOPPage: React.FC = () => {
   // ─── Sub-handlers ──────────────────────────────────
   const handleCreateDocument = async () => {
     if (!id) return;
+    if (!newDocType) {
+      toast.error('Please select a document type');
+      return;
+    }
     try {
       setIsCreatingDocument(true);
-      await shipmentDocumentService.createShipmentDocument({ shipment_id: id, doc_type: newDocType, status: 'draft', doc_number: newDocNumber || null });
-      setNewDocNumber('');
-      loadCompliance();
+      let fileUrl: string | null = null;
+      if (newDocFile) {
+        fileUrl = await uploadService.uploadFile(newDocFile);
+      }
+      const existingSameType = documents.filter((doc) => doc.doc_type === newDocType);
+      const nextVersion =
+        existingSameType.length > 0
+          ? Math.max(...existingSameType.map((doc) => Number(doc.version) || 1)) + 1
+          : 1;
+      const createdDocument = await shipmentDocumentService.createShipmentDocument({
+        shipment_id: id,
+        doc_type: newDocType,
+        status: 'draft',
+        doc_number: newDocFile?.name || null,
+        file_url: fileUrl,
+        version: nextVersion,
+      });
+      setDocuments((prev) => [createdDocument, ...prev]);
+      setNewDocType('');
+      setNewDocFile(null);
+      setNewDocFormKey((prev) => prev + 1);
+      await loadCompliance();
       toast.success('Added document');
-    } catch (err) { console.error(err); } finally { setIsCreatingDocument(false); }
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message || 'Failed to add document');
+    } finally { setIsCreatingDocument(false); }
   };
   const handleChangeDocStatus = async (docId: string, status: ShipmentDocument['status']) => {
-    try { setDocumentActionLoadingId(docId); await shipmentDocumentService.updateShipmentDocument(docId, { status }); loadCompliance(); }
-    catch (err) { console.error(err); } finally { setDocumentActionLoadingId(null); }
+    try {
+      setDocumentActionLoadingId(docId);
+      await shipmentDocumentService.updateShipmentDocument(docId, { status });
+      setDocuments((prev) => prev.map((doc) => (doc.id === docId ? { ...doc, status } : doc)));
+      await loadCompliance();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message || 'Failed to update document status');
+    } finally { setDocumentActionLoadingId(null); }
   };
   const handleDeleteDoc = async (docId: string) => {
-    try { setDocumentActionLoadingId(docId); await shipmentDocumentService.deleteShipmentDocument(docId); loadCompliance(); }
-    catch (err) { console.error(err); } finally { setDocumentActionLoadingId(null); }
+    try {
+      setDocumentActionLoadingId(docId);
+      await shipmentDocumentService.deleteShipmentDocument(docId);
+      setDocuments((prev) => prev.filter((doc) => doc.id !== docId));
+      await loadCompliance();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message || 'Failed to delete document');
+    } finally { setDocumentActionLoadingId(null); }
   };
 
   const handleCreateNewCustomer = async () => {
@@ -962,7 +1004,8 @@ const ShipmentSOPPage: React.FC = () => {
                <DocumentsTab 
                   shipmentId={id} documents={documents}
                   newDocType={newDocType} setNewDocType={setNewDocType}
-                  newDocNumber={newDocNumber} setNewDocNumber={setNewDocNumber}
+                  newDocFile={newDocFile} setNewDocFile={setNewDocFile}
+                  newDocFormKey={newDocFormKey}
                   isCreatingDocument={isCreatingDocument} handleCreateDocument={handleCreateDocument}
                   handleChangeDocStatus={handleChangeDocStatus} handleDeleteDoc={handleDeleteDoc}
                   documentActionLoadingId={documentActionLoadingId}
