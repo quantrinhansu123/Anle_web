@@ -1,14 +1,15 @@
 import React from 'react';
-import { FileText, Trash2 } from 'lucide-react';
+import { Download, FileText, Trash2 } from 'lucide-react';
 import type { ShipmentDocument, CreateShipmentDocumentDto } from '../../../services/shipmentDocumentService';
 
 interface DocumentsTabProps {
   shipmentId?: string;
   documents: ShipmentDocument[];
-  newDocType: CreateShipmentDocumentDto['doc_type'];
-  setNewDocType: (val: CreateShipmentDocumentDto['doc_type']) => void;
-  newDocNumber: string;
-  setNewDocNumber: (val: string) => void;
+  newDocType: CreateShipmentDocumentDto['doc_type'] | '';
+  setNewDocType: (val: CreateShipmentDocumentDto['doc_type'] | '') => void;
+  newDocFile: File | null;
+  setNewDocFile: (file: File | null) => void;
+  newDocFormKey: number;
   isCreatingDocument: boolean;
   handleCreateDocument: () => void;
   handleChangeDocStatus: (id: string, status: ShipmentDocument['status']) => void;
@@ -19,7 +20,9 @@ interface DocumentsTabProps {
 }
 
 const DocumentsTab: React.FC<DocumentsTabProps> = ({
-  shipmentId, documents, newDocType, setNewDocType, newDocNumber, setNewDocNumber,
+  shipmentId, documents, newDocType, setNewDocType,
+  newDocFile, setNewDocFile,
+  newDocFormKey,
   isCreatingDocument, handleCreateDocument, handleChangeDocStatus, handleDeleteDoc, documentActionLoadingId,
   contractLabel, quotationLabel
 }) => {
@@ -73,6 +76,23 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({
                   {doc.doc_number && <span className="text-slate-500 text-[11px]">({doc.doc_number})</span>}
                 </div>
                 <div className="flex items-center gap-1.5">
+                  {doc.file_url ? (
+                    <a
+                      href={doc.file_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      download={doc.doc_number || undefined}
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-slate-200 bg-white text-[10px] font-bold uppercase text-slate-600 hover:bg-slate-50"
+                      title="Download file"
+                    >
+                      <Download size={11} />
+                      tải
+                    </a>
+                  ) : (
+                    <span className="px-1.5 py-0.5 rounded border border-slate-100 bg-slate-50 text-[10px] font-bold uppercase text-slate-400">
+                      no file
+                    </span>
+                  )}
                   <select value={doc.status} onChange={e => handleChangeDocStatus(doc.id, e.target.value as ShipmentDocument['status'])}
                     disabled={documentActionLoadingId === doc.id}
                     className="px-1.5 py-0.5 rounded border border-slate-200 bg-white text-[10px] font-bold uppercase">
@@ -100,9 +120,10 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({
                 <label className="text-[11px] font-bold text-slate-600">Tên</label>
                 <select
                   value={newDocType}
-                  onChange={e => setNewDocType(e.target.value as any)}
+                  onChange={e => setNewDocType(e.target.value as CreateShipmentDocumentDto['doc_type'] | '')}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-[12px] focus:ring-2 focus:ring-cyan-500/20"
                 >
+                  <option value="">-- Select document type --</option>
                   <option value="commercial_invoice">Commercial Invoice</option>
                   <option value="packing_list">Packing List</option>
                   <option value="sales_contract">Sales Contract</option>
@@ -113,19 +134,31 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-600">File</label>
+              <label className="text-[11px] font-bold text-slate-600">File (optional)</label>
                 <input
-                  type="text"
-                  value={newDocNumber}
-                  onChange={e => setNewDocNumber(e.target.value)}
-                  placeholder="File"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-[12px] focus:ring-2 focus:ring-cyan-500/20"
+                  key={`doc-file-${newDocFormKey}`}
+                  type="file"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.txt"
+                  onChange={(e) => setNewDocFile(e.target.files?.[0] || null)}
+                  className="block w-full text-[12px] text-slate-700 file:mr-3 file:px-3 file:py-2 file:rounded-lg file:border file:border-slate-200 file:bg-white file:text-slate-700 file:text-[12px] file:font-semibold file:cursor-pointer hover:file:bg-slate-50"
                 />
+                {newDocFile && (
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] text-slate-500 truncate">{newDocFile.name}</p>
+                    <button
+                      type="button"
+                      onClick={() => setNewDocFile(null)}
+                      className="text-[11px] text-red-600 hover:text-red-700"
+                    >
+                      Bỏ chọn
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
             <button onClick={handleCreateDocument} disabled={isCreatingDocument || !newDocType}
               className="w-full py-2 rounded-lg bg-cyan-600 border border-cyan-700 text-white text-[12px] font-bold disabled:opacity-50 hover:bg-cyan-700 transition-colors shadow-sm">
-              {isCreatingDocument ? 'Uploading...' : 'Add Document'}
+              {isCreatingDocument ? 'Saving...' : 'Add Document Row'}
             </button>
           </div>
         ) : (

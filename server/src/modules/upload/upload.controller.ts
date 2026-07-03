@@ -2,6 +2,30 @@ import { Request, Response } from 'express';
 import { uploadService } from './upload.service';
 import { env } from '../../config/env';
 
+const sanitizeFileName = (originalName: string): string => {
+  const trimmed = String(originalName || '').trim();
+  const parts = trimmed.split('.');
+  const ext = parts.length > 1 ? parts.pop() || 'bin' : 'bin';
+  const base = parts.join('.') || 'file';
+
+  // Remove accents/diacritics and keep only storage-safe ASCII characters.
+  const normalizedBase = base
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^[-_.]+|[-_.]+$/g, '')
+    .toLowerCase();
+
+  const normalizedExt = ext
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '')
+    .toLowerCase() || 'bin';
+
+  return `${normalizedBase || 'file'}.${normalizedExt}`;
+};
+
 export const uploadController = {
   async uploadAvatar(req: Request, res: Response) {
     try {
@@ -10,7 +34,7 @@ export const uploadController = {
       }
 
       const file = req.file;
-      const fileName = `${Date.now()}-${file.originalname}`;
+      const fileName = `${Date.now()}-${sanitizeFileName(file.originalname)}`;
       const bucket = 'avatars';
       const path = fileName;
 
@@ -44,7 +68,7 @@ export const uploadController = {
       }
 
       const file = req.file;
-      const fileName = `${Date.now()}-${file.originalname}`;
+      const fileName = `${Date.now()}-${sanitizeFileName(file.originalname)}`;
       // Use 'uploads' as the default bucket for generic files
       const bucket = 'uploads';
       const path = fileName;

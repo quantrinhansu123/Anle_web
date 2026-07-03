@@ -64,6 +64,9 @@ export interface Sales {
   transit_time?: string;
   service_mode?: string;
   direction?: string;
+  vessel_voyage?: string;
+  etd?: string;
+  eta?: string;
   currency_code?: string;
   job_no?: string;
   sales_inquiry_no?: string;
@@ -104,6 +107,9 @@ export interface CreateSalesDto {
   transit_time?: string | null;
   service_mode?: string | null;
   direction?: string | null;
+  vessel_voyage?: string | null;
+  etd?: string | null;
+  eta?: string | null;
   currency_code?: string | null;
   job_no?: string | null;
   sales_inquiry_no?: string | null;

@@ -47,6 +47,9 @@ export interface Sales {
   transit_time?: string;
   service_mode?: string;
   direction?: string;
+  vessel_voyage?: string;
+  etd?: string;
+  eta?: string;
   currency_code?: string;
   job_no?: string;
   sales_inquiry_no?: string;
@@ -129,6 +132,9 @@ export interface SalesFormState {
   transit_time?: string;
   service_mode?: string;
   direction?: string;
+  vessel_voyage?: string;
+  etd?: string;
+  eta?: string;
   currency_code?: string;
   job_no?: string;
   sales_inquiry_no?: string;

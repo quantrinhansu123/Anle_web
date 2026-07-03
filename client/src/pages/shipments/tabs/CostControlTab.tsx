@@ -12,8 +12,11 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Link, useNavigate } from 'react-router-dom';
+import { formatInputCurrency, parseCurrency } from '../../../lib/utils';
 import { shipmentService } from '../../../services/shipmentService';
+import { exchangeRateService } from '../../../services/exchangeRateService';
 import { useToastContext } from '../../../contexts/ToastContext';
+import { SearchableSelect } from '../../../components/ui/SearchableSelect';
 import { buildDebitLineSeedsFromApprovedCosts } from '../buildDebitLinesFromShipmentCost';
 
 interface Props {
@@ -36,6 +39,29 @@ const COST_KEYS: { key: keyof CostBreakdown; label: string; bg: string; text: st
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(amount);
+
+const formatMoney = (amount: number, currency: string) =>
+  new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: currency === 'VND' ? 0 : 2,
+  }).format(amount);
+
+const normalizeCurrency = (currency?: string | null) => (currency || 'VND').toUpperCase();
+
+const toDisplayAmount = (amountVnd: number, currency: string, exchangeRate: number) =>
+  currency === 'VND' ? amountVnd : amountVnd / exchangeRate;
+
+const toVndAmount = (amount: number, currency: string, exchangeRate: number) =>
+  currency === 'VND' ? amount : amount * exchangeRate;
+
+const mapCostBreakdown = (
+  raw: Partial<CostBreakdown> | undefined,
+  mapper: (value: number) => number,
+): CostBreakdown => ({
+  trucking: mapper(Number(raw?.trucking) || 0),
+  agent: mapper(Number(raw?.agent) || 0),
+  customs: mapper(Number(raw?.customs) || 0),
+  other: mapper(Number(raw?.other) || 0),
+});
 
 function parseActualCost(raw: unknown): {
   breakdown: CostBreakdown;
@@ -81,27 +107,47 @@ const CostControlTab: React.FC<Props> = ({ shipmentId }) => {
   const [salesCostApproved, setSalesCostApproved] = useState(false);
   const [salesCostApprovedAt, setSalesCostApprovedAt] = useState<string | null>(null);
   const [quotationId, setQuotationId] = useState<string | null>(null);
+  const [displayCurrency, setDisplayCurrency] = useState('VND');
+  const [exchangeRate, setExchangeRate] = useState(1);
+  const [availableRates, setAvailableRates] = useState<Record<string, number>>({ VND: 1 });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await shipmentService.getShipmentById(shipmentId);
+      const [res, rates] = await Promise.all([
+        shipmentService.getShipmentById(shipmentId),
+        exchangeRateService.getAll().catch(() => []),
+      ]);
+      const rateMap = rates.reduce<Record<string, number>>(
+        (acc, item) => {
+          const code = normalizeCurrency(item.currency_code);
+          const rate = Number(item.rate) || 0;
+          if (code && rate > 0) acc[code] = rate;
+          return acc;
+        },
+        { VND: 1 },
+      );
+      setAvailableRates(rateMap);
       if (res) {
+        const currency = normalizeCurrency(res.currency);
+        const rate = currency === 'VND' ? 1 : Number(res.exchange_rate) || rateMap[currency] || 1;
+        setDisplayCurrency(currency);
+        setExchangeRate(rate);
         if (res.planned_cost && typeof res.planned_cost === 'object') {
-          const planned = res.planned_cost as Partial<CostBreakdown>;
-          setPlannedCost({
-            trucking: Number(planned.trucking) || 0,
-            agent: Number(planned.agent) || 0,
-            customs: Number(planned.customs) || 0,
-            other: Number(planned.other) || 0,
-          });
+          setPlannedCost(
+            mapCostBreakdown(res.planned_cost as Partial<CostBreakdown>, (value) =>
+              toDisplayAmount(value, currency, rate),
+            ),
+          );
         }
         if (res.actual_cost && typeof res.actual_cost === 'object') {
           const parsed = parseActualCost(res.actual_cost);
-          setActualCost(parsed.breakdown);
-          setIncurred(parsed.incurred);
+          setActualCost(
+            mapCostBreakdown(parsed.breakdown, (value) => toDisplayAmount(value, currency, rate)),
+          );
+          setIncurred(toDisplayAmount(parsed.incurred, currency, rate));
           setSalesCostApproved(parsed.salesCostApproved);
           setSalesCostApprovedAt(parsed.salesCostApprovedAt);
         }
@@ -121,17 +167,25 @@ const CostControlTab: React.FC<Props> = ({ shipmentId }) => {
   const handleSave = async () => {
     try {
       setSaving(true);
+      const plannedCostVnd = mapCostBreakdown(plannedCost, (value) =>
+        toVndAmount(value, displayCurrency, exchangeRate),
+      );
+      const actualCostVnd = mapCostBreakdown(actualCost, (value) =>
+        toVndAmount(value, displayCurrency, exchangeRate),
+      );
       const actualPayload = {
-        ...actualCost,
-        incurred,
+        ...actualCostVnd,
+        incurred: toVndAmount(incurred, displayCurrency, exchangeRate),
         sales_cost_approved: salesCostApproved,
         sales_cost_approved_at: salesCostApproved
           ? salesCostApprovedAt || new Date().toISOString()
           : null,
       };
       await shipmentService.updateShipment(shipmentId, {
-        planned_cost: plannedCost,
+        planned_cost: plannedCostVnd,
         actual_cost: actualPayload,
+        currency: displayCurrency,
+        exchange_rate: exchangeRate,
       } as any);
       if (salesCostApproved && !salesCostApprovedAt) {
         setSalesCostApprovedAt(new Date().toISOString());
@@ -161,11 +215,44 @@ const CostControlTab: React.FC<Props> = ({ shipmentId }) => {
   const sumActual = sumActualCategories + sumIncurred;
   const variance = sumActual - sumPlanned;
   const isRedAlert = sumPlanned > 0 && sumActual > sumPlanned * 1.1;
+  const vndPlannedCost = useMemo(
+    () => mapCostBreakdown(plannedCost, (value) => toVndAmount(value, displayCurrency, exchangeRate)),
+    [plannedCost, displayCurrency, exchangeRate],
+  );
+  const vndActualCost = useMemo(
+    () => mapCostBreakdown(actualCost, (value) => toVndAmount(value, displayCurrency, exchangeRate)),
+    [actualCost, displayCurrency, exchangeRate],
+  );
+  const vndIncurred = useMemo(
+    () => toVndAmount(incurred, displayCurrency, exchangeRate),
+    [incurred, displayCurrency, exchangeRate],
+  );
 
   const varianceSeeds = useMemo(
-    () => buildDebitLineSeedsFromApprovedCosts(plannedCost, actualCost, incurred),
-    [plannedCost, actualCost, incurred],
+    () => buildDebitLineSeedsFromApprovedCosts(vndPlannedCost, vndActualCost, vndIncurred),
+    [vndPlannedCost, vndActualCost, vndIncurred],
   );
+  const currencyOptions = useMemo(
+    () => Object.keys(availableRates).map((code) => ({ value: code, label: code })),
+    [availableRates],
+  );
+
+  const handleCurrencyChange = (currency: string) => {
+    const nextCurrency = normalizeCurrency(currency);
+    const nextRate = nextCurrency === 'VND' ? 1 : availableRates[nextCurrency] || exchangeRate || 1;
+    const plannedVnd = mapCostBreakdown(plannedCost, (value) =>
+      toVndAmount(value, displayCurrency, exchangeRate),
+    );
+    const actualVnd = mapCostBreakdown(actualCost, (value) =>
+      toVndAmount(value, displayCurrency, exchangeRate),
+    );
+    const incurredVnd = toVndAmount(incurred, displayCurrency, exchangeRate);
+    setDisplayCurrency(nextCurrency);
+    setExchangeRate(nextRate);
+    setPlannedCost(mapCostBreakdown(plannedVnd, (value) => toDisplayAmount(value, nextCurrency, nextRate)));
+    setActualCost(mapCostBreakdown(actualVnd, (value) => toDisplayAmount(value, nextCurrency, nextRate)));
+    setIncurred(toDisplayAmount(incurredVnd, nextCurrency, nextRate));
+  };
 
   const handleToggleSalesApproved = (checked: boolean) => {
     setSalesCostApproved(checked);
@@ -178,11 +265,11 @@ const CostControlTab: React.FC<Props> = ({ shipmentId }) => {
 
   const handlePushToDebitNote = () => {
     if (!salesCostApproved) {
-      error('Cần bộ phận Sales xác nhận chi phí trước khi đưa vào Debit Note.');
+      error('Sales approval is required before pushing costs to Debit Note.');
       return;
     }
     if (varianceSeeds.length === 0) {
-      error('Không có chênh lệch (thực tế − kế hoạch) hoặc phí phát sinh để thêm vào debit.');
+      error('There is no positive variance or additional incurred cost to add to debit.');
       return;
     }
     navigate(`/shipments/sop/${shipmentId}/sea-house-bl/debit-note`, {
@@ -208,17 +295,17 @@ const CostControlTab: React.FC<Props> = ({ shipmentId }) => {
     <div className="space-y-6">
       <div className="rounded-2xl border border-violet-100 bg-violet-50/40 p-4 text-[12px] text-slate-700 leading-relaxed">
         <p className="font-bold text-violet-900 uppercase tracking-wide text-[11px] mb-1">
-          Quy trình chi phí → Sales → Debit
+          Cost Workflow → Sales → Debit
         </p>
         <ul className="list-disc pl-5 space-y-0.5">
           <li>
-            <strong>Chi phí lô</strong> (Planned) và <strong>thực tế theo loại</strong> hiển thị cạnh nhau;{' '}
-            <strong>Phí phát sinh</strong> ghi nhận thêm ngoài bốn nhóm.
+            <strong>Shipment costs</strong> (Planned) and <strong>actual costs by type</strong> are shown side by side;{' '}
+            <strong>Additional incurred costs</strong> are recorded separately from the four groups.
           </li>
           <li>
-            Khi làm Debit, mở <strong>Báo giá (Sales)</strong> để đối chiếu; sau khi{' '}
-            <strong>Sales xác nhận</strong> chi phí phát sinh / chênh lệch, dùng nút để{' '}
-            <strong>đổ thẳng các dòng</strong> sang Debit Note.
+            When preparing Debit, open the <strong>Sales Quotation</strong> for reconciliation; after{' '}
+            <strong>Sales confirms</strong> incurred costs / variance, use the button to{' '}
+            <strong>push the approved lines</strong> to Debit Note.
           </li>
         </ul>
       </div>
@@ -232,10 +319,10 @@ const CostControlTab: React.FC<Props> = ({ shipmentId }) => {
             className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-white px-3 py-2 text-[12px] font-bold text-primary shadow-sm hover:bg-primary/5"
           >
             <ExternalLink size={14} />
-            Báo giá (Sales)
+            Sales Quotation
           </Link>
         ) : (
-          <span className="text-[12px] text-slate-400 italic">Chưa gắn báo giá trên lô hàng</span>
+          <span className="text-[12px] text-slate-400 italic">No sales quotation linked to this shipment</span>
         )}
         <Link
           to={`/shipments/sop/${shipmentId}/sea-house-bl/debit-note`}
@@ -256,13 +343,29 @@ const CostControlTab: React.FC<Props> = ({ shipmentId }) => {
               Cost breakdown
             </span>
           </div>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[12px] font-bold flex items-center gap-2 transition-colors disabled:opacity-50"
-          >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : 'Save Costs'}
-          </button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <SearchableSelect
+              options={currencyOptions}
+              value={displayCurrency}
+              onValueChange={handleCurrencyChange}
+              placeholder="Currency"
+              hideSearch
+              hideClearIcon
+              className="h-9 w-[96px] rounded-lg px-3 text-[12px]"
+            />
+            {displayCurrency !== 'VND' && (
+              <span className="text-[11px] font-semibold text-slate-500">
+                1 {displayCurrency} = {formatCurrency(exchangeRate)} VND
+              </span>
+            )}
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[12px] font-bold flex items-center gap-2 transition-colors disabled:opacity-50"
+            >
+              {saving ? <Loader2 size={14} className="animate-spin" /> : 'Save Costs'}
+            </button>
+          </div>
         </div>
 
         {isRedAlert && (
@@ -281,7 +384,7 @@ const CostControlTab: React.FC<Props> = ({ shipmentId }) => {
           <div className="space-y-4">
             <div className="border-b border-slate-200 pb-2 mb-4">
               <h3 className="text-[14px] font-bold text-slate-800">Planned Costs</h3>
-              <p className="text-[11px] text-slate-500">Chi phí lô — kế hoạch ban đầu</p>
+              <p className="text-[11px] text-slate-500">Shipment costs — initial plan</p>
             </div>
             {COST_KEYS.map((item) => (
               <div key={`plan_${item.key}`} className="flex items-center justify-between gap-4">
@@ -289,11 +392,11 @@ const CostControlTab: React.FC<Props> = ({ shipmentId }) => {
                   {item.label}
                 </span>
                 <input
-                  type="number"
-                  min="0"
-                  value={plannedCost[item.key] || ''}
+                  type="text"
+                  inputMode="decimal"
+                  value={plannedCost[item.key] ? formatInputCurrency(plannedCost[item.key]) : ''}
                   onChange={(e) =>
-                    setPlannedCost((p) => ({ ...p, [item.key]: Number(e.target.value) }))
+                    setPlannedCost((p) => ({ ...p, [item.key]: parseCurrency(e.target.value) }))
                   }
                   className="w-32 px-3 py-1.5 rounded-lg border border-slate-200 text-right text-[13px] font-bold text-slate-700 focus:ring-2 focus:ring-blue-500/20"
                 />
@@ -301,10 +404,11 @@ const CostControlTab: React.FC<Props> = ({ shipmentId }) => {
             ))}
             <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
               <span className="text-[13px] font-black text-slate-800 uppercase tracking-wide">
-                Tổng kế hoạch (lô)
+                Total Planned (Shipment)
               </span>
               <span className="text-[15px] font-black text-blue-600">
-                {formatCurrency(sumPlanned)} <span className="text-[10px] text-blue-400">VND</span>
+                {formatMoney(sumPlanned, displayCurrency)}{' '}
+                <span className="text-[10px] text-blue-400">{displayCurrency}</span>
               </span>
             </div>
           </div>
@@ -312,7 +416,7 @@ const CostControlTab: React.FC<Props> = ({ shipmentId }) => {
           <div className="space-y-4">
             <div className="border-b border-slate-200 pb-2 mb-4">
               <h3 className="text-[14px] font-bold text-slate-800">Actual Costs</h3>
-              <p className="text-[11px] text-slate-500">Thực tế theo loại + phí phát sinh</p>
+              <p className="text-[11px] text-slate-500">Actual by type + additional incurred costs</p>
             </div>
             {COST_KEYS.map((item) => (
               <div key={`act_${item.key}`} className="flex items-center justify-between gap-4">
@@ -320,11 +424,11 @@ const CostControlTab: React.FC<Props> = ({ shipmentId }) => {
                   {item.label}
                 </span>
                 <input
-                  type="number"
-                  min="0"
-                  value={actualCost[item.key] || ''}
+                  type="text"
+                  inputMode="decimal"
+                  value={actualCost[item.key] ? formatInputCurrency(actualCost[item.key]) : ''}
                   onChange={(e) =>
-                    setActualCost((p) => ({ ...p, [item.key]: Number(e.target.value) }))
+                    setActualCost((p) => ({ ...p, [item.key]: parseCurrency(e.target.value) }))
                   }
                   className={clsx(
                     'w-32 px-3 py-1.5 rounded-lg border text-right text-[13px] font-bold focus:ring-2 focus:ring-blue-500/20 transition-colors',
@@ -337,28 +441,32 @@ const CostControlTab: React.FC<Props> = ({ shipmentId }) => {
             ))}
             <div className="flex items-center justify-between gap-4 pt-1">
               <span className="text-[12px] font-bold px-2 py-1 rounded bg-amber-50 text-amber-800">
-                Phí phát sinh
+                Additional Incurred Cost
               </span>
               <input
-                type="number"
-                min="0"
-                value={incurred || ''}
-                onChange={(e) => setIncurred(Number(e.target.value))}
+                type="text"
+                inputMode="decimal"
+                value={incurred ? formatInputCurrency(incurred) : ''}
+                onChange={(e) => setIncurred(parseCurrency(e.target.value))}
                 className="w-32 px-3 py-1.5 rounded-lg border border-amber-200 bg-amber-50/30 text-right text-[13px] font-bold text-amber-900 focus:ring-2 focus:ring-amber-500/20"
               />
             </div>
             <div className="pt-3 border-t border-slate-200 space-y-2">
               <div className="flex items-center justify-between text-[12px] text-slate-600">
-                <span>Cộng 4 nhóm (thực tế)</span>
-                <span className="font-bold tabular-nums">{formatCurrency(sumActualCategories)} VND</span>
+                <span>Subtotal of 4 groups (actual)</span>
+                <span className="font-bold tabular-nums">
+                  {formatMoney(sumActualCategories, displayCurrency)} {displayCurrency}
+                </span>
               </div>
               <div className="flex items-center justify-between text-[12px] text-amber-800">
-                <span>+ Phí phát sinh</span>
-                <span className="font-bold tabular-nums">{formatCurrency(sumIncurred)} VND</span>
+                <span>+ Additional incurred cost</span>
+                <span className="font-bold tabular-nums">
+                  {formatMoney(sumIncurred, displayCurrency)} {displayCurrency}
+                </span>
               </div>
               <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                 <span className="text-[13px] font-black text-slate-800 uppercase tracking-wide">
-                  Tổng thực tế
+                  Total Actual
                 </span>
                 <span
                   className={clsx(
@@ -366,8 +474,8 @@ const CostControlTab: React.FC<Props> = ({ shipmentId }) => {
                     sumActual > sumPlanned ? 'text-red-600' : 'text-emerald-600',
                   )}
                 >
-                  {formatCurrency(sumActual)}{' '}
-                  <span className="text-[10px] opacity-70">VND</span>
+                  {formatMoney(sumActual, displayCurrency)}{' '}
+                  <span className="text-[10px] opacity-70">{displayCurrency}</span>
                 </span>
               </div>
             </div>
@@ -377,7 +485,7 @@ const CostControlTab: React.FC<Props> = ({ shipmentId }) => {
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
         <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
-          Xác nhận Sales & Debit Note
+          Sales Confirmation & Debit Note
         </p>
         <label className="flex items-start gap-3 cursor-pointer">
           <input
@@ -389,15 +497,15 @@ const CostControlTab: React.FC<Props> = ({ shipmentId }) => {
           <div>
             <span className="text-[13px] font-bold text-slate-800 flex items-center gap-2">
               {salesCostApproved && <CheckCircle2 size={16} className="text-emerald-600" />}
-              Sales đã xác nhận chi phí phát sinh / chênh lệch
+              Sales has confirmed incurred costs / variance
             </span>
             {salesCostApprovedAt && (
               <p className="text-[11px] text-slate-500 mt-0.5">
-                Thời điểm ghi nhận: {new Date(salesCostApprovedAt).toLocaleString('vi-VN')}
+                Recorded at: {new Date(salesCostApprovedAt).toLocaleString('en-US')}
               </p>
             )}
             <p className="text-[11px] text-slate-500 mt-1">
-              Sau khi tick, có thể đẩy các dòng chênh lệch dương và phí phát sinh sang Debit Note.
+              Once checked, positive variance lines and additional incurred costs can be pushed to Debit Note.
             </p>
           </div>
         </label>
@@ -409,10 +517,10 @@ const CostControlTab: React.FC<Props> = ({ shipmentId }) => {
             className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 px-4 py-2.5 text-[12px] font-bold text-white shadow-md disabled:opacity-45 disabled:pointer-events-none hover:from-teal-700 hover:to-emerald-700"
           >
             <FileText size={14} />
-            Đưa chi phí đã duyệt vào Debit Note ({varianceSeeds.length} dòng)
+            Push Approved Costs to Debit Note ({varianceSeeds.length} lines)
           </button>
           {!salesCostApproved && varianceSeeds.length > 0 && (
-            <span className="text-[11px] text-amber-700">Cần xác nhận Sales để mở khóa.</span>
+            <span className="text-[11px] text-amber-700">Sales confirmation is required to unlock.</span>
           )}
         </div>
       </div>
@@ -439,7 +547,8 @@ const CostControlTab: React.FC<Props> = ({ shipmentId }) => {
             )}
           >
             {variance > 0 ? '+' : ''}
-            {formatCurrency(variance)} <span className="text-[12px] font-bold opacity-70">VND</span>
+            {formatMoney(variance, displayCurrency)}{' '}
+            <span className="text-[12px] font-bold opacity-70">{displayCurrency}</span>
           </p>
         </div>
         {!isRedAlert && <Lock size={32} className="text-emerald-200 opacity-50" />}

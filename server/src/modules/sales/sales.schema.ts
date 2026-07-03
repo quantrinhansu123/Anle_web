@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
-const nullableString = () => z.string().optional().nullable();
+/** Empty strings from HTML date inputs must become null for Postgres date/timestamp columns. */
+const nullableString = () =>
+  z.preprocess((val) => (val === '' ? null : val), z.string().optional().nullable());
 const nullableUuid = () => z.string().uuid().optional().nullable();
 
 export const SalesItemSchema = z.object({
@@ -55,6 +57,9 @@ export const CreateSalesSchema = z.object({
   transit_time: nullableString(),
   service_mode: nullableString(),
   direction: nullableString(),
+  vessel_voyage: nullableString(),
+  etd: nullableString(),
+  eta: nullableString(),
   currency_code: z.union([z.string().min(3).max(3), z.null()]).optional(),
   job_no: nullableString(),
   sales_inquiry_no: nullableString(),

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X, User, Plus, ChevronRight, FileText, CreditCard, Layout, Truck, ShoppingCart, Upload, Link as LinkIcon, Users, ExternalLink, Edit,
@@ -9,6 +9,7 @@ import { SearchableSelect } from '../../../components/ui/SearchableSelect';
 import { type Customer } from '../../../services/customerService';
 import { type Supplier } from '../../../services/supplierService';
 import type { Contract, CreateContractDto } from '../types';
+import { uploadService } from '../../../services/uploadService';
 
 interface Props {
   isOpen: boolean;
@@ -39,6 +40,10 @@ const ContractDialog: React.FC<Props> = ({
   onSave,
   onEdit
 }) => {
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   if (!isOpen && !isClosing) return null;
 
   const isDetailMode = mode === 'detail';
@@ -67,6 +72,20 @@ const ContractDialog: React.FC<Props> = ({
 
   const selectedCustomer = customers.find(c => c.id === customer_id);
   const selectedSupplier = suppliers.find(s => s.id === supplier_id);
+
+  const handleFileUpload = async (file: File) => {
+    try {
+      setUploadError(null);
+      setIsUploadingFile(true);
+      const url = await uploadService.uploadFile(file);
+      setFormField('file_url', url);
+    } catch (err: any) {
+      console.error('Contract file upload failed:', err);
+      setUploadError(err?.message || 'Failed to upload file');
+    } finally {
+      setIsUploadingFile(false);
+    }
+  };
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex justify-end">
@@ -344,13 +363,32 @@ const ContractDialog: React.FC<Props> = ({
                     )}
                   </div>
                   {!isDetailMode && (
-                    <div className="border-2 border-dashed border-border rounded-xl p-6 flex flex-col items-center justify-center gap-2 hover:bg-muted/5 transition-colors cursor-pointer group">
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="border-2 border-dashed border-border rounded-xl p-6 flex flex-col items-center justify-center gap-2 hover:bg-muted/5 transition-colors cursor-pointer group"
+                    >
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".pdf,.doc,.docx"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) void handleFileUpload(file);
+                          // Allow re-selecting the same file.
+                          e.currentTarget.value = '';
+                        }}
+                      />
                       <div className="w-10 h-10 rounded-full bg-muted/20 flex items-center justify-center text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-all duration-300">
                         <Upload size={20} />
                       </div>
                       <div className="text-center">
-                        <p className="text-[13px] font-bold text-foreground">Click to upload or drag & drop</p>
+                        <p className="text-[13px] font-bold text-foreground">
+                          {isUploadingFile ? 'Uploading file...' : 'Click to upload or drag & drop'}
+                        </p>
                         <p className="text-[11px] text-muted-foreground mt-0.5">PDF, DOCX up to 10MB</p>
+                        {file_url && <p className="text-[11px] text-emerald-600 mt-1 font-semibold">File attached</p>}
+                        {uploadError && <p className="text-[11px] text-red-600 mt-1 font-semibold">{uploadError}</p>}
                       </div>
                     </div>
                   )}

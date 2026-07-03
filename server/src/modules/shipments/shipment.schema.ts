@@ -136,6 +136,8 @@ const shipmentBaseSchema = z.object({
   contract_id: z.string().uuid().optional().nullable(),
   planned_cost: z.record(z.any()).optional().nullable(),
   actual_cost: z.record(z.any()).optional().nullable(),
+  currency: z.string().max(10).optional().nullable(),
+  exchange_rate: z.number().positive().optional().nullable(),
   master_job_no: z.string().max(120).optional().nullable(),
   job_date: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.null()]).optional(),
   services: z.string().max(4000).optional().nullable(),
