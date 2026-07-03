@@ -101,7 +101,7 @@ const ShipmentDialog: React.FC<Props> = ({
   if (!isOpen && !isClosing) return null;
 
   const {
-    customer_id, supplier_id, code, commodity, hs_code, quantity,
+    customer_id, supplier_id, code, code_date, commodity, hs_code, quantity,
     packing, vessel_voyage, term, transport_air, transport_sea,
     load_fcl, load_lcl, pol, pod, etd, eta, status,
     is_docs_ready, is_hs_confirmed, is_phytosanitary_ready,
@@ -775,14 +775,29 @@ const ShipmentDialog: React.FC<Props> = ({
             </div>
             <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
 
-              <div className="space-y-1.5 md:col-span-2">
+              {!isDetailMode && !isEditMode && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Calendar size={16} className="text-indigo-600/70" />
+                    <label className="text-[13px] font-bold text-foreground">Ngày sinh mã lô</label>
+                  </div>
+                  <DateInput
+                    value={code_date || ''}
+                    onChange={v => setFormField('code_date', v)}
+                    placeholder="Chọn ngày"
+                  />
+                  <p className="text-[10px] text-muted-foreground">SCM + mã KH + DDMMYY + STT (vd. SCMANL15062601)</p>
+                </div>
+              )}
+
+              <div className={clsx('space-y-1.5', (isDetailMode || isEditMode) && 'md:col-span-2')}>
                 <div className="flex items-center gap-2">
                   <Barcode size={16} className="text-indigo-600/70" />
-                  <label className="text-[13px] font-bold text-foreground">Shipment Code</label>
+                  <label className="text-[13px] font-bold text-foreground">Mã lô hàng</label>
                 </div>
                 <input
                   type="text"
-                  placeholder="Auto-generated if left empty"
+                  placeholder="Tự sinh khi chọn KH + ngày"
                   value={code || ''}
                   onChange={e => setFormField('code', e.target.value)}
                   disabled={isDetailMode}

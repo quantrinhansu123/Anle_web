@@ -29,7 +29,8 @@ export const ShipmentController = {
     try {
       const customerId = req.query.customerId as string;
       if (!customerId) return res.status(400).json({ message: 'customerId is required' });
-      const nextCode = await service.generateNextCode(customerId);
+      const date = typeof req.query.date === 'string' ? req.query.date : undefined;
+      const nextCode = await service.generateNextCode(customerId, date);
       res.json(successResponse({ code: nextCode }));
     } catch (err) {
       next(err);

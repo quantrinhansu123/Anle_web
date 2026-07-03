@@ -32,6 +32,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { Shipment, ShipmentFormState, ShipmentReadinessResult, JobBound } from './shipments/types';
 import ShipmentDialog from './shipments/dialogs/ShipmentDialog';
 import { useToastContext } from '../contexts/ToastContext';
+import { formatShipmentCodeDatePart, todayIsoDate } from '../lib/shipmentCode';
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -40,6 +41,7 @@ import {
 // --- CONFIGURATION ---
 const INITIAL_FORM_STATE: ShipmentFormState = {
   code: '',
+  code_date: todayIsoDate(),
   customer_id: '',
   supplier_id: '',
   commodity: '',
@@ -344,21 +346,17 @@ const ShipmentsPage: React.FC = () => {
   useEffect(() => {
     if (isEditMode || isDetailMode) return;
 
-    if (!formState.isNewCustomer && formState.customer_id) {
-      shipmentService.getNextCode(formState.customer_id)
+    if (!formState.isNewCustomer && formState.customer_id && formState.code_date) {
+      shipmentService.getNextCode(formState.customer_id, formState.code_date)
         .then(res => setFormField('code', res.code))
         .catch(console.error);
-    } else if (formState.isNewCustomer && formState.newCustomer?.code?.length === 3) {
-      const now = new Date();
-      const day = String(now.getDate()).padStart(2, '0');
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const year = String(now.getFullYear()).slice(-2);
-      const datePart = `${day}${month}${year}`;
+    } else if (formState.isNewCustomer && formState.newCustomer?.code?.length === 3 && formState.code_date) {
+      const datePart = formatShipmentCodeDatePart(formState.code_date);
       setFormField('code', `SCM${formState.newCustomer.code.toUpperCase()}${datePart}01`);
     } else {
       setFormField('code', '');
     }
-  }, [formState.customer_id, formState.isNewCustomer, formState.newCustomer?.code, isEditMode, isDetailMode]);
+  }, [formState.customer_id, formState.isNewCustomer, formState.newCustomer?.code, formState.code_date, isEditMode, isDetailMode]);
 
   const fetchData = async () => {
     try {

@@ -194,7 +194,7 @@ export class ShipmentService {
     };
   }
 
-  async generateNextCode(customer_id: string): Promise<string> {
+  async generateNextCode(customer_id: string, codeDate?: string): Promise<string> {
     // 1. Get Customer Code
     const { data: customer, error: custError } = await supabase
       .from('customers')
@@ -205,11 +205,14 @@ export class ShipmentService {
     if (custError) throw new Error('Customer not found');
     const customerCode = (customer?.code || 'UNK').toUpperCase();
 
-    // 2. Generate Date Part (DDMMYY)
-    const now = new Date();
-    const day = String(now.getDate()).padStart(2, '0');
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const year = String(now.getFullYear()).slice(-2);
+    // 2. Generate Date Part (DDMMYY) from selected date or today
+    const baseDate = codeDate ? new Date(`${codeDate}T12:00:00`) : new Date();
+    if (codeDate && isNaN(baseDate.getTime())) {
+      throw new AppError('Invalid date format. Use YYYY-MM-DD', 400);
+    }
+    const day = String(baseDate.getDate()).padStart(2, '0');
+    const month = String(baseDate.getMonth() + 1).padStart(2, '0');
+    const year = String(baseDate.getFullYear()).slice(-2);
     const datePart = `${day}${month}${year}`;
 
     const prefix = `SCM${customerCode}${datePart}`;

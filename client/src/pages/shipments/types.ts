@@ -213,6 +213,8 @@ export interface ShipmentReadinessResult {
 }
 
 export interface ShipmentFormState extends CreateShipmentDto {
+  /** YYYY-MM-DD — date used to build SCM{customer}{DDMMYY}{seq} lot code (UI only). */
+  code_date?: string;
   id?: string;
   isNewCustomer?: boolean;
   newCustomer?: {

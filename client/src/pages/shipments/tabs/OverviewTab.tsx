@@ -121,9 +121,18 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           <span className="text-[12px] font-bold text-indigo-600 uppercase tracking-wider">Shipment Details & Contract</span>
         </div>
         <div className="p-5 grid grid-cols-2 gap-x-5 gap-y-4">
-          <div className="space-y-1.5 col-span-2">
-            <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5"><Barcode size={12} /> Shipment Code</label>
-            <input type="text" value={form.code || ''} onChange={e => setField('code', e.target.value)} placeholder="Auto if left empty"
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5"><Calendar size={12} /> Ngày sinh mã lô</label>
+            <DateInput
+              value={form.code_date || ''}
+              onChange={v => setField('code_date', v)}
+              placeholder="Chọn ngày"
+            />
+            <p className="text-[10px] text-slate-400 font-medium">Định dạng: SCM + mã KH + DDMMYY + STT (vd. SCMANL15062601)</p>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5"><Barcode size={12} /> Mã lô hàng</label>
+            <input type="text" value={form.code || ''} onChange={e => setField('code', e.target.value)} placeholder="Tự sinh khi chọn KH + ngày"
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-bold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all" />
           </div>
 

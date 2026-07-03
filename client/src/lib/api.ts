@@ -1,6 +1,9 @@
 const resolveBaseUrl = () => {
   const configured = import.meta.env.VITE_API_URL as string | undefined;
-  if (!configured) return 'http://localhost:3000/api/v1';
+  if (!configured) {
+    if (import.meta.env.DEV) return '/api/v1';
+    return 'http://127.0.0.1:3002/api/v1';
+  }
 
   // Avoid mixed-content/network failures on deployed HTTPS clients when env accidentally points to localhost HTTP.
   if (typeof window !== 'undefined') {
@@ -26,14 +29,7 @@ const resolveBaseUrl = () => {
 
 const BASE_URL = resolveBaseUrl();
 
-const buildSameOriginFallbackUrl = (endpoint: string) => {
-  // Use same-origin /api/v1 to leverage Vite proxy in dev and avoid mixed content / DNS quirks.
-  return `/api/v1${endpoint}`;
-};
-
-export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const url = `${BASE_URL}${endpoint}`;
-
+const buildHeaders = (options: RequestInit) => {
   const headers: Record<string, string> = {
     ...options.headers as Record<string, string>,
   };
@@ -47,35 +43,43 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
     headers['Content-Type'] = 'application/json';
   }
 
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      ...options,
-      headers,
-    });
-  } catch (err) {
-    // Retry once via same-origin route (works with Vite proxy; also safer for HTTPS deployments).
-    const fallbackUrl = buildSameOriginFallbackUrl(endpoint);
-    try {
-      response = await fetch(fallbackUrl, {
-        ...options,
-        headers,
-      });
-    } catch (fallbackErr) {
-      console.error('API Network Error:', { url, fallbackUrl, err, fallbackErr });
-      throw fallbackErr;
-    }
+  return headers;
+};
+
+const apiRequest = async (endpoint: string, options: RequestInit, headers: Record<string, string>) => {
+  const url = `${BASE_URL}${endpoint}`;
+  const response = await fetch(url, {
+    ...options,
+    headers,
+  });
+  return { response, url };
+};
+
+const parseApiResponse = async (response: Response, url: string) => {
+  const contentType = response.headers.get('content-type') || '';
+
+  if (!contentType.includes('application/json')) {
+    const body = await response.text().catch(() => '');
+    const preview = body.trim().slice(0, 120);
+    return {
+      message: `API did not return JSON (${response.status}) from ${url}${preview ? `: ${preview}` : ''}`,
+    };
   }
+
+  try {
+    return await response.json();
+  } catch (e: any) {
+    return { message: `Failed to parse response body: ${e.message}` };
+  }
+};
+
+export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const headers = buildHeaders(options);
+  const { response, url } = await apiRequest(endpoint, options, headers);
 
   // Attempt to parse the response body. This will be `result.data` on success,
   // or the error body on failure.
-  let result: any;
-  try {
-    result = await response.json();
-  } catch (e: any) {
-    // If parsing fails (e.g., non-JSON response for an error), create a fallback.
-    result = { message: `Failed to parse response body: ${e.message}` };
-  }
+  const result = await parseApiResponse(response, url);
 
   if (!response.ok) {
     console.error('API Error:', {
@@ -136,46 +140,9 @@ export async function apiFetchPaginated<TItem>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<{ items: TItem[]; pagination: ApiPagination }> {
-  const url = `${BASE_URL}${endpoint}`;
-
-  const headers: Record<string, string> = {
-    ...(options.headers as Record<string, string>),
-  };
-
-  const token = localStorage.getItem('token');
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  if (!(options.body instanceof FormData)) {
-    headers['Content-Type'] = 'application/json';
-  }
-
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      ...options,
-      headers,
-    });
-  } catch (err) {
-    const fallbackUrl = buildSameOriginFallbackUrl(endpoint);
-    try {
-      response = await fetch(fallbackUrl, {
-        ...options,
-        headers,
-      });
-    } catch (fallbackErr) {
-      console.error('API Network Error:', { url, fallbackUrl, err, fallbackErr });
-      throw fallbackErr;
-    }
-  }
-
-  let result: any;
-  try {
-    result = await response.json();
-  } catch (e: any) {
-    result = { message: `Failed to parse response body: ${e.message}` };
-  }
+  const headers = buildHeaders(options);
+  const { response, url } = await apiRequest(endpoint, options, headers);
+  const result = await parseApiResponse(response, url);
 
   if (!response.ok) {
     let errorMessage = result.error?.message || result.message || 'API request failed';

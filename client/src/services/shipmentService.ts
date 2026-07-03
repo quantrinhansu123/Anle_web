@@ -63,8 +63,11 @@ export const shipmentService = {
   getShipments: (page = 1, limit = 20) => 
     apiFetch<Shipment[]>(`/shipments?page=${page}&limit=${limit}`),
 
-  getNextCode: (customerId: string) =>
-    apiFetch<{ code: string }>(`/shipments/next-code?customerId=${customerId}`),
+  getNextCode: (customerId: string, codeDate?: string) => {
+    const params = new URLSearchParams({ customerId });
+    if (codeDate) params.set('date', codeDate);
+    return apiFetch<{ code: string }>(`/shipments/next-code?${params.toString()}`);
+  },
 
   getShipmentById: (id: string) => 
     apiFetch<Shipment>(`/shipments/${id}`),

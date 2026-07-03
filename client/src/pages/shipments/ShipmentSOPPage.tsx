@@ -9,6 +9,7 @@ import isEqual from 'lodash/isEqual';
 
 import { shipmentService } from '../../services/shipmentService';
 import type { AllowedTransitionsResult, RunGatesResult } from '../../services/shipmentService';
+import { formatShipmentCodeDatePart, todayIsoDate } from '../../lib/shipmentCode';
 import { customerService, type Customer } from '../../services/customerService';
 import { supplierService, type Supplier, type CreateSupplierDto } from '../../services/supplierService';
 import { contractService } from '../../services/contractService';
@@ -88,7 +89,7 @@ function contractsMatchingParties(
 }
 
 const INITIAL_FORM: ShipmentFormState = {
-  code: '', customer_id: '', supplier_id: '', commodity: '', hs_code: '',
+  code: '', code_date: todayIsoDate(), customer_id: '', supplier_id: '', commodity: '', hs_code: '',
   quantity: 0, quantity_unit: 'kg', packing: '', packing_unit: 'bag', vessel_voyage: '', term: '',
   transport_air: false, transport_sea: true, load_fcl: true, load_lcl: false,
   pol: '', pod: '', etd: '', eta: '', status: 'draft',
@@ -649,6 +650,22 @@ const ShipmentSOPPage: React.FC = () => {
 
     return () => setCustomBreadcrumbs(null);
   }, [form.code, id, setCustomBreadcrumbs]);
+
+  // Auto-generate lot code: SCM + customer code + DDMMYY + sequence
+  useEffect(() => {
+    if (isEditMode) return;
+
+    if (!form.isNewCustomer && form.customer_id && form.code_date) {
+      shipmentService.getNextCode(form.customer_id, form.code_date)
+        .then(res => setField('code', res.code))
+        .catch(console.error);
+    } else if (form.isNewCustomer && form.newCustomer?.code?.length === 3 && form.code_date) {
+      const datePart = formatShipmentCodeDatePart(form.code_date);
+      setField('code', `SCM${form.newCustomer.code.toUpperCase()}${datePart}01`);
+    } else {
+      setField('code', '');
+    }
+  }, [form.customer_id, form.isNewCustomer, form.newCustomer?.code, form.code_date, isEditMode]);
 
   // ─── Save Handler ──────────────────────────────────
   const handleSave = async () => {
