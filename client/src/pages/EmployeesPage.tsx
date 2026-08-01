@@ -18,6 +18,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
 import { useToastContext } from '../contexts/ToastContext';
+import { toEnglishPosition } from '../data/employeePositions';
 
 // --- CONFIGURATION ---
 const INITIAL_FORM_STATE: Partial<Employee> = {
@@ -92,7 +93,7 @@ const COLUMN_DEFS: Record<string, ColDef> = {
     label: 'Position',
     thClass: 'px-4 py-3 text-[11px] font-bold text-muted-foreground/80 uppercase tracking-tight w-40 border-r border-border/40',
     tdClass: 'px-4 py-4 border-r border-border/40',
-    renderContent: (e) => <span className="text-[12px] font-medium text-slate-600">{e.position || '—'}</span>
+    renderContent: (e) => <span className="text-[12px] font-medium text-slate-600">{toEnglishPosition(e.position) || '—'}</span>
   },
   contact: {
     label: 'Contact',
@@ -281,7 +282,7 @@ const EmployeesPage: React.FC = () => {
     }
 
     if (selectedDepartments.length > 0 && e.department_code && !selectedDepartments.includes(e.department_code)) return false;
-    if (selectedPositions.length > 0 && e.position && !selectedPositions.includes(e.position)) return false;
+    if (selectedPositions.length > 0 && e.position && !selectedPositions.includes(toEnglishPosition(e.position))) return false;
 
     return true;
   });
@@ -295,7 +296,17 @@ const EmployeesPage: React.FC = () => {
   };
 
   const departments = Array.from(new Set(employees.map(e => e.department_code).filter(Boolean))) as string[];
-  const positions = Array.from(new Set(employees.map(e => e.position).filter(Boolean))) as string[];
+  const departmentLabel = (code: string) => {
+    const emp = employees.find(e => e.department_code === code);
+    return emp?.departments?.name || emp?.department || code;
+  };
+  const positions = Array.from(
+    new Set(
+      employees
+        .map((e) => toEnglishPosition(e.position))
+        .filter(Boolean),
+    ),
+  ) as string[];
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full flex-1 flex flex-col -mt-2 min-h-0">
@@ -407,8 +418,8 @@ const EmployeesPage: React.FC = () => {
                   isOpen={activeDropdown === 'department'}
                   options={departments.map(d => ({
                     id: d,
-                    label: d,
-                    count: employees.filter(e => e.department === d).length
+                    label: departmentLabel(d),
+                    count: employees.filter(e => e.department_code === d).length
                   }))}
                   selected={selectedDepartments}
                   onToggle={(id) => setSelectedDepartments(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
@@ -444,7 +455,7 @@ const EmployeesPage: React.FC = () => {
                   options={positions.map(p => ({
                     id: p,
                     label: p,
-                    count: employees.filter(e => e.position === p).length
+                    count: employees.filter(e => toEnglishPosition(e.position) === p).length
                   }))}
                   selected={selectedPositions}
                   onToggle={(id) => setSelectedPositions(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
@@ -539,7 +550,7 @@ const EmployeesPage: React.FC = () => {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={departments.map(d => ({ name: d, val: employees.filter(e => e.department === d).length }))}
+                      data={departments.map(d => ({ name: departmentLabel(d), val: employees.filter(e => e.department_code === d).length }))}
                       cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={4} dataKey="val"
                     >
                       {departments.map((_, i) => <Cell key={i} fill={['#3b82f6', '#6366f1', '#f97316', '#10b981', '#ec4899'][i % 5]} stroke="none" />)}

@@ -7,6 +7,7 @@ import type { Employee } from '../../../services/employeeService';
 import { useToastContext } from '../../../contexts/ToastContext';
 import { departmentService, type Department, type Team } from '../../../services/departmentService';
 import { SearchableSelect } from '../../../components/ui/SearchableSelect';
+import { EMPLOYEE_POSITION_OPTIONS, toEnglishPosition } from '../../../data/employeePositions';
 
 interface EmployeeDialogProps {
   isOpen: boolean;
@@ -208,7 +209,9 @@ const EmployeeDialog: React.FC<EmployeeDialogProps> = ({
                   value={formState.department_code || ''}
                   onValueChange={(val) => {
                     setFormField('department_code', val);
-                    setFormField('team_code', ''); 
+                    setFormField('team_code', '');
+                    const dept = departments.find(d => d.code === val);
+                    if (dept?.name) setFormField('department', dept.name);
                   }}
                   disabled={isDetailMode}
                   placeholder="Select Department"
@@ -261,13 +264,20 @@ const EmployeeDialog: React.FC<EmployeeDialogProps> = ({
                   <User size={14} className="text-primary/60" />
                   General Position
                 </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Senior Accountant"
-                  value={formState.position || ''}
-                  onChange={(e) => setFormField('position', e.target.value)}
+                <SearchableSelect
+                  options={(() => {
+                    const current = toEnglishPosition(formState.position);
+                    const base = EMPLOYEE_POSITION_OPTIONS.map((p) => ({ value: p, label: p }));
+                    if (current && !EMPLOYEE_POSITION_OPTIONS.includes(current as typeof EMPLOYEE_POSITION_OPTIONS[number])) {
+                      return [{ value: current, label: current }, ...base];
+                    }
+                    return base;
+                  })()}
+                  value={toEnglishPosition(formState.position)}
+                  onValueChange={(val) => setFormField('position', val)}
                   disabled={isDetailMode}
-                  className="w-full px-4 py-2 bg-white border border-border rounded-xl text-[13px] font-bold focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all disabled:opacity-70"
+                  placeholder="Select position"
+                  hideSearch={true}
                 />
               </div>
             </div>
