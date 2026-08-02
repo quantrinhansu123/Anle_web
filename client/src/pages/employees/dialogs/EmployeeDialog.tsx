@@ -8,6 +8,8 @@ import { useToastContext } from '../../../contexts/ToastContext';
 import { departmentService, type Department, type Team } from '../../../services/departmentService';
 import { SearchableSelect } from '../../../components/ui/SearchableSelect';
 import { EMPLOYEE_POSITION_OPTIONS, toEnglishPosition } from '../../../data/employeePositions';
+import { EMPLOYEE_ROLE_OPTIONS, roleLabel } from '../../../data/employeeRoles';
+import { ORG_DEPARTMENT_OPTIONS } from '../../../data/employeeDepartments';
 
 interface EmployeeDialogProps {
   isOpen: boolean;
@@ -47,11 +49,30 @@ const EmployeeDialog: React.FC<EmployeeDialogProps> = ({
   const loadData = async () => {
     try {
       const depts = await departmentService.getDepartments();
-      setDepartments(depts);
+      // Always include org-chart departments (English); merge API extras after.
+      const byCode = new Map<string, Department>();
+      for (const d of ORG_DEPARTMENT_OPTIONS) {
+        byCode.set(d.code, { code: d.code, name: d.name });
+      }
+      for (const d of depts || []) {
+        const existing = byCode.get(d.code);
+        byCode.set(d.code, {
+          ...d,
+          name: existing?.name || d.name, // prefer English org-chart label
+        });
+      }
+      const orgCodes = ORG_DEPARTMENT_OPTIONS.map((d) => d.code);
+      const merged = [
+        ...orgCodes.map((code) => byCode.get(code)!).filter(Boolean),
+        ...[...byCode.values()].filter((d) => !orgCodes.includes(d.code as typeof orgCodes[number])),
+      ];
+      setDepartments(merged);
       const teams = await departmentService.getTeams();
       setAllTeams(teams);
     } catch (err) {
       console.error(err);
+      // Fallback: still show org-chart departments if API fails
+      setDepartments(ORG_DEPARTMENT_OPTIONS.map((d) => ({ code: d.code, name: d.name })));
     }
   };
 
@@ -243,15 +264,15 @@ const EmployeeDialog: React.FC<EmployeeDialogProps> = ({
                   System Role
                 </label>
                 <SearchableSelect
-                  options={[
-                    { value: 'staff', label: 'Staff' },
-                    { value: 'senior_staff', label: 'Senior Staff' },
-                    { value: 'manager', label: 'Manager' },
-                    { value: 'director', label: 'Director' },
-                    { value: 'ceo', label: 'CEO' },
-                    { value: 'admin', label: 'Admin' },
-                  ]}
-                  value={formState.role || 'staff'}
+                  options={(() => {
+                    const current = formState.role || 'junior';
+                    const base = EMPLOYEE_ROLE_OPTIONS.map((r) => ({ value: r.value, label: r.label }));
+                    if (current && !EMPLOYEE_ROLE_OPTIONS.some((r) => r.value === current)) {
+                      return [{ value: current, label: roleLabel(current) }, ...base];
+                    }
+                    return base;
+                  })()}
+                  value={formState.role || 'junior'}
                   onValueChange={(val) => setFormField('role', val)}
                   disabled={isDetailMode}
                   hideSearch={true}

@@ -55,5 +55,19 @@ export const employeeController = {
     } catch (err) {
       next(err);
     }
-  }
+  },
+
+  async matchCatalog(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await employeeService.matchCatalogData();
+      res.json(
+        successResponse(
+          data,
+          `Matched catalog data: ${data.updated} updated, ${data.skipped} unchanged`,
+        ),
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
 };

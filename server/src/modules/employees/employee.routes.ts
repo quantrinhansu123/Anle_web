@@ -7,6 +7,7 @@ const router = Router();
 router.use(authMiddleware);
 
 router.get('/', employeeController.getAll);
+router.post('/match-catalog', employeeController.matchCatalog);
 router.get('/:id', employeeController.getById);
 router.get('/:id/details', employeeController.getDetails);
 router.post('/', employeeController.create);

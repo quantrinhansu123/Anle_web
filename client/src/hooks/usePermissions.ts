@@ -4,8 +4,8 @@ export const usePermissions = () => {
   const { user } = useAuth();
 
   const isCEO = user?.role === 'ceo' || user?.role === 'admin' || user?.position === 'Admin' || user?.department_code === 'bod';
-  const isAdmin = isCEO || user?.role === 'director';
-  const isManager = isAdmin || user?.role === 'manager';
+  const isAdmin = isCEO || user?.role === 'director' || user?.role === 'senior';
+  const isManager = isAdmin || user?.role === 'manager' || user?.role === 'intermediate';
 
   const canAccessModule = (module: string): boolean => {
     if (isCEO) return true;

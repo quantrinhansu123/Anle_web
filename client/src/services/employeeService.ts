@@ -42,4 +42,14 @@ export const employeeService = {
   deleteEmployee: (id: string) => apiFetch<void>(`/employees/${id}`, {
     method: 'DELETE'
   }),
+  matchCatalog: () =>
+    apiFetch<{
+      total: number;
+      updated: number;
+      skipped: number;
+      changes: { id: string; fields: string[] }[];
+    }>('/employees/match-catalog', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
 };

@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
+import { hasAllowedRole } from '../../data/employeeRoles';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -31,11 +32,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   if (requiredRoles && requiredRoles.length > 0) {
-    if (!user.role || !requiredRoles.includes(user.role)) {
-      // CEO/Admin bypass role list check
-      if (user.role !== 'ceo' && user.role !== 'admin' && user.position !== 'Admin') {
-        return <Navigate to="/" replace />;
-      }
+    if (!hasAllowedRole(user.role, requiredRoles, { position: user.position, departmentCode: user.department_code })) {
+      return <Navigate to="/" replace />;
     }
   }
 

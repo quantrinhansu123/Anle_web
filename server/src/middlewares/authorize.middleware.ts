@@ -2,12 +2,18 @@ import { Request, Response, NextFunction } from 'express';
 import { AppError } from './error.middleware';
 
 /**
- * Role hierarchy (higher index = more power)
+ * Role hierarchy (higher number = more power)
+ * New: admin > senior > intermediate > junior > collaborator
+ * Legacy codes kept for existing users.
  */
 const ROLE_HIERARCHY: Record<string, number> = {
+  collaborator: 0,
+  junior: 1,
   staff: 1,
+  intermediate: 2,
   senior_staff: 2,
   manager: 3,
+  senior: 4,
   director: 4,
   ceo: 5,
   admin: 6,
@@ -37,7 +43,19 @@ export const authorize = (...allowedRoles: string[]) => {
     }
 
     // Admin/CEO/BOD always has full access (including legacy 'Admin' position)
-    if (user.role === 'admin' || user.role === 'ceo' || user.position === 'Admin' || user.department_code === 'bod' || allowedRoles.includes(user.role)) {
+    if (user.role === 'admin' || user.role === 'ceo' || user.position === 'Admin' || user.department_code === 'bod') {
+      return next();
+    }
+
+    if (allowedRoles.includes(user.role)) {
+      return next();
+    }
+
+    // Allow new hierarchy roles that meet the minimum of the allowed set
+    const minLevel = Math.min(
+      ...allowedRoles.map((r) => ROLE_HIERARCHY[r] ?? Number.POSITIVE_INFINITY),
+    );
+    if ((ROLE_HIERARCHY[user.role] || 0) >= minLevel && Number.isFinite(minLevel)) {
       return next();
     }
 

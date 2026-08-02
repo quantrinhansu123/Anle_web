@@ -5,7 +5,7 @@ import {
   Edit, Trash2, X, BarChart2, List,
   ChevronRight, Users,
   Briefcase, MapPin, RefreshCcw,
-  TrendingUp, CheckCircle2, Clock, Phone
+  TrendingUp, CheckCircle2, Clock, Phone, Wand2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
@@ -18,14 +18,16 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
 import { useToastContext } from '../contexts/ToastContext';
-import { toEnglishPosition } from '../data/employeePositions';
+import { toEnglishPosition, EMPLOYEE_POSITION_OPTIONS } from '../data/employeePositions';
+import { roleLabel, EMPLOYEE_ROLE_OPTIONS, toStandardRole } from '../data/employeeRoles';
+import { ORG_DEPARTMENT_OPTIONS } from '../data/employeeDepartments';
 
 // --- CONFIGURATION ---
 const INITIAL_FORM_STATE: Partial<Employee> = {
   full_name: '',
   department_code: '',
   team_code: '',
-  role: 'staff',
+  role: 'junior',
   position: '',
   email: '',
   phone: '',
@@ -80,12 +82,13 @@ const COLUMN_DEFS: Record<string, ColDef> = {
     renderContent: (e) => (
       <span className={clsx(
         "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border",
-        e.role === 'ceo' || e.role === 'admin' ? "bg-purple-50 text-purple-600 border-purple-200" :
-        e.role === 'director' ? "bg-blue-50 text-blue-600 border-blue-200" :
-        e.role === 'manager' ? "bg-amber-50 text-amber-600 border-amber-200" :
+        e.role === 'admin' || e.role === 'ceo' ? "bg-purple-50 text-purple-600 border-purple-200" :
+        e.role === 'senior' || e.role === 'director' || e.role === 'senior_staff' ? "bg-blue-50 text-blue-600 border-blue-200" :
+        e.role === 'intermediate' || e.role === 'manager' ? "bg-amber-50 text-amber-600 border-amber-200" :
+        e.role === 'collaborator' ? "bg-slate-50 text-slate-500 border-slate-200" :
         "bg-slate-50 text-slate-600 border-slate-200"
       )}>
-        {e.role || 'staff'}
+        {roleLabel(e.role)}
       </span>
     )
   },
@@ -128,8 +131,9 @@ const EmployeesPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'list' | 'stats'>('list');
   const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<{ type: 'single' | 'bulk'; id?: string }>({ type: 'single' });
+  const [confirmAction, setConfirmAction] = useState<{ type: 'single' | 'bulk' | 'match'; id?: string }>({ type: 'single' });
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isMatching, setIsMatching] = useState(false);
 
   // Data State
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -144,6 +148,7 @@ const EmployeesPage: React.FC = () => {
   // Selected Filters
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
 
   // Mobile Filter sheet
   const [showMobileFilter, setShowMobileFilter] = useState(false);
@@ -246,7 +251,28 @@ const EmployeesPage: React.FC = () => {
     setIsConfirmOpen(true);
   };
 
+  const handleMatchDataClick = () => {
+    setConfirmAction({ type: 'match' });
+    setIsConfirmOpen(true);
+  };
+
   const handleConfirmDelete = async () => {
+    if (confirmAction.type === 'match') {
+      try {
+        setIsMatching(true);
+        const result = await employeeService.matchCatalog();
+        success(`Matched data: ${result.updated} updated, ${result.skipped} already standard`);
+        setIsConfirmOpen(false);
+        fetchData();
+      } catch (err: any) {
+        console.error('Failed to match catalog:', err);
+        error(err instanceof Error ? err.message : (err?.message || 'Failed to match catalog data'));
+      } finally {
+        setIsMatching(false);
+      }
+      return;
+    }
+
     try {
       setIsDeleting(true);
       if (confirmAction.type === 'single' && confirmAction.id) {
@@ -281,8 +307,9 @@ const EmployeesPage: React.FC = () => {
       if (!matchesText) return false;
     }
 
-    if (selectedDepartments.length > 0 && e.department_code && !selectedDepartments.includes(e.department_code)) return false;
-    if (selectedPositions.length > 0 && e.position && !selectedPositions.includes(toEnglishPosition(e.position))) return false;
+    if (selectedDepartments.length > 0 && !selectedDepartments.includes(e.department_code || '')) return false;
+    if (selectedPositions.length > 0 && !selectedPositions.includes(toEnglishPosition(e.position))) return false;
+    if (selectedRoles.length > 0 && !selectedRoles.includes(toStandardRole(e.role))) return false;
 
     return true;
   });
@@ -295,18 +322,15 @@ const EmployeesPage: React.FC = () => {
     setSelectedEmployees(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
-  const departments = Array.from(new Set(employees.map(e => e.department_code).filter(Boolean))) as string[];
-  const departmentLabel = (code: string) => {
-    const emp = employees.find(e => e.department_code === code);
-    return emp?.departments?.name || emp?.department || code;
-  };
-  const positions = Array.from(
-    new Set(
-      employees
-        .map((e) => toEnglishPosition(e.position))
-        .filter(Boolean),
-    ),
-  ) as string[];
+  // Full catalog options (not only values currently used by employees)
+  const departments = ORG_DEPARTMENT_OPTIONS.map((d) => d.code);
+  const departmentLabel = (code: string) =>
+    ORG_DEPARTMENT_OPTIONS.find((d) => d.code === code)?.name
+    || employees.find((e) => e.department_code === code)?.departments?.name
+    || employees.find((e) => e.department_code === code)?.department
+    || code;
+  const positions = [...EMPLOYEE_POSITION_OPTIONS];
+  const roles = EMPLOYEE_ROLE_OPTIONS.map((r) => r.value);
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full flex-1 flex flex-col -mt-2 min-h-0">
@@ -350,8 +374,18 @@ const EmployeesPage: React.FC = () => {
                 <button
                   onClick={fetchData}
                   className="px-3 py-1.5 rounded-xl border border-border bg-white text-muted-foreground hover:bg-muted transition-all"
+                  title="Refresh"
                 >
                   <RefreshCcw size={16} className={loading ? 'animate-spin' : ''} />
+                </button>
+                <button
+                  onClick={handleMatchDataClick}
+                  disabled={isMatching || loading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-white text-slate-700 hover:bg-muted text-[12px] font-bold transition-all disabled:opacity-50"
+                  title="Normalize positions, roles, and departments to English standards"
+                >
+                  <Wand2 size={14} className={isMatching ? 'animate-spin' : ''} />
+                  Match data
                 </button>
                 <ColumnSettings
                   columns={COLUMN_DEFS}
@@ -459,6 +493,42 @@ const EmployeesPage: React.FC = () => {
                   }))}
                   selected={selectedPositions}
                   onToggle={(id) => setSelectedPositions(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
+                  searchValue={filterSearch}
+                  onSearchChange={setFilterSearch}
+                />
+              </div>
+
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setActiveDropdown(activeDropdown === 'role' ? null : 'role');
+                    setFilterSearch('');
+                  }}
+                  className={clsx(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-[12px] font-bold shadow-sm",
+                    activeDropdown === 'role' || selectedRoles.length > 0
+                      ? "bg-primary/5 border-primary text-primary"
+                      : "bg-white border-border hover:bg-muted text-muted-foreground"
+                  )}
+                >
+                  <Users size={14} className={clsx(activeDropdown === 'role' || selectedRoles.length > 0 ? "text-primary" : "text-muted-foreground/50")} />
+                  Role
+                  {selectedRoles.length > 0 && (
+                    <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
+                      {selectedRoles.length}
+                    </span>
+                  )}
+                  <ChevronRight size={14} className={clsx("transition-transform ml-1 opacity-40", activeDropdown === 'role' ? "-rotate-90" : "rotate-90")} />
+                </button>
+                <FilterDropdown
+                  isOpen={activeDropdown === 'role'}
+                  options={roles.map(role => ({
+                    id: role,
+                    label: roleLabel(role),
+                    count: employees.filter(e => toStandardRole(e.role) === role).length
+                  }))}
+                  selected={selectedRoles}
+                  onToggle={(id) => setSelectedRoles(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
                   searchValue={filterSearch}
                   onSearchChange={setFilterSearch}
                 />
@@ -607,12 +677,22 @@ const EmployeesPage: React.FC = () => {
         isOpen={isConfirmOpen}
         onClose={() => setIsConfirmOpen(false)}
         onConfirm={handleConfirmDelete}
-        isProcessing={isDeleting}
+        isProcessing={isDeleting || isMatching}
         message={
-          <>
-            Are you sure you want to delete {confirmAction.type === 'bulk' ? `these ${selectedEmployees.length} employees` : 'this employee'}?
-            All associated data will be permanently removed.
-          </>
+          confirmAction.type === 'match' ? (
+            <>
+              Match all employee catalog fields to English standards?
+              <br />
+              <span className="text-muted-foreground font-medium">
+                Updates Position, Role, and Department labels when they differ from the standard list. Already-correct rows are skipped.
+              </span>
+            </>
+          ) : (
+            <>
+              Are you sure you want to delete {confirmAction.type === 'bulk' ? `these ${selectedEmployees.length} employees` : 'this employee'}?
+              All associated data will be permanently removed.
+            </>
+          )
         }
       />
     </div>

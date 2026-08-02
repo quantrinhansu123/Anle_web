@@ -1,5 +1,6 @@
 import React from 'react';
 import { usePermissions } from '../../hooks/usePermissions';
+import { hasAllowedRole } from '../../data/employeeRoles';
 
 interface PermissionGateProps {
   children: React.ReactNode;
@@ -22,11 +23,8 @@ const PermissionGate: React.FC<PermissionGateProps> = ({
 
   // Check role requirement
   if (roles && roles.length > 0) {
-    if (!user.role || !roles.includes(user.role)) {
-      // CEO/Admin bypass role list check
-      if (user.role !== 'ceo' && user.role !== 'admin' && user.position !== 'Admin') {
-        return <>{fallback}</>;
-      }
+    if (!hasAllowedRole(user.role, roles, { position: user.position, departmentCode: user.department_code })) {
+      return <>{fallback}</>;
     }
   }
 

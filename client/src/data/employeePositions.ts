@@ -2,7 +2,7 @@
 export const EMPLOYEE_POSITION_OPTIONS = [
   'Director',
   'Vice Director',
-  'Advisor - Assistant',
+  'Advisor Assistant',
   'Internal Accountant',
   'Cleaner',
   'Administration - Legal',
@@ -11,6 +11,8 @@ export const EMPLOYEE_POSITION_OPTIONS = [
   'Purchasing',
   'Documentation',
   'Field Operations',
+  'Worker',
+  'Warehouse Keeper',
 ] as const;
 
 /** Map legacy Vietnamese (and variants) → English. Already-English values are omitted. */
@@ -22,9 +24,13 @@ export const POSITION_VI_TO_EN: Record<string, string> = {
   'Phó giám đốc': 'Vice Director',
   'Deputy Director': 'Vice Director',
   'Assistant Director': 'Vice Director',
-  'Cố vấn - Trợ lí': 'Advisor - Assistant',
-  'Cố vấn - Trợ lý': 'Advisor - Assistant',
-  'Cố Vấn - Trợ Lí': 'Advisor - Assistant',
+  'Cố vấn - Trợ lí': 'Advisor Assistant',
+  'Cố vấn - Trợ lý': 'Advisor Assistant',
+  'Cố Vấn - Trợ Lí': 'Advisor Assistant',
+  'Cố vấn trợ lý': 'Advisor Assistant',
+  'Cố vấn trợ lí': 'Advisor Assistant',
+  'Cố Vấn Trợ Lý': 'Advisor Assistant',
+  'Advisor - Assistant': 'Advisor Assistant',
   'Kế Toán Nội Bộ': 'Internal Accountant',
   'Kế toán nội bộ': 'Internal Accountant',
   'Lao Công': 'Cleaner',
@@ -43,6 +49,10 @@ export const POSITION_VI_TO_EN: Record<string, string> = {
   'Chứng từ': 'Documentation',
   'Hiện Trường': 'Field Operations',
   'Hiện trường': 'Field Operations',
+  'Công Nhân': 'Worker',
+  'Công nhân': 'Worker',
+  'Thủ Kho': 'Warehouse Keeper',
+  'Thủ kho': 'Warehouse Keeper',
 };
 
 export function toEnglishPosition(value: string | null | undefined): string {
