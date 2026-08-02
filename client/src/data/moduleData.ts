@@ -5,7 +5,7 @@ import {
   Handshake, Package, ShoppingCart, Palette, Building2, ImageIcon, Boxes,
   Calendar, Activity, LayoutDashboard, LayoutGrid, Zap, Mail, Link as LinkIcon, Briefcase, GraduationCap, Grid, BookOpen,
   MessageSquare, Banknote, Coins, AppWindow, Receipt,
-  Bot, Shield, UserCircle, BarChart3, ClipboardList, Scale, LineChart, ArrowRightLeft, CalendarRange,
+  Bot, Shield, UserCircle, BarChart3, ClipboardList, Scale, LineChart, ArrowRightLeft, CalendarRange, KeyRound,
 } from 'lucide-react';
 import type { ModuleCardProps } from '../components/ui/ModuleCard';
 
@@ -231,6 +231,7 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
         { icon: Building2, title: 'Company Info', description: 'Manage company profile, logos, and contacts.', colorScheme: 'orange', path: '/system/company-info' },
         { icon: Zap, title: 'Exchange Rates', description: 'General application configuration for currency.', colorScheme: 'amber', path: '/system/exchange-rates' },
         { icon: ImageIcon, title: 'Image Gallery', description: 'Upload images to host and get URLs.', colorScheme: 'teal', path: '/system/image-gallery' },
+        { icon: KeyRound, title: 'Access Control', description: 'Role combination keys and view permissions.', colorScheme: 'purple', path: '/system/access-control', requiredRoles: ['ceo', 'director', 'admin', 'senior'] },
         { icon: Shield, title: 'Legal & Copyright', description: 'System license and terms of service.', colorScheme: 'slate', path: '/copyright' },
       ]
     },

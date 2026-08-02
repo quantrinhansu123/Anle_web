@@ -22,6 +22,7 @@ import EmployeeDetailsPage from './pages/employees/EmployeeDetailsPage';
 import SupplierDetailsPage from './pages/suppliers/SupplierDetailsPage';
 import CompanyInfoPage from './pages/system/CompanyInfoPage';
 import ImageGalleryPage from './pages/system/ImageGalleryPage';
+import AccessControlPage from './pages/system/AccessControlPage';
 import HoadonAnle from './pages/sales/HoadonAnle';
 import SalesEditorPage from './pages/sales/SalesEditorPage';
 import SalesChargeCatalogPage from './pages/SalesChargeCatalogPage';
@@ -152,6 +153,14 @@ function App() {
                 <Route path="/system/exchange-rates" element={<ExchangeRatesPage />} />
                 <Route path="/system/company-info" element={<CompanyInfoPage />} />
                 <Route path="/system/image-gallery" element={<ImageGalleryPage />} />
+                <Route
+                  path="/system/access-control"
+                  element={
+                    <ProtectedRoute requiredRoles={['ceo', 'director', 'admin', 'senior']}>
+                      <AccessControlPage />
+                    </ProtectedRoute>
+                  }
+                />
 
                 {/* Placeholder Routes */}
                 <Route path="/inventory/overview" element={<InventoryOverviewPage />} />
