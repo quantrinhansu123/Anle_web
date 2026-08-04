@@ -327,6 +327,7 @@ interface QuotationDocumentBodyProps {
   viewCurrency: string;
   displayedRows: DisplayedProgressRow[];
   totalAmount: number;
+  showTotal: boolean;
   formatProgressNumber: (n: number) => string;
   termsConditions: string[];
   onTermChange: (index: number, value: string) => void;
@@ -446,7 +447,7 @@ const QUOTATION_PRINT_CSS = `
 
 export const QuotationDocumentBody = forwardRef<HTMLDivElement, QuotationDocumentBodyProps>(
   function QuotationDocumentBody(
-    { lang, data, viewCurrency, displayedRows, totalAmount, formatProgressNumber, termsConditions, onTermChange, onAddTerm, onRemoveTerm },
+    { lang, data, viewCurrency, displayedRows, totalAmount, showTotal, formatProgressNumber, termsConditions, onTermChange, onAddTerm, onRemoveTerm },
     ref,
   ) {
     const L = COPY[lang];
@@ -616,11 +617,13 @@ export const QuotationDocumentBody = forwardRef<HTMLDivElement, QuotationDocumen
               ))}
             </tbody>
           </table>
-          <div className="qp-total-row">
-            <p className="qp-total">
-              {L.totalPrefix} {formatProgressNumber(totalAmount)} {viewCurrency}
-            </p>
-          </div>
+          {showTotal ? (
+            <div className="qp-total-row">
+              <p className="qp-total">
+                {L.totalPrefix} {formatProgressNumber(totalAmount)} {viewCurrency}
+              </p>
+            </div>
+          ) : null}
         </div>
         </div>{/* end qp-page-1-content */}
 
@@ -709,6 +712,7 @@ const HoadonAnle: React.FC = () => {
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
+  const [showTotal, setShowTotal] = useState(true);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const printRefVi = useRef<HTMLDivElement>(null);
   const printRefEn = useRef<HTMLDivElement>(null);
@@ -967,6 +971,15 @@ const HoadonAnle: React.FC = () => {
           Back
         </button>
         <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg shadow-sm border border-border cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showTotal}
+              onChange={(e) => setShowTotal(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/30"
+            />
+            <span className="text-[13px] font-bold text-slate-700">Hiện Total</span>
+          </label>
           <select
             value={viewCurrency}
             onChange={(e) => setViewCurrency(e.target.value)}
@@ -1037,6 +1050,7 @@ const HoadonAnle: React.FC = () => {
           viewCurrency={viewCurrency}
           displayedRows={displayedRows}
           totalAmount={totalAmount}
+          showTotal={showTotal}
           formatProgressNumber={formatProgressNumber}
           termsConditions={termsConditions}
           onTermChange={handleTermChange}
@@ -1053,6 +1067,7 @@ const HoadonAnle: React.FC = () => {
           viewCurrency={viewCurrency}
           displayedRows={displayedRows}
           totalAmount={totalAmount}
+          showTotal={showTotal}
           formatProgressNumber={formatProgressNumber}
           termsConditions={termsConditions}
           onTermChange={handleTermChange}
