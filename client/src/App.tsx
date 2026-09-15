@@ -22,7 +22,8 @@ import EmployeeDetailsPage from './pages/employees/EmployeeDetailsPage';
 import SupplierDetailsPage from './pages/suppliers/SupplierDetailsPage';
 import CompanyInfoPage from './pages/system/CompanyInfoPage';
 import ImageGalleryPage from './pages/system/ImageGalleryPage';
-import AccessControlPage from './pages/system/AccessControlPage';
+import PhanQuyenPage from './pages/settings/PhanQuyenPage';
+import RolePermissionDetailPage from './pages/settings/RolePermissionDetailPage';
 import HoadonAnle from './pages/sales/HoadonAnle';
 import SalesEditorPage from './pages/sales/SalesEditorPage';
 import SalesChargeCatalogPage from './pages/SalesChargeCatalogPage';
@@ -96,7 +97,8 @@ function App() {
                 <Route path="/finance" element={<ModulePage />} />
                 <Route path="/productivity" element={<ModulePage />} />
                 <Route path="/reports" element={<ModulePage />} />
-                <Route path="/system" element={<ModulePage />} />
+                <Route path="/cai-dat" element={<ModulePage />} />
+                <Route path="/system" element={<Navigate to="/cai-dat" replace />} />
                 <Route path="/inventory" element={<ModulePage />} />
 
                 {/* Existing Routes */}
@@ -155,9 +157,21 @@ function App() {
                 <Route path="/system/image-gallery" element={<ImageGalleryPage />} />
                 <Route
                   path="/system/access-control"
+                  element={<Navigate to="/cai-dat/phan-quyen" replace />}
+                />
+                <Route
+                  path="/cai-dat/phan-quyen"
                   element={
                     <ProtectedRoute requiredRoles={['ceo', 'director', 'admin', 'senior']}>
-                      <AccessControlPage />
+                      <PhanQuyenPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/cai-dat/phan-quyen/roles/:roleId"
+                  element={
+                    <ProtectedRoute requiredRoles={['ceo', 'director', 'admin', 'senior']}>
+                      <RolePermissionDetailPage />
                     </ProtectedRoute>
                   }
                 />

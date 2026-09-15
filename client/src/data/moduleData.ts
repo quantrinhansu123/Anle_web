@@ -5,7 +5,7 @@ import {
   Handshake, Package, ShoppingCart, Palette, Building2, ImageIcon, Boxes,
   Calendar, Activity, LayoutDashboard, LayoutGrid, Zap, Mail, Link as LinkIcon, Briefcase, GraduationCap, Grid, BookOpen,
   MessageSquare, Banknote, Coins, AppWindow, Receipt,
-  Bot, Shield, UserCircle, BarChart3, ClipboardList, Scale, LineChart, ArrowRightLeft, CalendarRange, KeyRound,
+  Bot, Shield, UserCircle, BarChart3, ClipboardList, Scale, LineChart, ArrowRightLeft, CalendarRange,
 } from 'lucide-react';
 import type { ModuleCardProps } from '../components/ui/ModuleCard';
 
@@ -222,28 +222,63 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
       ]
     }
   ],
-  '/system': [
+  '/cai-dat': [
     {
-      section: 'Configuration',
+      section: 'Cài đặt',
       items: [
-        { icon: Palette, title: 'Appearance', description: 'Customize UI theme, colors, and fonts.', colorScheme: 'blue', path: '/settings' },
-        { icon: UserCircle, title: 'My Profile', description: 'Manage your personal account settings.', colorScheme: 'blue', path: '/profile' },
-        { icon: Building2, title: 'Company Info', description: 'Manage company profile, logos, and contacts.', colorScheme: 'orange', path: '/system/company-info' },
-        { icon: Zap, title: 'Exchange Rates', description: 'General application configuration for currency.', colorScheme: 'amber', path: '/system/exchange-rates' },
-        { icon: ImageIcon, title: 'Image Gallery', description: 'Upload images to host and get URLs.', colorScheme: 'teal', path: '/system/image-gallery' },
-        { icon: KeyRound, title: 'Access Control', description: 'Role combination keys and view permissions.', colorScheme: 'purple', path: '/system/access-control', requiredRoles: ['ceo', 'director', 'admin', 'senior'] },
-        { icon: Shield, title: 'Legal & Copyright', description: 'System license and terms of service.', colorScheme: 'slate', path: '/copyright' },
-      ]
+        {
+          icon: Shield,
+          title: 'Phân quyền',
+          description: 'Tài khoản, vai trò, ma trận quyền và nhật ký thay đổi.',
+          colorScheme: 'purple',
+          path: '/cai-dat/phan-quyen',
+          requiredRoles: ['ceo', 'director', 'admin', 'senior'],
+        },
+        {
+          icon: Palette,
+          title: 'Giao diện',
+          description: 'Theme, màu sắc, font và kích thước chữ.',
+          colorScheme: 'blue',
+          path: '/settings',
+        },
+        {
+          icon: UserCircle,
+          title: 'Hồ sơ của tôi',
+          description: 'Thông tin tài khoản đăng nhập.',
+          colorScheme: 'slate',
+          path: '/profile',
+        },
+        {
+          icon: Building2,
+          title: 'Thông tin công ty',
+          description: 'Hồ sơ công ty, logo và liên hệ.',
+          colorScheme: 'orange',
+          path: '/system/company-info',
+        },
+        {
+          icon: Zap,
+          title: 'Tỷ giá',
+          description: 'Cấu hình tỷ giá tiền tệ.',
+          colorScheme: 'amber',
+          path: '/system/exchange-rates',
+        },
+        {
+          icon: ImageIcon,
+          title: 'Thư viện ảnh',
+          description: 'Upload ảnh và lấy URL.',
+          colorScheme: 'teal',
+          path: '/system/image-gallery',
+        },
+        {
+          icon: Shield,
+          title: 'Bản quyền',
+          description: 'Giấy phép và điều khoản hệ thống.',
+          colorScheme: 'slate',
+          path: '/copyright',
+        },
+      ],
     },
-    {
-      section: 'System Administration',
-      items: [
-        { icon: Grid, title: 'Apps', description: 'App store, manage modules and integrations.', colorScheme: 'emerald', path: '/apps' },
-        { icon: LayoutDashboard, title: 'Job Queue', description: 'Monitor background jobs and system tasks.', colorScheme: 'slate', path: '/system/job-queue' },
-        { icon: Activity, title: 'Mass Activities', description: 'Configure dynamic actions for bulk data.', colorScheme: 'purple', path: '/system/mass-activities' },
-      ]
-    }
-  ]
+  ],
 };
 
 export const getDirectPath = (path: string): string => {

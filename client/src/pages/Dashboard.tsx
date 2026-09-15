@@ -3,7 +3,7 @@ import { ActionCard } from '../components/ui/ActionCard';
 import type { ActionCardProps } from '../components/ui/ActionCard';
 import {
   Package, Users, BadgeDollarSign, Handshake,
-  Search, Star, Truck
+  Search, Star, Truck, Settings
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { moduleData, getDirectPath } from '../data/moduleData';
@@ -45,6 +45,13 @@ const dashboardModules: ActionCardProps[] = [
     description: 'Invoicing, Expenses, and Accounting.',
     href: '/finance',
     colorScheme: 'amber'
+  },
+  {
+    icon: Settings,
+    title: 'Cài đặt',
+    description: 'Phân quyền, giao diện và hồ sơ tài khoản.',
+    href: '/cai-dat',
+    colorScheme: 'purple'
   }
 ];
 

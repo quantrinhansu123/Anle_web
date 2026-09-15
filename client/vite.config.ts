@@ -5,7 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 const apiOrigin = (() => {
   const configured = process.env.VITE_API_URL
     ? new URL(process.env.VITE_API_URL).origin
-    : 'http://127.0.0.1:3002';
+    : 'http://127.0.0.1:3003';
 
   // Keep the dev proxy aligned with the client-side API fallback. On some
   // Windows setups localhost resolves to a different listener than 127.0.0.1.

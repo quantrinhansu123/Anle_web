@@ -120,7 +120,7 @@ const ExchangeRatesPage: React.FC = () => {
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2 flex-1">
               <button
-                onClick={() => navigate('/system')}
+                onClick={() => navigate('/cai-dat')}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border hover:bg-muted text-[12px] font-bold transition-all bg-white shadow-sm shrink-0"
               >
                 <ChevronLeft size={16} />Back

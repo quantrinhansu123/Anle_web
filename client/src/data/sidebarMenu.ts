@@ -31,7 +31,7 @@ export const sidebarMenu: SidebarItem[] = [
   { icon: BadgeDollarSign, label: 'Finance', path: '/finance', requiredDepartments: ['finance', 'bod'] },
   { icon: BarChart3, label: 'Reports', path: '/reports' },
   { icon: Clock, label: 'Productivity', path: '/productivity' },
-  { icon: Settings, label: 'System & Apps', path: '/system', requiredRoles: ['ceo', 'director'] }
+  { icon: Settings, label: 'Cài đặt', path: '/cai-dat', requiredRoles: ['ceo', 'director', 'admin', 'senior'] },
 ];
 
 // Additional items seen on the dashboard
