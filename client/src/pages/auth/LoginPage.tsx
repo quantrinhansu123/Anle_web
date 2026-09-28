@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { Mail, Lock, Loader2, ArrowRight, ShieldCheck, User as UserIcon } from 'lucide-react';
+import { Mail, Lock, Loader2, ArrowRight, User as UserIcon } from 'lucide-react';
 import { systemSettingsService } from '../../services/systemSettingsService';
 import type { SystemSettings } from '../../types/systemSettings';
 
@@ -11,7 +11,6 @@ const LoginPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
-  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -26,8 +25,6 @@ const LoginPage: React.FC = () => {
         setSettings(data);
       } catch (err) {
         console.error('Failed to fetch company info:', err);
-      } finally {
-        setIsLoadingSettings(false);
       }
     };
     fetchSettings();
@@ -64,16 +61,15 @@ const LoginPage: React.FC = () => {
         {/* Logo/Brand Section */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary text-white shadow-xl shadow-primary/20 mb-4 transform hover:scale-105 transition-transform duration-300 overflow-hidden">
-            {isLoadingSettings ? (
-              <Loader2 className="animate-spin text-white/50" />
-            ) : settings?.logo_url ? (
+            {settings?.logo_url ? (
               <img 
                 src={settings.logo_url} 
                 alt="Logo" 
                 className="w-full h-full object-contain p-2 bg-white" 
+                onError={(event) => { event.currentTarget.src = '/anle-logo.png'; }}
               />
             ) : (
-              <ShieldCheck size={32} />
+              <img src="/anle-logo.png" alt="An Le logo" className="w-full h-full object-contain p-1 bg-white" />
             )}
           </div>
           <h1 className="text-2xl font-black text-foreground tracking-tight">
