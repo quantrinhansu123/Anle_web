@@ -3,13 +3,14 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 const apiOrigin = (() => {
-  const configured = process.env.VITE_API_URL
-    ? new URL(process.env.VITE_API_URL).origin
-    : 'http://127.0.0.1:3003';
+  const configured = process.env.VITE_API_URL;
+  if (!configured || configured.startsWith('/')) return 'http://127.0.0.1:3004';
 
-  // Keep the dev proxy aligned with the client-side API fallback. On some
-  // Windows setups localhost resolves to a different listener than 127.0.0.1.
-  return configured.replace('http://localhost', 'http://127.0.0.1');
+  try {
+    return new URL(configured).origin;
+  } catch {
+    return 'http://127.0.0.1:3004';
+  }
 })();
 
 // https://vite.dev/config/
