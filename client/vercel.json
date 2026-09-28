@@ -2,6 +2,10 @@
   "version": 2,
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "https://anle-web-server.vercel.app/api/$1"
+    },
+    {
       "source": "/uploads/(.*)",
       "destination": "https://anle-web-server.vercel.app/api/v1/f/uploads/$1"
     },

@@ -1,8 +1,9 @@
+const PRODUCTION_API_URL = 'https://anle-web-server.vercel.app/api/v1';
+
 const resolveBaseUrl = () => {
   const configured = import.meta.env.VITE_API_URL as string | undefined;
   if (!configured) {
-    if (import.meta.env.DEV) return '/api/v1';
-    return 'http://127.0.0.1:3003/api/v1';
+    return import.meta.env.DEV ? '/api/v1' : PRODUCTION_API_URL;
   }
 
   // Avoid mixed-content/network failures on deployed HTTPS clients when env accidentally points to localhost HTTP.
@@ -15,7 +16,13 @@ const resolveBaseUrl = () => {
       configured.startsWith('http://127.0.0.1');
 
     if (!isLocalClient && isHttpsClient && isLocalApi) {
-      return '/api/v1';
+      return PRODUCTION_API_URL;
+    }
+
+    // A relative API URL on the deployed frontend bypasses Vercel rewrites and
+    // returns the frontend's HTML. Point it directly at the API deployment.
+    if (!isLocalClient && configured.startsWith('/')) {
+      return PRODUCTION_API_URL;
     }
 
     // Some Windows environments fail resolving localhost but 127.0.0.1 works.
